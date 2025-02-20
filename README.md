@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ```
 
 Now make sure that you have postgresql installed and running on port 5432 (default port) <br>
-After that, you will need to create "khadamni" database and "khadamni" user <br>
+After that, you will need to create "mindcare" database and "mindcare" user <br>
 You can use the following commands to create the database and the user:
 
 please refer to the [DATABASE](DATABASE.md) file for more information on how to create the database and the user.

@@ -13,9 +13,7 @@ logs/
 # Database files
 *.sqlite3
 
-# Environment variables
-.env
-*.env
+ 
 
 # Static and media files
 staticfiles/

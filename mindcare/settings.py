@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -52,6 +53,7 @@ INSTALLED_APPS = [
     "activities",
     "notifications",
     "analytics",
+    "drf_spectacular",
 ]
 
 
@@ -87,18 +89,25 @@ WSGI_APPLICATION = "mindcare.wsgi.application"
 
 
 # Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+
+USE_CLOUD = os.getenv("USE_CLOUD") == "true"
+
+DB_NAME = os.getenv("DB_NAME") if USE_CLOUD else "mindcare"
+DB_USER = os.getenv("DB_USER") if USE_CLOUD else "mindcare"
+DB_PASSWORD = os.getenv("DB_PASSWORD") if USE_CLOUD else "mindcare"
+DB_HOST = os.getenv("DB_HOST") if USE_CLOUD else "localhost"
+DB_PORT = os.getenv("DB_PORT") if USE_CLOUD else "5432"
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "neondb",
-        "USER": "neondb_owner",
-        "PASSWORD": "npg_RPS6lD4GmZuH",
-        "HOST": "ep-bold-moon-a2cbkf8u-pooler.eu-central-1.aws.neon.tech",
-        "PORT": "5432",
+        "NAME": DB_NAME,
+        "USER": DB_USER,
+        "PASSWORD": DB_PASSWORD,
+        "HOST": DB_HOST,
+        "PORT": DB_PORT,
         "OPTIONS": {
-            "sslmode": "require",  # Ensure SSL is enabled
+            "sslmode": "require",   
         },
     }
 }
@@ -144,3 +153,8 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+ 
+}

@@ -40,7 +40,20 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Custom apps
+    "core",
+    "auth",
+    "users",
+    "mood",
+    "journal",
+    "therapy",
+    "community",
+    "activities",
+    "notifications",
+    "analytics",
 ]
+
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

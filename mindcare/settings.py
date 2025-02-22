@@ -90,7 +90,7 @@ WSGI_APPLICATION = "mindcare.wsgi.application"
 
 # Database
 
-USE_CLOUD = os.getenv("USE_CLOUD") == "true"
+USE_CLOUD = os.getenv("USE_CLOUD") == "false"
 
 DB_NAME = os.getenv("DB_NAME") if USE_CLOUD else "mindcare"
 DB_USER = os.getenv("DB_USER") if USE_CLOUD else "mindcare"
@@ -101,13 +101,13 @@ DB_PORT = os.getenv("DB_PORT") if USE_CLOUD else "5432"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": DB_NAME,
-        "USER": DB_USER,
-        "PASSWORD": DB_PASSWORD,
-        "HOST": DB_HOST,
-        "PORT": DB_PORT,
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
         "OPTIONS": {
-            "sslmode": "require",   
+            "sslmode": "disable",
         },
     }
 }

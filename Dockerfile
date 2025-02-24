@@ -1,6 +1,6 @@
 FROM python:3.12
 
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /code
 
@@ -11,5 +11,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 EXPOSE 8000
+
+ENV ALLOWED_HOSTS="0.0.0.0,127.0.0.1"
 
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

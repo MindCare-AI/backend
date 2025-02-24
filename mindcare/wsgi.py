@@ -1,4 +1,4 @@
-#mindcare/wsgi.py
+# mindcare/wsgi.py
 
 import os
 

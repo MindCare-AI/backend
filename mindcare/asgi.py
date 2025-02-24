@@ -1,4 +1,4 @@
-#mindcare/asgi.py
+# mindcare/asgi.py
 
 import os
 

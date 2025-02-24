@@ -1,4 +1,4 @@
-#auth\urls.py
+# auth\urls.py
 from django.urls import path, re_path
 from auth.registration.views import (
     CustomConfirmEmailView,
@@ -31,11 +31,25 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("register/", CustomRegisterView.as_view(), name="register"),
     path("password/reset/", PasswordResetView.as_view(), name="password_reset"),
-    path("password/reset/confirm/<uidb64>/<token>/", CustomPasswordResetConfirmView.as_view(), name="password_reset_confirm"),
+    path(
+        "password/reset/confirm/<uidb64>/<token>/",
+        CustomPasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
     path("password/change/", PasswordChangeView.as_view(), name="password_change"),
     path("email/verify/", VerifyEmailView.as_view(), name="verify_email"),
-    path("email/verify/resend/", CustomResendEmailVerificationView.as_view(), name="resend_email_verification"),
-    re_path(r"^email/confirm/(?P<key>[-:\w]+)/$", CustomConfirmEmailView.as_view(), name="account_confirm_email"),
+    path(
+        "email/verify/resend/",
+        CustomResendEmailVerificationView.as_view(),
+        name="resend_email_verification",
+    ),
+    re_path(
+        r"^email/confirm/(?P<key>[-:\w]+)/$",
+        CustomConfirmEmailView.as_view(),
+        name="account_confirm_email",
+    ),
     path("login/google/", GoogleLogin.as_view(), name="google_login"),
-    path("login/google/start/", GoogleAuthRedirect.as_view(), name="google_auth_redirect"),
+    path(
+        "login/google/start/", GoogleAuthRedirect.as_view(), name="google_auth_redirect"
+    ),
 ]

@@ -1,4 +1,4 @@
-#auth\views.py
+# auth\views.py
 import logging
 from dj_rest_auth.views import PasswordResetConfirmView
 from dj_rest_auth.registration.views import SocialLoginView
@@ -8,25 +8,24 @@ from .serializers import CustomPasswordResetConfirmSerializer
 from django.utils.decorators import method_decorator
 from django.views.decorators.debug import sensitive_post_parameters
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework import status
 from django.conf import settings
 from django.http import HttpResponseRedirect
 from urllib.parse import urlencode
-from django.contrib.auth import authenticate, login
-from rest_framework.authtoken.models import Token
 
 # Decorator for sensitive post parameters
 sensitive_post_parameters_m = method_decorator(
     sensitive_post_parameters("new_password1", "new_password2")
 )
 
+
 class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     """
     Custom password reset confirmation view for Mindcare.
     Stores and retrieves UID and token from the session.
     """
+
     serializer_class = CustomPasswordResetConfirmSerializer
 
     @sensitive_post_parameters_m
@@ -64,12 +63,15 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
             status=status.HTTP_200_OK,
         )
 
+
 logger = logging.getLogger(__name__)
+
 
 class GoogleLogin(SocialLoginView):  # Using Authorization Code Grant
     adapter_class = GoogleOAuth2Adapter
     callback_url = "http://localhost:8000/api/v1/auth/login/google/callback/"
     client_class = OAuth2Client
+
 
 class GoogleAuthRedirect(APIView):
     def get(self, request):

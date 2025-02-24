@@ -1,4 +1,4 @@
-#core/views.py
+# core/views.py
 from django.shortcuts import render
 
 

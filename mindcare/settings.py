@@ -1,4 +1,4 @@
-#mindcare/settings.py
+# mindcare/settings.py
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -36,8 +36,8 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
-    "rest_framework",            
-    "rest_framework.authtoken",   
+    "rest_framework",
+    "rest_framework.authtoken",
     # Custom apps
     "core",
     "auth",

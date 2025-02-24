@@ -1,9 +1,10 @@
-#auth\registration\custom_adapter.py
+# auth\registration\custom_adapter.py
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 import smtplib
 import socket
 from rest_framework.response import Response
+
 
 class AccountAdapter(DefaultAccountAdapter):
     """

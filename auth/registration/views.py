@@ -1,4 +1,4 @@
-#auth\registration\views.py
+# auth\registration\views.py
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,6 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import smtplib
 import socket
 from .serializers import CustomRegisterSerializer
+
 
 class CustomRegisterView(RegisterView):
     serializer_class = CustomRegisterSerializer
@@ -50,6 +51,7 @@ class CustomRegisterView(RegisterView):
             headers=headers,
         )
 
+
 class CustomConfirmEmailView(APIView):
     permission_classes = [AllowAny]
 
@@ -80,22 +82,33 @@ class CustomConfirmEmailView(APIView):
             try:
                 email_confirmation = EmailConfirmation.objects.get(key=key)
                 email_confirmation.confirm(request)
-                return Response({"message": "Email confirmed successfully"},
-                                status=status.HTTP_200_OK)
+                return Response(
+                    {"message": "Email confirmed successfully"},
+                    status=status.HTTP_200_OK,
+                )
             except EmailConfirmation.DoesNotExist:
-                return Response({"message": "Invalid confirmation key"},
-                                status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"message": "Invalid confirmation key"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         except Exception as e:
             return Response(
-                {"message": "An error occurred during email confirmation", "error": str(e)},
+                {
+                    "message": "An error occurred during email confirmation",
+                    "error": str(e),
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
 
 class CustomResendEmailVerificationView(ResendEmailVerificationView):
     permission_classes = [AllowAny]
 
     def get_serializer_class(self):
-        from dj_rest_auth.registration.serializers import ResendEmailVerificationSerializer
+        from dj_rest_auth.registration.serializers import (
+            ResendEmailVerificationSerializer,
+        )
+
         return ResendEmailVerificationSerializer
 
     def create(self, request, *args, **kwargs):

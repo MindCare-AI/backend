@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 
+
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     # Remove redefinitions for username, groups, and user_permissions.
@@ -10,6 +11,7 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return self.username
+
 
 class UserProfile(models.Model):
     user = models.OneToOneField(
@@ -23,6 +25,7 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"Profile of {self.user.username}"
 
+
 class UserPreferences(models.Model):
     user = models.OneToOneField(
         CustomUser, on_delete=models.CASCADE, related_name="preferences"
@@ -33,6 +36,7 @@ class UserPreferences(models.Model):
 
     def __str__(self):
         return f"Preferences of {self.user.username}"
+
 
 class UserSettings(models.Model):
     user = models.OneToOneField(

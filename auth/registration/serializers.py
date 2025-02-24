@@ -1,14 +1,16 @@
-#auth\registration\serializers.py
+# auth\registration\serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from allauth.account.adapter import get_adapter
 from allauth.account.utils import setup_user_email
 from dj_rest_auth.registration.serializers import RegisterSerializer
 
+
 class CustomRegisterSerializer(RegisterSerializer):
     """
     Custom serializer for user registration in Mindcare.
     """
+
     username = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=True)  # ensure email is required
     first_name = serializers.CharField(required=True)
@@ -17,18 +19,14 @@ class CustomRegisterSerializer(RegisterSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = [
-            "username",
-            "email",
-            "first_name",
-            "last_name",
-            "password1"
-        ]
-    
+        fields = ["username", "email", "first_name", "last_name", "password1"]
+
     def validate_email(self, value):
         user_model = get_user_model()
         if user_model.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("A user is already registered with that email address.")
+            raise serializers.ValidationError(
+                "A user is already registered with that email address."
+            )
         return value
 
     def get_cleaned_data(self):

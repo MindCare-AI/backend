@@ -1,9 +1,13 @@
-#auth\serializers.py
-from dj_rest_auth.serializers import PasswordResetConfirmSerializer, UserDetailsSerializer
+# auth\serializers.py
+from dj_rest_auth.serializers import (
+    PasswordResetConfirmSerializer,
+    UserDetailsSerializer,
+)
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 UserModel = get_user_model()
+
 
 class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     new_password1 = serializers.CharField(
@@ -32,7 +36,10 @@ class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
         if self.set_password_form.is_valid():
             self.set_password_form.save()
             return self.set_password_form.user
-        raise serializers.ValidationError("An error occurred while resetting the password.")
+        raise serializers.ValidationError(
+            "An error occurred while resetting the password."
+        )
+
 
 class CustomUserDetailsSerializer(UserDetailsSerializer):
     class Meta(UserDetailsSerializer.Meta):

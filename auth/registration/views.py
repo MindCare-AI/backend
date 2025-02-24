@@ -11,9 +11,8 @@ from allauth.account import app_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 import smtplib
 import socket
-from .serializers import CustomRegisterSerializer  # Ensure this is correctly imported
+from .serializers import CustomRegisterSerializer
 
-# Custom Registration View for Mindcare
 class CustomRegisterView(RegisterView):
     serializer_class = CustomRegisterSerializer
 
@@ -51,21 +50,17 @@ class CustomRegisterView(RegisterView):
             headers=headers,
         )
 
-
-# Custom Email Confirmation View for Mindcare
 class CustomConfirmEmailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, key, *args, **kwargs):
         try:
-            # Attempt HMAC-based confirmation
             email_confirmation = EmailConfirmationHMAC.from_key(key)
             if not email_confirmation:
                 raise ObjectDoesNotExist
             email_confirmation.confirm(request)
             user = email_confirmation.email_address.user
             refresh = RefreshToken.for_user(user)
-            # Here you can use a custom user details serializer if needed
             user_data = {
                 "username": user.username,
                 "email": user.email,
@@ -85,23 +80,17 @@ class CustomConfirmEmailView(APIView):
             try:
                 email_confirmation = EmailConfirmation.objects.get(key=key)
                 email_confirmation.confirm(request)
-                return Response(
-                    {"message": "Email confirmed successfully"},
-                    status=status.HTTP_200_OK,
-                )
+                return Response({"message": "Email confirmed successfully"},
+                                status=status.HTTP_200_OK)
             except EmailConfirmation.DoesNotExist:
-                return Response(
-                    {"message": "Invalid confirmation key"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return Response({"message": "Invalid confirmation key"},
+                                status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(
                 {"message": "An error occurred during email confirmation", "error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-
-# Custom Resend Email Verification View for Mindcare
 class CustomResendEmailVerificationView(ResendEmailVerificationView):
     permission_classes = [AllowAny]
 

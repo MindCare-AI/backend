@@ -30,9 +30,6 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     serializer_class = CustomPasswordResetConfirmSerializer
 
     @sensitive_post_parameters_m
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
     def get(self, request, uidb64=None, token=None):
         if not uidb64 or not token:
             return Response(
@@ -76,18 +73,6 @@ class GoogleLogin(SocialLoginView):  # Using Authorization Code Grant
 
 class GoogleAuthRedirect(APIView):
     def get(self, request):
-        role = request.GET.get("role")
-        if not role:
-            return Response(
-                {"error": "Role is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if role not in ["patient", "therapist"]:
-            return Response(
-                {"error": "Invalid role. Must be 'patient' or 'therapist'."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        request.session["role"] = role
         try:
             google_settings = settings.SOCIALACCOUNT_PROVIDERS["google"]["APP"]
             client_id = google_settings["client_id"]

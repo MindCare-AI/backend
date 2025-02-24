@@ -1,7 +1,6 @@
 #auth\registration\custom_adapter.py
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
-from django.contrib.auth.models import Group
 import smtplib
 import socket
 from rest_framework.response import Response
@@ -45,13 +44,5 @@ class AccountAdapter(DefaultAccountAdapter):
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def save_user(self, request, sociallogin, form=None):
         user = super().save_user(request, sociallogin, form)
-        role = request.session.get("role") or request.GET.get("role")
-        # Assign user to a group based on role for Mindcare
-        if role == "therapist":
-            therapist_group, _ = Group.objects.get_or_create(name="Therapist")
-            user.groups.add(therapist_group)
-        elif role == "patient":
-            patient_group, _ = Group.objects.get_or_create(name="Patient")
-            user.groups.add(patient_group)
         user.save()
         return user

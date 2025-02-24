@@ -7,7 +7,6 @@ from .views import (
 )
 
 urlpatterns = [
-    # UserProfile endpoints
     path('profiles/', UserProfileViewSet.as_view({
         'get': 'list',
         'post': 'create'
@@ -18,8 +17,6 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='profile-detail'),
-
-    # UserPreferences endpoints
     path('preferences/', UserPreferencesViewSet.as_view({
         'get': 'list',
         'post': 'create'
@@ -30,8 +27,6 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='preferences-detail'),
-
-    # UserSettings endpoints
     path('settings/', UserSettingsViewSet.as_view({
         'get': 'list',
         'post': 'create'

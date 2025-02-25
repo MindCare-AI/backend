@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from allauth.account.adapter import get_adapter
 from allauth.account.utils import setup_user_email
 from dj_rest_auth.registration.serializers import RegisterSerializer
-
+from users.models import UserProfile, UserPreferences, UserSettings
 
 class CustomRegisterSerializer(RegisterSerializer):
     """
@@ -12,10 +12,10 @@ class CustomRegisterSerializer(RegisterSerializer):
     """
 
     username = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=True)  # ensure email is required
+    email = serializers.EmailField(required=True)   
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
-    # Removed role field
+   
 
     class Meta:
         model = get_user_model()
@@ -45,6 +45,9 @@ class CustomRegisterSerializer(RegisterSerializer):
         user.first_name = self.cleaned_data.get("first_name")
         user.last_name = self.cleaned_data.get("last_name")
         user.save()
+        UserProfile.objects.create(user=user)
+        UserPreferences.objects.create(user=user)
+        UserSettings.objects.create(user=user)
 
     def save(self, request):
         adapter = get_adapter()

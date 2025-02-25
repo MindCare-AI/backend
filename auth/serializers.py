@@ -44,3 +44,12 @@ class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
 class CustomUserDetailsSerializer(UserDetailsSerializer):
     class Meta(UserDetailsSerializer.Meta):
         fields = UserDetailsSerializer.Meta.fields + ("first_name", "last_name")
+
+
+class ConfirmEmailSerializer(serializers.Serializer):
+    key = serializers.CharField()
+
+
+class GoogleAuthSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    state = serializers.CharField(required=False)

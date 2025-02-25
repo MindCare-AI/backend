@@ -4,6 +4,7 @@ from .views import (
     UserProfileViewSet,
     UserPreferencesViewSet,
     UserSettingsViewSet,
+    UserListView  # Added import
 )
 
 urlpatterns = [
@@ -58,4 +59,5 @@ urlpatterns = [
         ),
         name="settings-detail",
     ),
+    path("users/", UserListView.as_view(), name="user-list"),  # Added UserListView
 ]

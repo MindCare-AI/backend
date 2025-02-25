@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "notifications",
     "analytics",
     "drf_spectacular",
+    "media_handler",
 ]
 
 SITE_ID = 1
@@ -186,11 +187,42 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Media file size limits
+MAX_UPLOAD_SIZE = 5242880  # 5MB
+ALLOWED_MEDIA_TYPES = {
+    'image': ['image/jpeg', 'image/png', 'image/gif'],
+    'video': ['video/mp4', 'video/mpeg'],
+    'audio': ['audio/mpeg', 'audio/wav'],
+    'document': ['application/pdf', 'application/msword']
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'MindCare API',
+    'DESCRIPTION': 'API documentation for MindCare application',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': True,
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    'SCHEMA_COERCE_PATH_PK_SUFFIX': True,
+    'POSTPROCESSING_HOOKS': [],
 }

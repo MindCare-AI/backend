@@ -4,12 +4,12 @@ from dj_rest_auth.views import PasswordResetConfirmView
 from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from .serializers import CustomPasswordResetConfirmSerializer
+from .serializers import CustomPasswordResetConfirmSerializer, GoogleAuthSerializer
 from django.utils.decorators import method_decorator
 from django.views.decorators.debug import sensitive_post_parameters
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework import status, generics
 from django.conf import settings
 from django.http import HttpResponseRedirect
 from urllib.parse import urlencode
@@ -73,7 +73,9 @@ class GoogleLogin(SocialLoginView):  # Using Authorization Code Grant
     client_class = OAuth2Client
 
 
-class GoogleAuthRedirect(APIView):
+class GoogleAuthRedirect(generics.GenericAPIView):
+    serializer_class = GoogleAuthSerializer
+
     def get(self, request):
         try:
             google_settings = settings.SOCIALACCOUNT_PROVIDERS["google"]["APP"]

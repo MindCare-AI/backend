@@ -3,6 +3,7 @@
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import platform
 
 load_dotenv()
 
@@ -106,7 +107,7 @@ DATABASES = {
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
         "OPTIONS": {
-            "sslmode": "disable",
+            "sslmode": "disable" if platform.system() == "Windows" else "require",
         },
     }
 }

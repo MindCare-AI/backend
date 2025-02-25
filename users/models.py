@@ -5,9 +5,10 @@ from django.utils import timezone
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
-    # Remove redefinitions for username, groups, and user_permissions.
-    # Any additional custom fields can be added below.
     created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'users_user'  # This sets the table name explicitly to 'users_user'
 
     def __str__(self):
         return self.username

@@ -4,7 +4,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 import platform
+import json
 
+ 
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -97,7 +99,6 @@ WSGI_APPLICATION = "mindcare.wsgi.application"
 
 # Database
 
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -106,12 +107,9 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
-        "OPTIONS": {
-            "sslmode": "disable" if platform.system() == "Windows" else "require",
-        },
+        "OPTIONS": json.loads(os.getenv("OPTIONS", "{}")),  # Convert string to dictionary
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

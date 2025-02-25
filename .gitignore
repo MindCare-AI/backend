@@ -20,9 +20,6 @@ logs/
 staticfiles/
 media/
 
-# Migrations (optional: keep if you want to track them)
-**/migrations/*.py
-!**/migrations/__init__.py
 
 # IDE & OS-specific files
 .vscode/

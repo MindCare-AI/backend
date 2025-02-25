@@ -12,44 +12,59 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import smtplib
 import socket
 from .serializers import CustomRegisterSerializer
+from django.db import transaction
+from users.models import UserProfile, UserPreferences, UserSettings
 
 
 class CustomRegisterView(RegisterView):
     serializer_class = CustomRegisterSerializer
 
+    @transaction.atomic
     def perform_create(self, serializer):
         user = serializer.save(self.request)
+        UserProfile.objects.get_or_create(user=user)
+        UserPreferences.objects.get_or_create(user=user)
+        UserSettings.objects.get_or_create(user=user)
         return user
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        email_status = {
-            "success": True,
-            "message": "Verification email sent successfully, check your email",
-            "status_code": status.HTTP_200_OK,
-        }
         try:
-            complete_signup(request, user, app_settings.EMAIL_VERIFICATION, None)
-        except (smtplib.SMTPException, socket.error, ConnectionRefusedError) as e:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
             email_status = {
-                "success": False,
-                "message": f"Failed to send verification email: {str(e)}",
-                "error_type": e.__class__.__name__,
-                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "success": True,
+                "message": "Verification email sent successfully, check your email",
+                "status_code": status.HTTP_200_OK,
             }
-        return Response(
-            {
-                "status": "success",
-                "message": "User registered successfully",
-                "user": serializer.data,
-                "email_verification": email_status,
-            },
-            status=status.HTTP_201_CREATED,
-            headers=headers,
-        )
+            try:
+                complete_signup(request, user, app_settings.EMAIL_VERIFICATION, None)
+            except (smtplib.SMTPException, socket.error, ConnectionRefusedError) as e:
+                email_status = {
+                    "success": False,
+                    "message": f"Failed to send verification email: {str(e)}",
+                    "error_type": e.__class__.__name__,
+                    "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                }
+            return Response(
+                {
+                    "status": "success",
+                    "message": "User registered successfully",
+                    "user": serializer.data,
+                    "email_verification": email_status,
+                },
+                status=status.HTTP_201_CREATED,
+                headers=headers,
+            )
+        except Exception as e:
+            return Response(
+                {
+                    "status": "error",
+                    "message": str(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class CustomConfirmEmailView(APIView):

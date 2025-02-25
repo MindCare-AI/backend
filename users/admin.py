@@ -21,7 +21,7 @@ class CustomUserAdmin(UserAdmin):
         ('Custom Fields', {'fields': ('email', 'created_at',)}),
     )
     
-    # Add verbose names for the admin interface
+    
     verbose_name = 'user'
     verbose_name_plural = 'users'
 

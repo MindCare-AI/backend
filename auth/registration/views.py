@@ -21,11 +21,31 @@ class CustomRegisterView(RegisterView):
 
     @transaction.atomic
     def perform_create(self, serializer):
-        user = serializer.save(self.request)
-        UserProfile.objects.get_or_create(user=user)
-        UserPreferences.objects.get_or_create(user=user)
-        UserSettings.objects.get_or_create(user=user)
-        return user
+        try:
+            user = serializer.save(self.request)
+            
+            try:
+                UserProfile.objects.get(user=user)
+            except UserProfile.DoesNotExist:
+                UserProfile.objects.create(user=user)
+                
+            try:
+                UserPreferences.objects.get(user=user)
+            except UserPreferences.DoesNotExist:
+                UserPreferences.objects.create(user=user)
+                
+            try:
+                UserSettings.objects.get(user=user)
+            except UserSettings.DoesNotExist:
+                UserSettings.objects.create(user=user)
+                
+            return user
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating user profile: {str(e)}")
+            raise
 
     def create(self, request, *args, **kwargs):
         try:

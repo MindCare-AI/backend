@@ -3,6 +3,7 @@ import logging
 from dj_rest_auth.views import PasswordResetConfirmView
 from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from .serializers import CustomPasswordResetConfirmSerializer, GoogleAuthSerializer
 from django.utils.decorators import method_decorator
@@ -14,7 +15,7 @@ from django.conf import settings
 from django.http import HttpResponseRedirect
 from urllib.parse import urlencode
 
-# Decorator for sensitive post parameters
+# Only decorate the POST method, not GET
 sensitive_post_parameters_m = method_decorator(
     sensitive_post_parameters("new_password1", "new_password2")
 )
@@ -28,7 +29,6 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
 
     serializer_class = CustomPasswordResetConfirmSerializer
 
-    @sensitive_post_parameters_m
     def get(self, request, uidb64=None, token=None):
         if not uidb64 or not token:
             return Response(
@@ -42,6 +42,7 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
             status=status.HTTP_200_OK,
         )
 
+    @sensitive_post_parameters_m
     def post(self, request, *args, **kwargs):
         uid = request.session.get("uid")
         token = request.session.get("token")
@@ -71,6 +72,10 @@ class GoogleLogin(SocialLoginView):  # Using Authorization Code Grant
     adapter_class = GoogleOAuth2Adapter
     callback_url = "http://localhost:8000/api/v1/auth/login/google/callback/"
     client_class = OAuth2Client
+
+
+class GitHubLogin(SocialLoginView):
+    adapter_class = GitHubOAuth2Adapter
 
 
 class GoogleAuthRedirect(generics.GenericAPIView):

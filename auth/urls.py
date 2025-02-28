@@ -16,6 +16,7 @@ from auth.views import (
     CustomPasswordResetConfirmView,
     GoogleLogin,
     GoogleAuthRedirect,
+    GitHubLogin,  # <-- add this import
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -52,4 +53,5 @@ urlpatterns = [
     path(
         "login/google/start/", GoogleAuthRedirect.as_view(), name="google_auth_redirect"
     ),
+    path("login/github/", GitHubLogin.as_view(), name="github_login"),
 ]

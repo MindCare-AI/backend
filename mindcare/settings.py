@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    "allauth.socialaccount.providers.github",  # <-- GitHub provider enabled
+    "allauth.socialaccount.providers.google",
     "rest_framework",
     "rest_framework.authtoken",
     # Custom apps
@@ -54,6 +56,7 @@ INSTALLED_APPS = [
     "analytics",
     "drf_spectacular",
     "media_handler",
+    "corsheaders",
 ]
 
 SITE_ID = 1
@@ -69,6 +72,7 @@ AUTHENTICATION_BACKENDS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # Must be near the top
     "allauth.account.middleware.AccountMiddleware",  # <-- Added Allauth middleware
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -175,14 +179,46 @@ EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp-relay.brevo.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "7fa9d1001@smtp-brevo.com")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "y9Pw4DtnMFcI6Y38")
+EMAIL_HOST_USER = os.getenv("BREVO_EMAIL_HOST_USER", "86ca57001@smtp-brevo.com")
+EMAIL_HOST_PASSWORD = os.getenv("BREVO_EMAIL_HOST_PASSWORD", "7ZgxAkWBR5G9bLds")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "azizbahloulextra@gmail.com")
 
 # Allauth settings for email verification
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_EMAIL_REQUIRED = True
+
+# Social account provider settings
+SOCIALACCOUNT_PROVIDERS = {
+    'github': {
+        'APP': {
+            'client_id': os.getenv('GITHUB_CLIENT_ID'),
+            'secret': os.getenv('GITHUB_CLIENT_SECRET'),
+            'key': ''
+        },
+        'SCOPE': [
+            'user',
+            'user:email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+    },
+    'google': {
+        'APP': {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+            'key': ''
+        },
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+    }
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -240,3 +276,11 @@ SPECTACULAR_SETTINGS = {
     'SCHEMA_COERCE_PATH_PK_SUFFIX': True,
     'POSTPROCESSING_HOOKS': [],
 }
+
+# Allow your React Native/Web app
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8082",
+    "http://127.0.0.1:8000",  # add additional origins if needed
+]
+
+CORS_ALLOW_CREDENTIALS = True

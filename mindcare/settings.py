@@ -3,10 +3,9 @@
 from pathlib import Path
 from dotenv import load_dotenv
 import os
-import platform
 import json
 
- 
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,10 +23,10 @@ DEBUG = True
 
 # Update ALLOWED_HOSTS to include 'localhost'
 ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    'localhost:8000',
-    *os.getenv("ALLOWED_HOSTS", "").split(",")
+    "localhost",
+    "127.0.0.1",
+    "localhost:8000",
+    *os.getenv("ALLOWED_HOSTS", "").split(","),
 ]
 
 
@@ -118,7 +117,9 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
-        "OPTIONS": json.loads(os.getenv("OPTIONS", "{}")),  # Convert string to dictionary
+        "OPTIONS": json.loads(
+            os.getenv("OPTIONS", "{}")
+        ),  # Convert string to dictionary
     }
 }
 
@@ -196,51 +197,51 @@ ACCOUNT_EMAIL_REQUIRED = True
 
 # Social account provider settings
 SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'APP': {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-            'key': ''
+    "google": {
+        "APP": {
+            "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+            "secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+            "key": "",
         },
-        'SCOPE': [
-            'openid',  # Add OpenID Connect scope
-            'profile',
-            'email',
+        "SCOPE": [
+            "openid",  # Add OpenID Connect scope
+            "profile",
+            "email",
         ],
-        'AUTH_PARAMS': {
-            'access_type': 'offline',  # Enable refresh tokens
-            'prompt': 'consent'  # Force consent screen
+        "AUTH_PARAMS": {
+            "access_type": "offline",  # Enable refresh tokens
+            "prompt": "consent",  # Force consent screen
         },
-        'VERIFIED_EMAIL': True,
-        'REDIRECT_URI': 'mindcareai://oauth_callback'
+        "VERIFIED_EMAIL": True,
+        "REDIRECT_URI": "mindcareai://oauth_callback",
     },
-    'github': {
-        'APP': {
-            'client_id': os.getenv('GITHUB_CLIENT_ID'),
-            'secret': os.getenv('GITHUB_CLIENT_SECRET'),
-            'key': ''
+    "github": {
+        "APP": {
+            "client_id": os.getenv("GITHUB_CLIENT_ID"),
+            "secret": os.getenv("GITHUB_CLIENT_SECRET"),
+            "key": "",
         },
-        'SCOPE': [
-            'user',
-            'user:email',
+        "SCOPE": [
+            "user",
+            "user:email",
         ],
-        'REDIRECT_URI': 'mindcareai://oauth_callback'
-    }
+        "REDIRECT_URI": "mindcareai://oauth_callback",
+    },
 }
 
 # OAuth specific settings
 GOOGLE_OAUTH_SETTINGS = {
-    'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-    'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-    'redirect_uri': 'mindcareai://oauth_callback',
-    'authorization_base_url': 'https://accounts.google.com/o/oauth2/v2/auth',
-    'token_url': 'https://oauth2.googleapis.com/token',
+    "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+    "redirect_uri": "mindcareai://oauth_callback",
+    "authorization_base_url": "https://accounts.google.com/o/oauth2/v2/auth",
+    "token_url": "https://oauth2.googleapis.com/token",
 }
 
 # Add these settings near your other OAuth/Social Auth settings
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
-GOOGLE_OAUTH_REDIRECT_URI = 'mindcareai://oauth_callback'
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_OAUTH_REDIRECT_URI = "mindcareai://oauth_callback"
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -259,60 +260,60 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Media file size limits
 MAX_UPLOAD_SIZE = 5242880  # 5MB
 ALLOWED_MEDIA_TYPES = {
-    'image': ['image/jpeg', 'image/png', 'image/gif'],
-    'video': ['video/mp4', 'video/mpeg'],
-    'audio': ['audio/mpeg', 'audio/wav'],
-    'document': ['application/pdf', 'application/msword']
+    "image": ["image/jpeg", "image/png", "image/gif"],
+    "video": ["video/mp4", "video/mpeg"],
+    "audio": ["audio/mpeg", "audio/wav"],
+    "document": ["application/pdf", "application/msword"],
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.TokenAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'MindCare API',
-    'DESCRIPTION': 'API documentation for MindCare application',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': True,
-    'SWAGGER_UI_SETTINGS': {
-        'persistAuthorization': True,
-        'displayOperationId': True,
+    "TITLE": "MindCare API",
+    "DESCRIPTION": "API documentation for MindCare application",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": True,
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "displayOperationId": True,
     },
-    'COMPONENT_SPLIT_REQUEST': True,
-    'SCHEMA_PATH_PREFIX': '/api/v1',
-    'SCHEMA_COERCE_PATH_PK_SUFFIX': True,
-    'POSTPROCESSING_HOOKS': [],
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
+    "SCHEMA_COERCE_PATH_PK_SUFFIX": True,
+    "POSTPROCESSING_HOOKS": [],
 }
 
-OLLAMA_API_URL="http://localhost:11434/api/generate"
+OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
 # Allow your React Native/Web app
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8082",
-    "http://127.0.0.1:8000",  
+    "http://127.0.0.1:8000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 # Celery Configuration
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Default Redis URL
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' 
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_BROKER_URL = "redis://localhost:6379/0"  # Default Redis URL
+CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE

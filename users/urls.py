@@ -4,7 +4,7 @@ from .views import (
     UserProfileViewSet,
     UserPreferencesViewSet,
     UserSettingsViewSet,
-    UserListView  # Added import
+    UserListView,  # Added import
 )
 
 urlpatterns = [

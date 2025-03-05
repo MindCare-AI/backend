@@ -6,40 +6,57 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('messaging', '0002_alter_message_options_conversation_is_active_and_more'),
+        ("messaging", "0002_alter_message_options_conversation_is_active_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='conversation',
-            name='conversation_type',
-            field=models.CharField(choices=[('direct', 'Direct Message'), ('group', 'Group Chat'), ('chatbot', 'Chatbot')], default='direct', max_length=20),
+            model_name="conversation",
+            name="conversation_type",
+            field=models.CharField(
+                choices=[
+                    ("direct", "Direct Message"),
+                    ("group", "Group Chat"),
+                    ("chatbot", "Chatbot"),
+                ],
+                default="direct",
+                max_length=20,
+            ),
         ),
         migrations.AddField(
-            model_name='conversation',
-            name='group_description',
+            model_name="conversation",
+            name="group_description",
             field=models.TextField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='conversation',
-            name='group_name',
+            model_name="conversation",
+            name="group_name",
             field=models.CharField(blank=True, max_length=100, null=True),
         ),
         migrations.AddField(
-            model_name='conversation',
-            name='moderators',
-            field=models.ManyToManyField(related_name='moderated_conversations', to=settings.AUTH_USER_MODEL),
+            model_name="conversation",
+            name="moderators",
+            field=models.ManyToManyField(
+                related_name="moderated_conversations", to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AlterField(
-            model_name='conversation',
-            name='last_message',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='messaging.message'),
+            model_name="conversation",
+            name="last_message",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="+",
+                to="messaging.message",
+            ),
         ),
         migrations.AddIndex(
-            model_name='conversation',
-            index=models.Index(fields=['conversation_type'], name='messaging_c_convers_4ecbe9_idx'),
+            model_name="conversation",
+            index=models.Index(
+                fields=["conversation_type"], name="messaging_c_convers_4ecbe9_idx"
+            ),
         ),
     ]

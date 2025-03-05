@@ -18,6 +18,7 @@ from users.models import UserProfile, UserPreferences, UserSettings
 
 logger = logging.getLogger(__name__)
 
+
 class CustomRegisterView(RegisterView):
     serializer_class = CustomRegisterSerializer
 
@@ -25,12 +26,12 @@ class CustomRegisterView(RegisterView):
     def perform_create(self, serializer):
         try:
             user = serializer.save(self.request)
-            
+
             # Create related profiles using get_or_create
             UserProfile.objects.get_or_create(user=user)
             UserPreferences.objects.get_or_create(user=user)
             UserSettings.objects.get_or_create(user=user)
-            
+
             return user
         except Exception as e:
             logger.error(f"Error in perform_create: {str(e)}", exc_info=True)
@@ -41,22 +42,25 @@ class CustomRegisterView(RegisterView):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             user = self.perform_create(serializer)
-            
+
             email_status = self._send_verification_email(request, user)
-            
-            return Response({
-                "status": "success",
-                "message": "User registered successfully",
-                "user": serializer.data,
-                "email_verification": email_status,
-            }, status=status.HTTP_201_CREATED)
-            
+
+            return Response(
+                {
+                    "status": "success",
+                    "message": "User registered successfully",
+                    "user": serializer.data,
+                    "email_verification": email_status,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
         except Exception as e:
             logger.error(f"Registration error: {str(e)}", exc_info=True)
-            return Response({
-                "status": "error",
-                "message": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"status": "error", "message": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def _send_verification_email(self, request, user):
         try:

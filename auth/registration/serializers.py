@@ -6,37 +6,38 @@ from allauth.account.utils import setup_user_email
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from users.models import UserProfile, UserPreferences, UserSettings
 
+
 class CustomRegisterSerializer(RegisterSerializer):
     """
     Custom serializer for user registration in Mindcare.
     """
 
     username = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=True)   
+    email = serializers.EmailField(required=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
-   
+
     class Meta:
         model = get_user_model()
         fields = ["username", "email", "first_name", "last_name", "password1"]
 
     def validate(self, data):
         data = super().validate(data)
-        username = data.get('username')
-        email = data.get('email')
-        
+        username = data.get("username")
+        email = data.get("email")
+
         # Generate username from email if blank
         if not username or not username.strip():
             username = email
-        
+
         # Check username uniqueness
         user_model = get_user_model()
         if user_model.objects.filter(username__iexact=username).exists():
             raise serializers.ValidationError(
                 {"username": "A user with that username already exists."}
             )
-        
-        data['username'] = username.strip()
+
+        data["username"] = username.strip()
         return data
 
     def validate_email(self, value):

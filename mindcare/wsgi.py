@@ -13,7 +13,8 @@ application = get_wsgi_application()
 # Attempt to set up Ollama model
 try:
     from django.core.management import call_command
-    call_command('setup_ollama_model')
+
+    call_command("setup_ollama_model")
 except Exception as e:
     logger = logging.getLogger(__name__)
-    logger.error(f'Failed to set up Ollama model: {e}')
+    logger.error(f"Failed to set up Ollama model: {e}")

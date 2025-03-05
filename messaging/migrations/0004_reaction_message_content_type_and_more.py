@@ -6,54 +6,83 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('messaging', '0003_conversation_conversation_type_and_more'),
+        ("messaging", "0003_conversation_conversation_type_and_more"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Reaction',
+            name="Reaction",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('emoji', models.CharField(max_length=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("emoji", models.CharField(max_length=10)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
         ),
         migrations.AddField(
-            model_name='message',
-            name='content_type',
-            field=models.CharField(choices=[('text', 'Plain Text'), ('markdown', 'Markdown'), ('rich_text', 'Rich Text')], default='text', max_length=20),
+            model_name="message",
+            name="content_type",
+            field=models.CharField(
+                choices=[
+                    ("text", "Plain Text"),
+                    ("markdown", "Markdown"),
+                    ("rich_text", "Rich Text"),
+                ],
+                default="text",
+                max_length=20,
+            ),
         ),
         migrations.AddIndex(
-            model_name='message',
-            index=models.Index(fields=['sender', 'timestamp'], name='messaging_m_sender__3d379c_idx'),
+            model_name="message",
+            index=models.Index(
+                fields=["sender", "timestamp"], name="messaging_m_sender__3d379c_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='message',
-            index=models.Index(fields=['message_type'], name='messaging_m_message_9677d2_idx'),
+            model_name="message",
+            index=models.Index(
+                fields=["message_type"], name="messaging_m_message_9677d2_idx"
+            ),
         ),
         migrations.AddField(
-            model_name='reaction',
-            name='message',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reactions', to='messaging.message'),
+            model_name="reaction",
+            name="message",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="reactions",
+                to="messaging.message",
+            ),
         ),
         migrations.AddField(
-            model_name='reaction',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL),
+            model_name="reaction",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AddIndex(
-            model_name='reaction',
-            index=models.Index(fields=['message', 'emoji'], name='messaging_r_message_c83652_idx'),
+            model_name="reaction",
+            index=models.Index(
+                fields=["message", "emoji"], name="messaging_r_message_c83652_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='reaction',
-            index=models.Index(fields=['user', 'emoji'], name='messaging_r_user_id_9836ac_idx'),
+            model_name="reaction",
+            index=models.Index(
+                fields=["user", "emoji"], name="messaging_r_user_id_9836ac_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='reaction',
-            unique_together={('message', 'user', 'emoji')},
+            name="reaction",
+            unique_together={("message", "user", "emoji")},
         ),
     ]

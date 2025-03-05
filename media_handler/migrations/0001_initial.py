@@ -5,30 +5,54 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("contenttypes", "0002_remove_content_type_name"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='MediaFile',
+            name="MediaFile",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('file', models.FileField(upload_to='uploads/%Y/%m/%d/')),
-                ('media_type', models.CharField(choices=[('image', 'Image'), ('video', 'Video'), ('audio', 'Audio'), ('document', 'Document')], max_length=20)),
-                ('title', models.CharField(blank=True, max_length=255)),
-                ('description', models.TextField(blank=True)),
-                ('uploaded_at', models.DateTimeField(auto_now_add=True)),
-                ('file_size', models.BigIntegerField(editable=False)),
-                ('mime_type', models.CharField(editable=False, max_length=100)),
-                ('object_id', models.PositiveIntegerField()),
-                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("file", models.FileField(upload_to="uploads/%Y/%m/%d/")),
+                (
+                    "media_type",
+                    models.CharField(
+                        choices=[
+                            ("image", "Image"),
+                            ("video", "Video"),
+                            ("audio", "Audio"),
+                            ("document", "Document"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("title", models.CharField(blank=True, max_length=255)),
+                ("description", models.TextField(blank=True)),
+                ("uploaded_at", models.DateTimeField(auto_now_add=True)),
+                ("file_size", models.BigIntegerField(editable=False)),
+                ("mime_type", models.CharField(editable=False, max_length=100)),
+                ("object_id", models.PositiveIntegerField()),
+                (
+                    "content_type",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="contenttypes.contenttype",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-uploaded_at'],
+                "ordering": ["-uploaded_at"],
             },
         ),
     ]

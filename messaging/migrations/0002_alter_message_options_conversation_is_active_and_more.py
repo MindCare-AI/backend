@@ -6,39 +6,53 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('messaging', '0001_initial'),
+        ("messaging", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='message',
-            options={'ordering': ['-timestamp']},
+            name="message",
+            options={"ordering": ["-timestamp"]},
         ),
         migrations.AddField(
-            model_name='conversation',
-            name='is_active',
+            model_name="conversation",
+            name="is_active",
             field=models.BooleanField(default=True),
         ),
         migrations.AddField(
-            model_name='conversation',
-            name='last_message',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='last_message_conversations', to='messaging.message'),
+            model_name="conversation",
+            name="last_message",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="last_message_conversations",
+                to="messaging.message",
+            ),
         ),
         migrations.AddField(
-            model_name='message',
-            name='message_type',
-            field=models.CharField(choices=[('text', 'Text'), ('system', 'System'), ('action', 'Action')], default='text', max_length=10),
+            model_name="message",
+            name="message_type",
+            field=models.CharField(
+                choices=[("text", "Text"), ("system", "System"), ("action", "Action")],
+                default="text",
+                max_length=10,
+            ),
         ),
         migrations.AddField(
-            model_name='message',
-            name='read_by',
-            field=models.ManyToManyField(blank=True, related_name='read_messages', to=settings.AUTH_USER_MODEL),
+            model_name="message",
+            name="read_by",
+            field=models.ManyToManyField(
+                blank=True, related_name="read_messages", to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AddIndex(
-            model_name='message',
-            index=models.Index(fields=['conversation', 'timestamp'], name='messaging_m_convers_91f1f5_idx'),
+            model_name="message",
+            index=models.Index(
+                fields=["conversation", "timestamp"],
+                name="messaging_m_convers_91f1f5_idx",
+            ),
         ),
     ]

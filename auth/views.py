@@ -14,6 +14,11 @@ from rest_framework import status, generics
 from django.conf import settings
 from django.http import HttpResponseRedirect
 from urllib.parse import urlencode
+from django.shortcuts import redirect
+from rest_framework.permissions import AllowAny
+import secrets
+
+logger = logging.getLogger(__name__)
 
 # Only decorate the POST method, not GET
 sensitive_post_parameters_m = method_decorator(
@@ -65,41 +70,82 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
         )
 
 
-logger = logging.getLogger(__name__)
-
-
 class GoogleLogin(SocialLoginView):  # Using Authorization Code Grant
     adapter_class = GoogleOAuth2Adapter
-    callback_url = "http://localhost:8000/api/v1/auth/login/google/callback/"
+    callback_url = settings.GOOGLE_OAUTH_REDIRECT_URI
     client_class = OAuth2Client
+
+    def get_response(self):
+        response = super().get_response()
+        if self.token:
+            response.data['access_token'] = str(self.token.access_token)
+            response.data['refresh_token'] = str(self.token)
+        return response
 
 
 class GitHubLogin(SocialLoginView):
     adapter_class = GitHubOAuth2Adapter
 
 
-class GoogleAuthRedirect(generics.GenericAPIView):
-    serializer_class = GoogleAuthSerializer
-
+class GoogleAuthRedirect(APIView):
+    permission_classes = [AllowAny]
+    
     def get(self, request):
         try:
-            google_settings = settings.SOCIALACCOUNT_PROVIDERS["google"]["APP"]
-            client_id = google_settings["client_id"]
-            redirect_uri = "http://localhost:8000/api/v1/auth/login/google/callback/"
-            base_url = "https://accounts.google.com/o/oauth2/v2/auth"
+            # Generate secure state parameter
+            state = secrets.token_urlsafe(32)
+            request.session['oauth_state'] = state
+            
+            # Get Google OAuth settings from SOCIALACCOUNT_PROVIDERS
+            google_settings = settings.SOCIALACCOUNT_PROVIDERS['google']['APP']
+            
             params = {
-                "redirect_uri": redirect_uri,
-                "prompt": "consent",
-                "response_type": "code",
-                "client_id": client_id,
-                "scope": "openid email profile",
-                "access_type": "offline",
+                'client_id': google_settings['client_id'],
+                'response_type': 'code',
+                'scope': 'openid email profile',
+                'redirect_uri': settings.GOOGLE_OAUTH_REDIRECT_URI,
+                'state': state,
+                'access_type': 'offline',
+                'prompt': 'consent'
             }
-            auth_url = f"{base_url}?{urlencode(params)}"
-            return HttpResponseRedirect(auth_url)
+            
+            auth_url = f'https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}'
+            
+            # Return the authorization URL instead of redirecting
+            return Response({
+                'authorization_url': auth_url
+            }, status=status.HTTP_200_OK)
+            
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Google OAuth error: {str(e)}")
+            return Response({
+                'error': 'Failed to initialize Google authentication',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVICE_ERROR)
+
+
+class GoogleCallback(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        code = request.GET.get('code')
+        state = request.GET.get('state')
+        
+        # Validate state
+        stored_state = request.session.pop('oauth_state', None)
+        if not state or state != stored_state:
             return Response(
-                {"error": "An error occurred during Google authentication."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {'error': 'Invalid state parameter'},
+                status=status.HTTP_400_BAD_REQUEST
             )
+            
+        if not code:
+            return Response(
+                {'error': 'Authorization code not provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            'code': code,
+            'message': 'Authorization successful'
+        })

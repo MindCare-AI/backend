@@ -17,6 +17,7 @@ from auth.views import (
     GoogleLogin,
     GoogleAuthRedirect,
     GitHubLogin,  # <-- add this import
+    GoogleCallback,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -54,4 +55,5 @@ urlpatterns = [
         "login/google/start/", GoogleAuthRedirect.as_view(), name="google_auth_redirect"
     ),
     path("login/github/", GitHubLogin.as_view(), name="github_login"),
+    path("login/google/callback/", GoogleCallback.as_view(), name="google_callback"),
 ]

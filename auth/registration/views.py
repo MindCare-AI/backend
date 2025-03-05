@@ -11,10 +11,12 @@ from allauth.account import app_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 import smtplib
 import socket
+import logging
 from .serializers import CustomRegisterSerializer
 from django.db import transaction
 from users.models import UserProfile, UserPreferences, UserSettings
 
+logger = logging.getLogger(__name__)
 
 class CustomRegisterView(RegisterView):
     serializer_class = CustomRegisterSerializer
@@ -24,27 +26,14 @@ class CustomRegisterView(RegisterView):
         try:
             user = serializer.save(self.request)
             
-            try:
-                UserProfile.objects.get(user=user)
-            except UserProfile.DoesNotExist:
-                UserProfile.objects.create(user=user)
-                
-            try:
-                UserPreferences.objects.get(user=user)
-            except UserPreferences.DoesNotExist:
-                UserPreferences.objects.create(user=user)
-                
-            try:
-                UserSettings.objects.get(user=user)
-            except UserSettings.DoesNotExist:
-                UserSettings.objects.create(user=user)
-                
+            # Create related profiles using get_or_create
+            UserProfile.objects.get_or_create(user=user)
+            UserPreferences.objects.get_or_create(user=user)
+            UserSettings.objects.get_or_create(user=user)
+            
             return user
         except Exception as e:
-            # Log the error for debugging
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error creating user profile: {str(e)}")
+            logger.error(f"Error in perform_create: {str(e)}", exc_info=True)
             raise
 
     def create(self, request, *args, **kwargs):
@@ -52,39 +41,39 @@ class CustomRegisterView(RegisterView):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             user = self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            email_status = {
+            
+            email_status = self._send_verification_email(request, user)
+            
+            return Response({
+                "status": "success",
+                "message": "User registered successfully",
+                "user": serializer.data,
+                "email_verification": email_status,
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            logger.error(f"Registration error: {str(e)}", exc_info=True)
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def _send_verification_email(self, request, user):
+        try:
+            complete_signup(request, user, app_settings.EMAIL_VERIFICATION, None)
+            return {
                 "success": True,
                 "message": "Verification email sent successfully, check your email",
                 "status_code": status.HTTP_200_OK,
             }
-            try:
-                complete_signup(request, user, app_settings.EMAIL_VERIFICATION, None)
-            except (smtplib.SMTPException, socket.error, ConnectionRefusedError) as e:
-                email_status = {
-                    "success": False,
-                    "message": f"Failed to send verification email: {str(e)}",
-                    "error_type": e.__class__.__name__,
-                    "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                }
-            return Response(
-                {
-                    "status": "success",
-                    "message": "User registered successfully",
-                    "user": serializer.data,
-                    "email_verification": email_status,
-                },
-                status=status.HTTP_201_CREATED,
-                headers=headers,
-            )
-        except Exception as e:
-            return Response(
-                {
-                    "status": "error",
-                    "message": str(e),
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        except (smtplib.SMTPException, socket.error, ConnectionRefusedError) as e:
+            logger.error(f"Email sending error: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "message": f"Failed to send verification email: {str(e)}",
+                "error_type": e.__class__.__name__,
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            }
 
 
 class CustomConfirmEmailView(APIView):

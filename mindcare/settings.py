@@ -22,8 +22,13 @@ SECRET_KEY = "django-insecure-0)cm(xhi^gtudqrk0t266=keuowd-x+cfmcrj8#k2_#dsrts&t
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-# Read the ALLOWED_HOSTS from the environment variable and split into a list
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1").split(",")
+# Update ALLOWED_HOSTS to include 'localhost'
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'localhost:8000',
+    *os.getenv("ALLOWED_HOSTS", "").split(",")
+]
 
 
 # Application definition
@@ -57,6 +62,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "media_handler",
     "corsheaders",
+    "messaging",
 ]
 
 SITE_ID = 1
@@ -190,6 +196,24 @@ ACCOUNT_EMAIL_REQUIRED = True
 
 # Social account provider settings
 SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+            'key': ''
+        },
+        'SCOPE': [
+            'openid',  # Add OpenID Connect scope
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'offline',  # Enable refresh tokens
+            'prompt': 'consent'  # Force consent screen
+        },
+        'VERIFIED_EMAIL': True,
+        'REDIRECT_URI': 'mindcareai://oauth_callback'
+    },
     'github': {
         'APP': {
             'client_id': os.getenv('GITHUB_CLIENT_ID'),
@@ -200,25 +224,23 @@ SOCIALACCOUNT_PROVIDERS = {
             'user',
             'user:email',
         ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        },
-    },
-    'google': {
-        'APP': {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-            'key': ''
-        },
-        'SCOPE': [
-            'profile',
-            'email',
-        ],
-        'AUTH_PARAMS': {
-            'access_type': 'online',
-        },
+        'REDIRECT_URI': 'mindcareai://oauth_callback'
     }
 }
+
+# OAuth specific settings
+GOOGLE_OAUTH_SETTINGS = {
+    'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+    'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+    'redirect_uri': 'mindcareai://oauth_callback',
+    'authorization_base_url': 'https://accounts.google.com/o/oauth2/v2/auth',
+    'token_url': 'https://oauth2.googleapis.com/token',
+}
+
+# Add these settings near your other OAuth/Social Auth settings
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+GOOGLE_OAUTH_REDIRECT_URI = 'mindcareai://oauth_callback'
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -277,10 +299,20 @@ SPECTACULAR_SETTINGS = {
     'POSTPROCESSING_HOOKS': [],
 }
 
+OLLAMA_API_URL="http://localhost:11434/api/generate"
+
 # Allow your React Native/Web app
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8082",
-    "http://127.0.0.1:8000",  # add additional origins if needed
+    "http://127.0.0.1:8000",  
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Default Redis URL
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' 
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE

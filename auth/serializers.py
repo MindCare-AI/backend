@@ -1,4 +1,3 @@
-# auth\serializers.py
 from dj_rest_auth.serializers import (
     PasswordResetConfirmSerializer,
     UserDetailsSerializer,

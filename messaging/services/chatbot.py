@@ -2,15 +2,15 @@ import os
 import requests
 from typing import List, Dict
 
-
 def get_chatbot_response(message: str, history: List[Dict]) -> str:
-    api_url = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
+    gemini_api_key = "AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734"
+    gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_api_key}"
 
     # Build history string separately
     history_str = "\n".join([f"{msg['sender']}: {msg['content']}" for msg in history])
 
-    # Create prompt without using triple quotes inside f-string
-    prompt = """Context: You are Samantha, a mental health support assistant. Your primary goal is to provide empathetic, thoughtful, and practical support to users experiencing a range of mental health challenges, including anxiety, depression, stress, and grief.
+    # Create prompt
+    prompt = f"""Context: You are Samantha, a mental health support assistant. Your primary goal is to provide empathetic, thoughtful, and practical support to users experiencing a range of mental health challenges, including anxiety, depression, stress, and grief.
 
 Therapeutic Approach:
 - Employ a person-centered approach, focusing on the user's unique experiences and perspectives.
@@ -29,32 +29,32 @@ Guidelines for your responses:
 - Keep responses concise but thoughtful (1-3 paragraphs). Prioritize clarity and relevance.
 - Prioritize user safety; take mentions of self-harm or suicide seriously. Provide immediate support and guidance, and encourage the user to seek professional help.
 
-Remember that you are not a replacement for professional help, but you can provide immediate support and guidance. Your role is to empower users to take care of their mental health and well-being."""
-    prompt += f"\nHistory:\n{history_str}\n"
-    prompt += f"User: {message}\n"
-    prompt += "Samantha:"
+Remember that you are not a replacement for professional help, but you can provide immediate support and guidance. Your role is to empower users to take care of their mental health and well-being.
 
-    # Add GPU options
+History:
+{history_str}
+User: {message}
+Samantha:"""
+
     payload = {
-        "model": "samantha-mistral",
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.7,
-            "max_tokens": 150,
-            "repeat_penalty": 1.2,
-            "num_gpu": 1,  # Use 1 GPU (GTX 1660 Ti)
-            "num_thread": 6,  # Use 6 threads to leverage your i7-10750H's 6 cores
-            "batch_size": 8,  # Adjust based on memory available
-        },
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ]
     }
 
     try:
-        response = requests.post(
-            api_url, json=payload, timeout=60
-        )  # Increased timeout to 60 seconds
+        response = requests.post(gemini_api_url, json=payload, timeout=60)
         response.raise_for_status()
-        return response.json().get("response", "I need a moment to think.").strip()
+        response_json = response.json()
+        
+        # Extract the response text
+        if "candidates" in response_json and len(response_json["candidates"]) > 0:
+            response_text = response_json["candidates"][0]["content"]["parts"][0]["text"]
+            return response_text.strip()
+        else:
+            return "I need a moment to think."
     except Exception as e:
-        print(f"Error: {e}")  # Add this line to print the exception
+        print(f"Error: {e}")
         return "Sorry, I'm having trouble responding right now."

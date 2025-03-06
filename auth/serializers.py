@@ -1,8 +1,12 @@
-from dj_rest_auth.serializers import PasswordResetConfirmSerializer, UserDetailsSerializer
+from dj_rest_auth.serializers import (
+    PasswordResetConfirmSerializer,
+    UserDetailsSerializer,
+)
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 UserModel = get_user_model()
+
 
 class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
     new_password1 = serializers.CharField(
@@ -35,12 +39,15 @@ class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
             "An error occurred while resetting the password."
         )
 
+
 class CustomUserDetailsSerializer(UserDetailsSerializer):
     class Meta(UserDetailsSerializer.Meta):
         fields = UserDetailsSerializer.Meta.fields + ("first_name", "last_name")
 
+
 class ConfirmEmailSerializer(serializers.Serializer):
     key = serializers.CharField()
+
 
 class GoogleAuthSerializer(serializers.Serializer):
     code = serializers.CharField()

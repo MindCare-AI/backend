@@ -1,5 +1,4 @@
-#messaging/routing.py
-from django.urls import re_path
+# messaging/routing.py
 
 # No consumers needed so use an empty list
 websocket_urlpatterns = []

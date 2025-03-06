@@ -1,6 +1,5 @@
-#messaging/services/firebase.py
+# messaging/services/firebase.py
 import os
-import json
 import firebase_admin
 from firebase_admin import credentials, db
 from django.conf import settings
@@ -12,11 +11,12 @@ if not firebase_admin._apps:
         cred = credentials.Certificate(firebase_config)
     else:
         # Optionally fallback to a cert file if needed
-        cert_path = os.getenv("FIREBASE_CERT_PATH", str(settings.BASE_DIR / "firebase-cert.json"))
+        cert_path = os.getenv(
+            "FIREBASE_CERT_PATH", str(settings.BASE_DIR / "firebase-cert.json")
+        )
         cred = credentials.Certificate(cert_path)
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': settings.FIREBASE_DATABASE_URL
-    })
+    firebase_admin.initialize_app(cred, {"databaseURL": settings.FIREBASE_DATABASE_URL})
+
 
 def push_message(conversation_id: int, message_data: dict) -> str:
     """

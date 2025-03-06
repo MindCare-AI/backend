@@ -5,21 +5,32 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('messaging', '0004_reaction_message_content_type_and_more'),
+        ("messaging", "0004_reaction_message_content_type_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='conversation',
-            name='conversation_type',
-            field=models.CharField(choices=[('direct', 'Direct Message'), ('group', 'Group Chat'), ('chatbot', 'Chatbot Conversation')], default='direct', max_length=20),
+            model_name="conversation",
+            name="conversation_type",
+            field=models.CharField(
+                choices=[
+                    ("direct", "Direct Message"),
+                    ("group", "Group Chat"),
+                    ("chatbot", "Chatbot Conversation"),
+                ],
+                default="direct",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='conversation',
-            name='moderators',
-            field=models.ManyToManyField(blank=True, related_name='moderated_conversations', to=settings.AUTH_USER_MODEL),
+            model_name="conversation",
+            name="moderators",
+            field=models.ManyToManyField(
+                blank=True,
+                related_name="moderated_conversations",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]

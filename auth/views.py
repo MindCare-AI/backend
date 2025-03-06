@@ -21,6 +21,7 @@ sensitive_post_parameters_m = method_decorator(
     sensitive_post_parameters("new_password1", "new_password2")
 )
 
+
 class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     serializer_class = CustomPasswordResetConfirmSerializer
 
@@ -59,6 +60,7 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
             status=status.HTTP_200_OK,
         )
 
+
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = settings.GOOGLE_OAUTH_REDIRECT_URI
@@ -71,8 +73,10 @@ class GoogleLogin(SocialLoginView):
             response.data["refresh_token"] = str(self.token)
         return response
 
+
 class GitHubLogin(SocialLoginView):
     adapter_class = GitHubOAuth2Adapter
+
 
 class GoogleAuthRedirect(APIView):
     permission_classes = [AllowAny]
@@ -91,14 +95,20 @@ class GoogleAuthRedirect(APIView):
                 "access_type": "offline",
                 "prompt": "consent",
             }
-            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+            auth_url = (
+                f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+            )
             return Response({"authorization_url": auth_url}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Google OAuth error: {str(e)}")
             return Response(
-                {"error": "Failed to initialize Google authentication", "details": str(e)},
+                {
+                    "error": "Failed to initialize Google authentication",
+                    "details": str(e),
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
 
 class GoogleCallback(APIView):
     permission_classes = [AllowAny]
@@ -108,7 +118,12 @@ class GoogleCallback(APIView):
         state = request.GET.get("state")
         stored_state = request.session.pop("oauth_state", None)
         if not state or state != stored_state:
-            return Response({"error": "Invalid state parameter"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid state parameter"}, status=status.HTTP_400_BAD_REQUEST
+            )
         if not code:
-            return Response({"error": "Authorization code not provided"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Authorization code not provided"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response({"code": code, "message": "Authorization successful"})

@@ -5,6 +5,7 @@ from allauth.account.utils import setup_user_email
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from users.models import UserProfile, UserPreferences, UserSettings
 
+
 class CustomRegisterSerializer(RegisterSerializer):
     """
     Custom serializer for user registration in Mindcare.

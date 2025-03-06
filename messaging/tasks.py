@@ -1,12 +1,9 @@
-#messaging/tasks.py
+# messaging/tasks.py
 from celery import shared_task
 from .models import Conversation, Message
 from django.contrib.auth import get_user_model
 from messaging.chatbot.chatbot import get_ollama_response
-from django.utils.timezone import now
 from messaging.firebase_client import push_message  # New import
-from asgiref.sync import async_to_sync
-import json
 
 User = get_user_model()
 
@@ -44,5 +41,5 @@ def generate_chatbot_response(self, conversation_id, user_id, message_content):
         push_message(conversation_id, firebase_data)
 
         return True
-    except Exception as e:
+    except Exception:
         return False

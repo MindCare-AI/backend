@@ -81,7 +81,7 @@ class Command(BaseCommand):
     def _download_model(self, model_name):
         """Download the specified model"""
         self.stdout.write(f'Model "{model_name}" not found. Downloading...')
-        process = subprocess.run(
+        subprocess.run(
             ["ollama", "pull", model_name], capture_output=True, text=True, check=True
         )
         self.stdout.write(

@@ -46,11 +46,13 @@ Remember that you are not a replacement for professional help, but you can provi
             "num_gpu": 1,  # Use 1 GPU (GTX 1660 Ti)
             "num_thread": 6,  # Use 6 threads to leverage your i7-10750H's 6 cores
             "batch_size": 8,  # Adjust based on memory available
-        }
+        },
     }
 
     try:
-        response = requests.post(api_url, json=payload, timeout=60)  # Increased timeout to 60 seconds
+        response = requests.post(
+            api_url, json=payload, timeout=60
+        )  # Increased timeout to 60 seconds
         response.raise_for_status()
         return response.json().get("response", "I need a moment to think.").strip()
     except Exception as e:

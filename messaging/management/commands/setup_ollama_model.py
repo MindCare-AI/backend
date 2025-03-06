@@ -12,13 +12,17 @@ class Command(BaseCommand):
         try:
             # Check if Ollama is installed
             self._check_ollama_installation()
-            
+
             # Check GPU availability
             gpu_available = self._check_gpu_available()
             if gpu_available:
-                self.stdout.write(self.style.SUCCESS("GPU detected and available for Ollama"))
+                self.stdout.write(
+                    self.style.SUCCESS("GPU detected and available for Ollama")
+                )
             else:
-                self.stdout.write(self.style.WARNING("No GPU detected, Ollama will run on CPU only"))
+                self.stdout.write(
+                    self.style.WARNING("No GPU detected, Ollama will run on CPU only")
+                )
 
             # Check if model exists
             if self._check_model_exists(model_name):
@@ -60,11 +64,11 @@ class Command(BaseCommand):
                 return True
         except FileNotFoundError:
             pass
-            
+
         # Check for device nodes
-        if os.path.exists('/dev/nvidia0'):
+        if os.path.exists("/dev/nvidia0"):
             return True
-            
+
         return False
 
     def _check_model_exists(self, model_name):
@@ -83,12 +87,16 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f'Model "{model_name}" downloaded successfully.')
         )
-        
+
     def _provide_installation_instructions(self):
         """Provide instructions for installing Ollama with GPU support"""
         self.stdout.write(self.style.WARNING("\nOllama Installation Instructions:"))
-        self.stdout.write("1. Install Ollama: curl -fsSL https://ollama.com/install.sh | sh")
-        self.stdout.write("2. For GPU support, ensure NVIDIA drivers and CUDA are installed")
+        self.stdout.write(
+            "1. Install Ollama: curl -fsSL https://ollama.com/install.sh | sh"
+        )
+        self.stdout.write(
+            "2. For GPU support, ensure NVIDIA drivers and CUDA are installed"
+        )
         self.stdout.write("   - For Ubuntu: sudo apt install nvidia-driver-XXX cuda")
         self.stdout.write("3. Run 'ollama serve' in a separate terminal")
         self.stdout.write("4. Run this command again to download the model\n")

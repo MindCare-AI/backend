@@ -1,5 +1,5 @@
 # messaging/urls.py
-from django.urls import path
+from django.urls import path, include
 from .views import (
     ConversationListCreateView,
     MessageListCreateView,
@@ -10,6 +10,7 @@ from .views import (
     GroupManagementView,
     ConversationDetailView,
 )
+from messaging.chatbot.views import ChatbotResponseView
 
 urlpatterns = [
     # Existing endpoints
@@ -40,4 +41,7 @@ urlpatterns = [
     path(
         "groups/<int:group_id>/", GroupManagementView.as_view(), name="group-management"
     ),
+    
+    # New independent chatbot endpoint
+    path("chatbot/message/", ChatbotResponseView.as_view(), name="chatbot-message"),
 ]

@@ -1,4 +1,5 @@
 # messaging/views.py
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
@@ -10,8 +11,9 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from .chatbot.chatbot import get_ollama_response  # Import the chatbot function directly
+from messaging.firebase_client import push_message  # New import
 
-from .models import Conversation, Message, Reaction
+from .models import Conversation, Message, Reaction, ConversationType
 from .serializers import (
     ConversationSerializer,
     MessageSerializer,
@@ -28,6 +30,16 @@ class ConversationPagination(PageNumberPagination):
     max_page_size = 100
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="List user conversations",
+        description="Retrieve a paginated list of active conversations for the authenticated user.",
+    ),
+    post=extend_schema(
+        summary="Create conversation",
+        description="Create a new conversation (direct, chatbot, or group) based on the provided data.",
+    ),
+)
 class ConversationListCreateView(generics.ListCreateAPIView):
     serializer_class = ConversationSerializer
     pagination_class = ConversationPagination
@@ -39,7 +51,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         conversation_type = request.data.get("conversation_type", "direct")
-        valid_types = dict(Conversation.CONVERSATION_TYPES).keys()
+        valid_types = [choice[0] for choice in ConversationType.choices]
         if conversation_type not in valid_types:
             return Response(
                 {
@@ -51,6 +63,7 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         # Direct conversation
         if conversation_type == "direct":
             participants = request.data.get("participants", [])
+            # We need to ensure there is exactly one participant (the other user)
             if not participants or len(participants) != 1:
                 return Response(
                     {
@@ -60,7 +73,8 @@ class ConversationListCreateView(generics.ListCreateAPIView):
                 )
             # Validate the other user exists
             other_user = get_object_or_404(get_user_model(), id=participants[0])
-            # Check if a direct conversation between the two users already exists.
+            
+            # Check if a direct conversation between the two users already exists
             existing_conversation = (
                 Conversation.objects.filter(
                     conversation_type="direct", participants=self.request.user
@@ -71,33 +85,37 @@ class ConversationListCreateView(generics.ListCreateAPIView):
             if existing_conversation:
                 serializer = self.get_serializer(existing_conversation)
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            # Set participants list as IDs of current user and other user.
-            request.data["participants"] = [self.request.user.id, other_user.id]
+            
+            # Keep participant as is - the serializer will handle adding the current user
+            # No need to modify request.data["participants"] here
 
         # Chatbot conversation
         elif conversation_type == "chatbot":
+            # Check for existing chatbot conversation
             existing_chat = Conversation.objects.filter(
                 participants=request.user, conversation_type="chatbot"
             ).first()
             if existing_chat:
                 serializer = self.get_serializer(existing_chat)
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            # For chatbot, we only add the current user.
-            request.data["participants"] = [self.request.user.id]
+            
+            # For chatbot, we don't need additional participants
+            request.data["participants"] = []  # Empty list, serializer will add current user
 
-        # Group conversation: validate participant IDs and ensure creator is included.
+        # Group conversation: validate participant IDs and ensure creator is included
         elif conversation_type == "group":
+            # Group chat logic remains the same
             participants = request.data.get("participants", [])
             if not isinstance(participants, list):
                 participants = []
-            # Validate that each provided participant exists.
+            # Validate that each provided participant exists
             valid_participants = []
             User = get_user_model()
             for user_id in participants:
                 if User.objects.filter(id=user_id).exists():
                     valid_participants.append(user_id)
-            if self.request.user.id not in valid_participants:
-                valid_participants.append(self.request.user.id)
+            
+            # No need to add current user here, serializer will handle it
             # Remove duplicates while preserving order
             request.data["participants"] = list(dict.fromkeys(valid_participants))
 
@@ -111,6 +129,12 @@ class ConversationListCreateView(generics.ListCreateAPIView):
         return conversation
 
 
+@extend_schema_view(
+    post=extend_schema(
+        summary="Create group conversation",
+        description="Create a new group conversation for the authenticated user with validated participants.",
+    )
+)
 class GroupChatCreateView(generics.CreateAPIView):
     serializer_class = GroupChatSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -137,6 +161,11 @@ class GroupChatCreateView(generics.CreateAPIView):
         return conversation
 
 
+@extend_schema(
+    summary="Chatbot conversation",
+    description="Initialize a chatbot conversation. If one exists, return it; otherwise, create a new chatbot conversation.",
+    responses={200: ConversationSerializer, 201: ConversationSerializer},
+)
 class ChatbotConversationView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -171,6 +200,16 @@ class ChatbotConversationView(APIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="List messages",
+        description="Retrieve a list of messages for a given conversation."
+    ),
+    post=extend_schema(
+        summary="Create message",
+        description="Create a new message. For chatbot conversations, returns both the user message and the chatbot response."
+    )
+)
 class MessageListCreateView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -201,81 +240,114 @@ class MessageListCreateView(generics.ListCreateAPIView):
 
         message = serializer.save(sender=self.request.user, conversation=conversation)
 
-        # If this is a chatbot conversation, handle the response immediately
+        # For non-chatbot conversations, push the new message to Firebase.
+        if conversation.conversation_type != "chatbot":
+            firebase_data = {
+                "message": message.content,
+                "sender": self.request.user.username,
+                "timestamp": str(message.timestamp),
+                "message_id": message.id,
+            }
+            push_message(conversation_id, firebase_data)
+
+        # For chatbot conversations, the bot response is handled in perform_create below.
         if conversation.conversation_type == "chatbot":
             try:
-                # Get conversation history
                 history = list(
                     Message.objects.filter(conversation=conversation)
                     .order_by("-timestamp")[:3]
                     .values("content", "is_chatbot")
                 )
 
-                # Format history in the way get_ollama_response expects
                 formatted_history = [
                     {
                         "content": msg["content"],
-                        "response": "User response"
-                        if msg["is_chatbot"]
-                        else "Bot response",
+                        "role": "user" if not msg["is_chatbot"] else "assistant",
                     }
-                    for msg in history
+                    for msg in reversed(history)
                 ]
 
-                # Get chatbot response
-                chatbot_response = get_ollama_response(
-                    message.content, formatted_history
-                )
-
-                # Create chatbot response message
+                chatbot_response = get_ollama_response(message.content, formatted_history)
                 bot_message = Message.objects.create(
                     conversation=conversation,
-                    sender=self.request.user,  # Using the same user for now
+                    sender=self.request.user,  # Alternatively, assign a bot user here
                     content=chatbot_response,
                     is_chatbot=True,
-                    message_type="text",
+                    message_type="text"
                 )
+                # Push bot message to Firebase
+                firebase_bot_data = {
+                    "message": chatbot_response,
+                    "sender": "Samantha",
+                    "timestamp": str(bot_message.timestamp),
+                    "message_id": bot_message.id,
+                }
+                push_message(conversation_id, firebase_bot_data)
 
+                return [message, bot_message]
             except Exception as e:
-                # Handle errors by creating a system message
-                print(f"Error generating chatbot response: {str(e)}")
+                # Log the error and handle the failure as needed.
                 bot_message = Message.objects.create(
                     conversation=conversation,
                     sender=self.request.user,
-                    content="Sorry, the chatbot service is currently unavailable. Please try again later.",
+                    content="Sorry, I encountered an error processing your request.",
                     is_chatbot=True,
-                    message_type="system",
+                    message_type="system"
                 )
+                firebase_error_data = {
+                    "message": bot_message.content,
+                    "sender": "Samantha",
+                    "timestamp": str(bot_message.timestamp),
+                    "message_id": bot_message.id,
+                }
+                push_message(conversation_id, firebase_error_data)
+                return [message, bot_message]
 
         return message
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """Override create to return both the user message and chatbot response"""
-        response = super().create(request, *args, **kwargs)
-
-        # If this was a successful message creation in a chatbot conversation
+        """Override create to handle both user message and chatbot response consistently"""
+        # Get the conversation first
         conversation_id = self.kwargs.get("conversation_id")
-        if response.status_code == status.HTTP_201_CREATED:
-            try:
-                conversation = Conversation.objects.get(
-                    id=conversation_id, conversation_type="chatbot", is_active=True
-                )
+        conversation = get_object_or_404(
+            Conversation,
+            id=conversation_id,
+            participants=self.request.user,
+            is_active=True,
+        )
 
-                # Get the last two messages (user message and chatbot response)
-                latest_messages = Message.objects.filter(
-                    conversation=conversation
-                ).order_by("-timestamp")[:2]
+        # Create the user's message
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user_message = self.perform_create(serializer)
 
-                # Serialize the messages
-                serializer = self.get_serializer(latest_messages, many=True)
-                response.data = serializer.data
-            except Conversation.DoesNotExist:
-                # Not a chatbot conversation, return the original response
-                pass
+        # For chatbot conversations, return both messages
+        if conversation.conversation_type == "chatbot":
+            # Get both the user message and the bot response that was created in perform_create
+            latest_messages = Message.objects.filter(
+                conversation=conversation
+            ).order_by("-timestamp")[:2]
+            
+            response_serializer = self.get_serializer(latest_messages, many=True)
+            return Response(
+                response_serializer.data,
+                status=status.HTTP_201_CREATED
+            )
 
-        return response
+        # For regular conversations, return just the user message
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED
+        )
 
 
+@extend_schema_view(
+    get=extend_schema(summary="Retrieve message"),
+    patch=extend_schema(summary="Update message"),
+    put=extend_schema(summary="Update message"),
+    delete=extend_schema(summary="Delete message")
+)
 class MessageDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     New endpoint: allows editing and deletion (or soft deletion) of a message.
@@ -304,6 +376,11 @@ class MessageDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
+@extend_schema(
+    summary="Toggle reaction on message",
+    description="Add or toggle a reaction on a given message.",
+    responses={201: ReactionSerializer, 204: None}
+)
 class MessageReactionView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -333,6 +410,12 @@ class MessageReactionView(APIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Search messages",
+        description="Search for messages by content or sender username, optionally within a specific conversation."
+    )
+)
 class MessageSearchView(generics.ListAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -356,6 +439,10 @@ class MessageSearchView(generics.ListAPIView):
         )
 
 
+@extend_schema(
+    summary="Manage group conversation",
+    description="Perform group management actions such as adding or removing moderators/users.",
+)
 class GroupManagementView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = GroupManagementSerializer
@@ -404,6 +491,12 @@ class GroupManagementView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema_view(
+    get=extend_schema(summary="Retrieve conversation"),
+    patch=extend_schema(summary="Update conversation"),
+    put=extend_schema(summary="Update conversation"),
+    delete=extend_schema(summary="Delete conversation (soft delete)")
+)
 class ConversationDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -427,6 +520,11 @@ class ConversationDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.save()
 
 
+@extend_schema(
+    summary="Mark message as read",
+    description="Mark the specified message as read.",
+    responses={200: {"message": "Message marked as read"}}
+)
 class MessageMarkAsReadView(APIView):
     """
     New endpoint: Marks a message as read.

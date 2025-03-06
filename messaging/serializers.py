@@ -1,3 +1,4 @@
+#messaging/serializers.py
 from rest_framework import serializers
 from .models import Conversation, Message, Reaction
 from django.contrib.auth import get_user_model

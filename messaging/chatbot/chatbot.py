@@ -1,3 +1,4 @@
+#messaging/chatbot/chatbot.py
 import os
 import requests
 from typing import List, Dict, Optional
@@ -27,7 +28,7 @@ def get_ollama_response(
     if conversation_history:
         history_context = "\n".join(
             [
-                f"User: {msg['content']}\nSamantha: {msg['response']}"
+                f"{msg['role'].capitalize()}: {msg['content']}"
                 for msg in conversation_history[-3:]
             ]  # Last 3 exchanges
         )
@@ -49,6 +50,8 @@ def get_ollama_response(
         response = requests.post(ollama_api_url, json=payload, timeout=30)
         response.raise_for_status()
         data = response.json()
+
+        print("Ollama API Raw Response:", data)  # Print the full response
 
         return data.get("response", "No response from LLM.").strip()
     except requests.RequestException as e:

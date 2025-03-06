@@ -1,40 +1,48 @@
+#messaging/tasks.py
 from celery import shared_task
-from celery.exceptions import MaxRetriesExceededError
 from .models import Conversation, Message
 from django.contrib.auth import get_user_model
 from messaging.chatbot.chatbot import get_ollama_response
 from django.utils.timezone import now
+from messaging.firebase_client import push_message  # New import
+from asgiref.sync import async_to_sync
+import json
+
+User = get_user_model()
 
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True)
 def generate_chatbot_response(self, conversation_id, user_id, message_content):
     try:
         conversation = Conversation.objects.get(pk=conversation_id)
-        user = get_user_model().objects.get(pk=user_id)
+        user = User.objects.get(pk=user_id)
 
-        # Get conversation history
-        history = (
-            Message.objects.filter(conversation=conversation, timestamp__lt=now())
+        history = list(
+            Message.objects.filter(conversation=conversation)
             .order_by("-timestamp")[:3]
             .values("content", "is_chatbot")
         )
 
-        # Get chatbot response with context
         chatbot_content = get_ollama_response(
-            message_content, conversation_history=list(history)
+            message_content, conversation_history=history
         )
 
-        # Create message
-        Message.objects.create(
+        bot_message = Message.objects.create(
             conversation=conversation,
-            sender=user,
+            sender=user,  # Optionally change this to a dedicated chatbot user
             content=chatbot_content,
             is_chatbot=True,
         )
+
+        # Push the bot message to Firebase instead of using channels
+        firebase_data = {
+            "message": chatbot_content,
+            "sender": "Samantha",  # Chatbot name
+            "timestamp": str(bot_message.timestamp),
+            "message_id": bot_message.id,
+        }
+        push_message(conversation_id, firebase_data)
+
         return True
     except Exception as e:
-        try:
-            self.retry(countdown=2**self.request.retries)
-        except MaxRetriesExceededError:
-            print(f"Failed after 3 retries: {str(e)}")
         return False

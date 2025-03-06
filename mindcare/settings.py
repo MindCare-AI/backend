@@ -4,6 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 import json
+from datetime import timedelta
+import redis
 
 
 load_dotenv()
@@ -27,6 +29,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost:8000",
     *os.getenv("ALLOWED_HOSTS", "").split(","),
+    '*',  # For development only - remove in production
 ]
 
 
@@ -62,6 +65,8 @@ INSTALLED_APPS = [
     "media_handler",
     "corsheaders",
     "messaging",
+    "channels",
+    "channels_redis",
 ]
 
 SITE_ID = 1
@@ -87,6 +92,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "mindcare.urls"
+
+ASGI_APPLICATION = "mindcare.asgi.application"
 
 TEMPLATES = [
     {
@@ -277,6 +284,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
     ],
@@ -306,14 +314,131 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8082",
     "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://localhost:19006",  # React Native Expo default
+    "http://127.0.0.1:19006",
+    "http://127.0.0.1:3000",
 ]
 
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+]
+
+# Allow WebSocket connections
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+# WebSocket specific settings
+# WEBSOCKET_URL = os.getenv('WEBSOCKET_URL', 'ws://localhost:8000')
+# WEBSOCKET_ALLOWED_ORIGINS = os.getenv('WEBSOCKET_ALLOWED_ORIGINS', '').split(',')
+
+# JWT settings for WebSocket authentication
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME', 60))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.getenv('JWT_REFRESH_TOKEN_LIFETIME', 1))),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
+    'ALGORITHM': os.getenv('JWT_ALGORITHM', 'HS256'),
+    'SIGNING_KEY': os.getenv('JWT_SECRET_KEY', SECRET_KEY),
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+}
+
+# Channel Layers Configuration for WebSocket
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels_redis.core.RedisChannelLayer",
+#         "CONFIG": {
+#             "hosts": [f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/0"],
+#             "capacity": 1500,
+#             "expiry": 10,
+#         },
+#     },
+# }
+# CHANNEL_LAYERS_MAX_CONNECTIONS = 1000
+# CHANNEL_LAYERS_CAPACITY = 100
 
 # Celery Configuration
-CELERY_BROKER_URL = "redis://localhost:6379/0"  # Default Redis URL
-CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+REDIS_URL = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/0"
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+
+# Logging configuration for WebSocket debugging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'channels': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'messaging': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+
+# Firebase configuration for hybrid SQL/NoSQL messaging
+try:
+    # Update the path if needed—here we assume the file is in messaging/firebase_credentials.json
+    FIREBASE_CONFIG_PATH = os.getenv("FIREBASE_CONFIG_PATH", str(BASE_DIR / "messaging" / "firebase_credentials.json"))
+    with open(FIREBASE_CONFIG_PATH, "r") as f:
+        FIREBASE_CONFIG = json.load(f)
+except Exception as e:
+    print("Error loading FIREBASE_CONFIG from file:", e)
+    FIREBASE_CONFIG = {}
+
+FIREBASE_CERT_PATH = os.getenv("FIREBASE_CERT_PATH", str(BASE_DIR / "firebase-cert.json"))
+FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL", "https://your-firebase-database.firebaseio.com")

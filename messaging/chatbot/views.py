@@ -1,3 +1,5 @@
+#messaging/chatbot/views.py
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -9,6 +11,63 @@ class ChatbotThrottle(UserRateThrottle):
     rate = "5/minute"
 
 
+@extend_schema_view(
+    post=extend_schema(
+        summary="Get Chatbot Response",
+        description=(
+            "Send a message to the chatbot and receive a response without creating a conversation. "
+            "This endpoint is throttled to 5 requests per minute."
+        ),
+        request={
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "The user message to send to the chatbot."
+                },
+                "history": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Optional conversation history as an array of message objects."
+                },
+            },
+            "required": ["message"]
+        },
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "response": {
+                        "type": "string",
+                        "description": "The chatbot's response."
+                    }
+                },
+            },
+            400: {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Error message indicating missing or invalid input."
+                    }
+                },
+            },
+            500: {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Failure message indicating an error occurred while processing the request."
+                    },
+                    "details": {
+                        "type": "string",
+                        "description": "Additional details about the error."
+                    },
+                },
+            },
+        },
+    )
+)
 class ChatbotResponseView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [ChatbotThrottle]

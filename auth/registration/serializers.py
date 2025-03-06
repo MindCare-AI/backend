@@ -1,11 +1,9 @@
-# auth\registration\serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from allauth.account.adapter import get_adapter
 from allauth.account.utils import setup_user_email
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from users.models import UserProfile, UserPreferences, UserSettings
-
 
 class CustomRegisterSerializer(RegisterSerializer):
     """
@@ -25,18 +23,13 @@ class CustomRegisterSerializer(RegisterSerializer):
         data = super().validate(data)
         username = data.get("username")
         email = data.get("email")
-
-        # Generate username from email if blank
         if not username or not username.strip():
             username = email
-
-        # Check username uniqueness
         user_model = get_user_model()
         if user_model.objects.filter(username__iexact=username).exists():
             raise serializers.ValidationError(
                 {"username": "A user with that username already exists."}
             )
-
         data["username"] = username.strip()
         return data
 
@@ -49,7 +42,6 @@ class CustomRegisterSerializer(RegisterSerializer):
         return value
 
     def get_cleaned_data(self):
-        # Use validated_data after validation
         username = self.validated_data.get("username", "")
         return {
             "username": username,

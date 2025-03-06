@@ -1,3 +1,4 @@
+#messaging/management/commands/setup_ollama_model.py
 import subprocess
 from django.core.management.base import BaseCommand
 

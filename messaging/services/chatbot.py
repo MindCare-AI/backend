@@ -1,6 +1,6 @@
-import os
 import requests
 from typing import List, Dict
+
 
 def get_chatbot_response(message: str, history: List[Dict]) -> str:
     gemini_api_key = "AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734"
@@ -36,22 +36,18 @@ History:
 User: {message}
 Samantha:"""
 
-    payload = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
-    }
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
     try:
         response = requests.post(gemini_api_url, json=payload, timeout=60)
         response.raise_for_status()
         response_json = response.json()
-        
+
         # Extract the response text
         if "candidates" in response_json and len(response_json["candidates"]) > 0:
-            response_text = response_json["candidates"][0]["content"]["parts"][0]["text"]
+            response_text = response_json["candidates"][0]["content"]["parts"][0][
+                "text"
+            ]
             return response_text.strip()
         else:
             return "I need a moment to think."

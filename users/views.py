@@ -1,57 +1,23 @@
 # users/views.py
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import UserProfile, UserPreferences, UserSettings
+from .models import UserPreferences, UserSettings, PatientProfile, TherapistProfile
+from .permissions import IsSuperUserOrSelf
 from .serializers import (
-    UserProfileSerializer,
+    CustomUserSerializer,
     UserPreferencesSerializer,
-    UserDetailSerializer,
     UserSettingsSerializer,
+    PatientProfileSerializer,
+    TherapistProfileSerializer,
 )
 
 CustomUser = get_user_model()
-
-
-class IsSuperUserOrSelf(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        # Allow superusers full access
-        if request.user.is_superuser:
-            return True
-        # Allow users to access their own data
-        return obj.user == request.user
-
-
-@extend_schema_view(
-    list=extend_schema(
-        description="Get user profile information. Returns user's own profile for regular users.",
-        summary="Get User Profile",
-        tags=["Profile"],
-    ),
-    update=extend_schema(
-        description="Update user profile information (bio, timezone, etc.)",
-        summary="Update Profile",
-        tags=["Profile"],
-    ),
-    partial_update=extend_schema(
-        description="Partially update profile information",
-        summary="Patch Profile",
-        tags=["Profile"],
-    ),
-)
-class UserProfileViewSet(viewsets.ModelViewSet):
-    serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    def get_queryset(self):
-        if self.request.user.is_superuser:
-            return UserProfile.objects.select_related("user").all()
-        return UserProfile.objects.select_related("user").filter(user=self.request.user)
 
 
 @extend_schema_view(
@@ -73,12 +39,17 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 )
 class UserPreferencesViewSet(viewsets.ModelViewSet):
     serializer_class = UserPreferencesSerializer
-    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return UserPreferences.objects.all()
         return UserPreferences.objects.filter(user=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def toggle_dark_mode(self, request, pk=None):
+        preferences = self.get_object()
+        preferences.dark_mode = not preferences.dark_mode
+        preferences.save()
+        return Response({"dark_mode": preferences.dark_mode}, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(
@@ -98,11 +69,9 @@ class UserPreferencesViewSet(viewsets.ModelViewSet):
 )
 class UserSettingsViewSet(viewsets.ModelViewSet):
     serializer_class = UserSettingsSerializer
-    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return UserSettings.objects.all()
         return UserSettings.objects.filter(user=self.request.user)
 
 
@@ -128,11 +97,89 @@ class UserListPagination(PageNumberPagination):
 )
 class UserListView(ListAPIView):
     queryset = CustomUser.objects.all()
-    serializer_class = UserDetailSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CustomUserSerializer
+    permission_classes = [IsAuthenticated]
     pagination_class = UserListPagination
 
     def get_queryset(self):
         if self.request.user.is_superuser:
             return CustomUser.objects.all()
         return CustomUser.objects.filter(id=self.request.user.id)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Get user information",
+        summary="Get Users",
+        tags=["User"],
+    ),
+    retrieve=extend_schema(
+        description="Get specific user details",
+        summary="Get User",
+        tags=["User"],
+    ),
+)
+class CustomUserViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CustomUserSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = UserListPagination
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return CustomUser.objects.all()
+        return CustomUser.objects.filter(id=self.request.user.id)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Get patient profile information",
+        summary="Get Patient Profile",
+        tags=["Profile"],
+    ),
+    update=extend_schema(
+        description="Update patient profile information",
+        summary="Update Patient Profile",
+        tags=["Profile"],
+    ),
+    partial_update=extend_schema(
+        description="Partially update profile information",
+        summary="Patch Profile",
+        tags=["Profile"],
+    ),
+)
+class PatientProfileViewSet(viewsets.ModelViewSet):
+    serializer_class = PatientProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
+    http_method_names = ["get", "put", "patch", "delete"]  # Remove POST method
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return PatientProfile.objects.select_related("user").all()
+        return PatientProfile.objects.select_related("user").filter(
+            user=self.request.user
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Get therapist profile information",
+        summary="Get Therapist Profile",
+        tags=["Profile"],
+    ),
+    update=extend_schema(
+        description="Update therapist profile information",
+        summary="Update Therapist Profile",
+        tags=["Profile"],
+    ),
+)
+class TherapistProfileViewSet(viewsets.ModelViewSet):
+    serializer_class = TherapistProfileSerializer
+    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
+    http_method_names = ["get", "put", "patch", "delete"]  # Remove POST method
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return TherapistProfile.objects.select_related("user").all()
+        return TherapistProfile.objects.select_related("user").filter(
+            user=self.request.user
+        )

@@ -16,13 +16,12 @@ urlpatterns = [
     path("users/", include("users.urls")),
     path("mood/", include("mood.urls")),
     path("journal/", include("journal.urls")),
-    path("therapy/", include("therapy.urls")),
-    path("community/", include("community.urls")),
-    path("activities/", include("activities.urls")),
     path("notifications/", include("notifications.urls")),
     path("analytics/", include("analytics.urls")),
     path("media/", include("media_handler.urls")),
     path("messaging/", include("messaging.urls")),
+    path("therapist/", include("therapist.urls")),
+    path("patient/", include("patient.urls")),  # Changed from patients to patient
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

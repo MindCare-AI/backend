@@ -1,3 +1,4 @@
+#media_handler/views.py
 from rest_framework import viewsets, permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from drf_spectacular.utils import extend_schema, extend_schema_view

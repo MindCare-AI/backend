@@ -25,6 +25,10 @@ class BaseMessage(models.Model):
     read_by = models.ManyToManyField(
         settings.AUTH_USER_MODEL, related_name="%(class)s_read_messages", blank=True
     )
+    reactions = models.JSONField(
+        default=dict
+    )  # Store reactions as {"emoji": [user_ids]}
+    is_typing = models.BooleanField(default=False)  # Indicates if the user is typing
 
     class Meta:
         abstract = True

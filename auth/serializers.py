@@ -4,6 +4,7 @@ from dj_rest_auth.serializers import (
 )
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
 UserModel = get_user_model()
 
@@ -52,3 +53,13 @@ class ConfirmEmailSerializer(serializers.Serializer):
 class GoogleAuthSerializer(serializers.Serializer):
     code = serializers.CharField()
     state = serializers.CharField(required=False)
+
+
+class Enable2FASerializer(serializers.Serializer):
+    enable_2fa = serializers.BooleanField(required=True)
+
+    def save(self, user):
+        if self.validated_data["enable_2fa"]:
+            TOTPDevice.objects.get_or_create(user=user, confirmed=True)
+        else:
+            TOTPDevice.objects.filter(user=user).delete()

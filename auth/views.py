@@ -12,8 +12,11 @@ from rest_framework.views import APIView
 from rest_framework import status
 from django.conf import settings
 from urllib.parse import urlencode
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 import secrets
+from django_otp.plugins.otp_totp.models import TOTPDevice
+from .serializers import Enable2FASerializer
+from drf_spectacular.utils import extend_schema
 
 logger = logging.getLogger(__name__)
 
@@ -127,3 +130,19 @@ class GoogleCallback(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response({"code": code, "message": "Authorization successful"})
+
+
+@extend_schema(
+    description="Enable or disable 2FA for the authenticated user.",
+    summary="Enable/Disable 2FA",
+    tags=["2FA"],
+)
+class Enable2FAView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = Enable2FASerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response({"message": "2FA settings updated successfully"}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

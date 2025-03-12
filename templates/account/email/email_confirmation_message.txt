@@ -1,0 +1,14 @@
+{% load account %}{% user_display user as user_display %}{% autoescape off %}
+Hello from MindCare!
+
+You're receiving this email because user {{ user_display }} has registered an account.
+
+To confirm your email address, please click the link below:
+
+{{ activate_url }}
+
+If you did not sign up for this account, you can safely ignore this email.
+
+Thank you,
+MindCare Team
+{% endautoescape %}

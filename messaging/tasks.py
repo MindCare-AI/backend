@@ -1,45 +1,27 @@
 # messaging/tasks.py
 from celery import shared_task
-from .models import Conversation, Message
-from django.contrib.auth import get_user_model
-from messaging.chatbot.chatbot import get_ollama_response
-from messaging.firebase_client import push_message  # New import
+from .models.chatbot import ChatbotMessage, ChatbotConversation
+from .services.chatbot import get_chatbot_response
+from .services.firebase import push_message
+import logging
 
-User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True)
-def generate_chatbot_response(self, conversation_id, user_id, message_content):
+@shared_task(bind=True, max_retries=3)
+def process_chatbot_response(self, conversation_id: int, message_content: str):
     try:
-        conversation = Conversation.objects.get(pk=conversation_id)
-        user = User.objects.get(pk=user_id)
+        conversation = ChatbotConversation.objects.get(id=conversation_id)
 
-        history = list(
-            Message.objects.filter(conversation=conversation)
-            .order_by("-timestamp")[:3]
-            .values("content", "is_chatbot")
+        # Get bot response
+        response = get_chatbot_response(message_content, [])
+
+        # Create message in database
+        message = ChatbotMessage.objects.create(
+            conversation=conversation, content=response, is_bot=True
         )
-
-        chatbot_content = get_ollama_response(
-            message_content, conversation_history=history
-        )
-
-        bot_message = Message.objects.create(
-            conversation=conversation,
-            sender=user,  # Optionally change this to a dedicated chatbot user
-            content=chatbot_content,
-            is_chatbot=True,
-        )
-
-        # Push the bot message to Firebase instead of using channels
-        firebase_data = {
-            "message": chatbot_content,
-            "sender": "Samantha",  # Chatbot name
-            "timestamp": str(bot_message.timestamp),
-            "message_id": bot_message.id,
-        }
-        push_message(conversation_id, firebase_data)
 
         return True
-    except Exception:
-        return False
+    except Exception as e:
+        logger.error(f"Error processing chatbot response: {e}")
+        self.retry(countdown=2 ** self.request.retries)

@@ -55,9 +55,6 @@ INSTALLED_APPS = [
     "users",
     "mood",
     "journal",
-    "therapy",
-    "community",
-    "activities",
     "notifications",
     "analytics",
     "drf_spectacular",
@@ -66,6 +63,10 @@ INSTALLED_APPS = [
     "messaging",
     "channels",
     "channels_redis",
+    "therapist",
+    "patient",
+    "django_otp",
+    "django_otp.plugins.otp_totp",
 ]
 
 SITE_ID = 1
@@ -97,7 +98,7 @@ ASGI_APPLICATION = "mindcare.asgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],  # Add this line
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -148,37 +149,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 REST_AUTH = {
-    "LOGIN_SERIALIZER": "dj_rest_auth.serializers.LoginSerializer",
-    "TOKEN_SERIALIZER": "dj_rest_auth.serializers.TokenSerializer",
-    "JWT_SERIALIZER": "dj_rest_auth.serializers.JWTSerializer",
-    "JWT_SERIALIZER_WITH_EXPIRATION": "dj_rest_auth.serializers.JWTSerializerWithExpiration",
-    "JWT_TOKEN_CLAIMS_SERIALIZER": "rest_framework_simplejwt.serializers.TokenObtainPairSerializer",
-    "USER_DETAILS_SERIALIZER": "auth.serializers.CustomUserDetailsSerializer",
-    "PASSWORD_RESET_SERIALIZER": "dj_rest_auth.serializers.PasswordResetSerializer",
-    "PASSWORD_RESET_CONFIRM_SERIALIZER": "auth.serializers.CustomPasswordResetConfirmSerializer",
-    "PASSWORD_CHANGE_SERIALIZER": "dj_rest_auth.serializers.PasswordChangeSerializer",
-    "REGISTER_SERIALIZER": "auth.registration.serializers.CustomRegisterSerializer",
-    "REGISTER_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
-    "TOKEN_MODEL": "rest_framework.authtoken.models.Token",
-    "TOKEN_CREATOR": "dj_rest_auth.utils.default_create_token",
-    "PASSWORD_RESET_USE_SITES_DOMAIN": False,
-    "OLD_PASSWORD_FIELD_ENABLED": True,
-    "LOGOUT_ON_PASSWORD_CHANGE": False,
-    "SESSION_LOGIN": True,
-    "USE_JWT": True,
-    "JWT_AUTH_COOKIE": "access_token",
-    "JWT_AUTH_RETURN_REFRESH": True,
-    "JWT_AUTH_REFRESH_COOKIE": "refresh_token",
-    "JWT_AUTH_REFRESH_COOKIE_PATH": "/",
-    "JWT_AUTH_SECURE": False,  # Set to True in production to enable secure cookies
-    "JWT_AUTH_HTTPONLY": True,  # prevent client side javascript from reading the cookie
-    "JWT_AUTH_SAMESITE": "Lax",
-    "JWT_AUTH_RETURN_EXPIRATION": False,
-    "JWT_AUTH_COOKIE_USE_CSRF": True,
-    "JWT_AUTH_COOKIE_ENFORCE_CSRF_ON_UNAUTHENTICATED": False,
+    'REGISTER_SERIALIZER': 'auth.registration.serializers.CustomRegisterSerializer',
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'auth',
+    'JWT_AUTH_REFRESH_COOKIE': 'refresh-auth',
 }
 
-ACCOUNT_ADAPTER = "auth.registration.custom_adapter.AccountAdapter"
+ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomSocialAccountAdapter"
 
 # Configure django-allauth to use email as the primary identifier
@@ -187,19 +164,28 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_REQUIRED = True
 
-# Email configuration to use Brevo's SMTP server
+# Email Configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp-relay.brevo.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
-EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-EMAIL_HOST_USER = os.getenv("BREVO_EMAIL_HOST_USER", "86ca57001@smtp-brevo.com")
-EMAIL_HOST_PASSWORD = os.getenv("BREVO_EMAIL_HOST_PASSWORD", "7ZgxAkWBR5G9bLds")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "azizbahloulextra@gmail.com")
+EMAIL_HOST = "smtp-relay.brevo.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "7fa9d1001@smtp-brevo.com"
+EMAIL_HOST_PASSWORD = "y9Pw4DtnMFcI6Y38"
+DEFAULT_FROM_EMAIL = "azizbahloulextra@gmail.com"
 
-# Allauth settings for email verification
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
-ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+# Django-allauth Settings
 ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' if you want email verification
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "MindCare - "
+
+# Remove duplicate settings and keep only this adapter
+ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
 
 # Social account provider settings
 SOCIALACCOUNT_PROVIDERS = {
@@ -290,6 +276,17 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/day",
+        "user": "1000/day",
+        "chatbot": "30/minute",
+    },
+    "DEFAULT_PAGINATION_CLASS": "messaging.pagination.CustomMessagePagination",
+    "PAGE_SIZE": 20,
 }
 
 SPECTACULAR_SETTINGS = {
@@ -401,19 +398,24 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 
-# Logging configuration for WebSocket debugging
+# Enhanced logging configuration
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "format": "{asctime} {levelname} {module} {message}",
             "style": "{",
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs/email.log",
             "formatter": "verbose",
         },
     },
@@ -429,6 +431,26 @@ LOGGING = {
         "messaging": {
             "handlers": ["console"],
             "level": "DEBUG",
+        },
+        "django.core.mail": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "allauth": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "auth.registration": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "messaging.services.chatbot": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": True,
         },
     },
 }
@@ -452,3 +474,6 @@ FIREBASE_CERT_PATH = os.getenv(
 FIREBASE_DATABASE_URL = os.getenv(
     "FIREBASE_DATABASE_URL", "https://your-firebase-database.firebaseio.com"
 )
+
+# Gemini API Configuration
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')

@@ -4,6 +4,9 @@ from .views import (
     CustomUserViewSet,
     UserPreferencesViewSet,
     UserSettingsViewSet,
+    BecomePatientView,
+    BecomeTherapistView,
+    SetUserTypeView,
 )
 
 urlpatterns = [
@@ -31,4 +34,5 @@ urlpatterns = [
         UserSettingsViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="settings-detail",
     ),
+    path('set-user-type/', SetUserTypeView.as_view(), name='set-user-type'),
 ]

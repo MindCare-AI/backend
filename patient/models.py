@@ -24,6 +24,14 @@ class PatientProfile(models.Model):
         related_name="patient_profile_patient"
     )
 
+    # Add this field with a default value
+    profile_type = models.CharField(
+        max_length=10, 
+        choices=[('patient', 'Patient'), ('therapist', 'Therapist')], 
+        default='patient',
+        null=True  # Add this temporarily
+    )
+
     # Optional Medical Information
     medical_history = models.TextField(blank=True, null=True)
     current_medications = models.TextField(blank=True, null=True)

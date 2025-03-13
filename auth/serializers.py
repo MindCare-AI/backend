@@ -1,10 +1,12 @@
+# auth\serializers.py
 from dj_rest_auth.serializers import (
     PasswordResetConfirmSerializer,
     UserDetailsSerializer,
 )
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django_otp.plugins.otp_totp.models import TOTPDevice
+from dj_rest_auth.registration.serializers import RegisterSerializer
+from users.models import CustomUser
 
 UserModel = get_user_model()
 
@@ -40,26 +42,43 @@ class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
             "An error occurred while resetting the password."
         )
 
+    def get_user_data(self):
+        """Get user data after password reset to return useful profile information"""
+        user = self.user
+        return {
+            "user_id": user.id,
+            "email": user.email,
+            "user_type": user.user_type,
+            "has_profile": hasattr(user, f"{user.user_type}_profile") if user.user_type else False
+        }
+
+
+class CustomRegisterSerializer(RegisterSerializer):
+    USER_TYPE_CHOICES = [
+        ('patient', 'Patient'),
+        ('therapist', 'Therapist'),
+        ('', 'Choose later')
+    ]
+    
+    user_type = serializers.ChoiceField(
+        choices=USER_TYPE_CHOICES,
+        required=False,  # Make it optional
+        default='',  # Default to empty
+        help_text="Account type (patient or therapist, can be set later)"
+    )
+    
+    def get_cleaned_data(self):
+        data = super().get_cleaned_data()
+        data["user_type"] = self.validated_data.get("user_type", "")
+        return data
+    
+    def validate_user_type(self, value):
+        # Allow empty value for now
+        if value and value not in ['patient', 'therapist', '']:
+            raise serializers.ValidationError("Invalid user type. Must be 'patient' or 'therapist'")
+        return value
+
 
 class CustomUserDetailsSerializer(UserDetailsSerializer):
     class Meta(UserDetailsSerializer.Meta):
         fields = UserDetailsSerializer.Meta.fields + ("first_name", "last_name")
-
-
-class ConfirmEmailSerializer(serializers.Serializer):
-    key = serializers.CharField()
-
-
-class GoogleAuthSerializer(serializers.Serializer):
-    code = serializers.CharField()
-    state = serializers.CharField(required=False)
-
-
-class Enable2FASerializer(serializers.Serializer):
-    enable_2fa = serializers.BooleanField(required=True)
-
-    def save(self, user):
-        if self.validated_data["enable_2fa"]:
-            TOTPDevice.objects.get_or_create(user=user, confirmed=True)
-        else:
-            TOTPDevice.objects.filter(user=user).delete()

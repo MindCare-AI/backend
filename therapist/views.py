@@ -13,7 +13,7 @@ from .serializers import (
     SessionNoteSerializer,
     ClientFeedbackSerializer,
 )
-from users.permissions import IsSuperUserOrSelf
+from users.permissions import IsSuperUserOrSelf, IsTherapistForPatient
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,42 +48,29 @@ logger = logging.getLogger(__name__)
 )
 class TherapistProfileViewSet(viewsets.ModelViewSet):
     serializer_class = TherapistProfileSerializer
-    http_method_names = ["get", "put", "patch", "delete"]  # Remove POST
     permission_classes = [IsSuperUserOrSelf]
 
     def get_queryset(self):
         """
-        Enhanced queryset with filtering capabilities for:
-        - Years of experience
-        - Specialization
-        - Availability
-        - Languages spoken
+        Return all therapist profiles for admin,
+        or just the user's own profile for regular users.
         """
-        queryset = TherapistProfile.objects.select_related("user")
-
-        # Filter parameters
-        min_experience = self.request.query_params.get("min_experience")
-        specialization = self.request.query_params.get("specialization")
-        language = self.request.query_params.get("language")
-        max_fee = self.request.query_params.get("max_fee")
-
-        # Apply filters
-        if min_experience:
-            queryset = queryset.filter(years_of_experience__gte=min_experience)
-
+        user = self.request.user
+        if user.is_superuser:
+            return TherapistProfile.objects.all().select_related('user')
+        
+        # Filter by some parameter if provided
+        specialization = self.request.query_params.get('specialization', None)
+        queryset = TherapistProfile.objects.filter(user__user_type='therapist')
+        
         if specialization:
             queryset = queryset.filter(specialization__icontains=specialization)
-
-        if language:
-            queryset = queryset.filter(languages_spoken__contains=[language])
-
-        if max_fee:
-            queryset = queryset.filter(consultation_fee__lte=max_fee)
-
-        # User-based filtering
-        if not self.request.user.is_superuser:
-            queryset = queryset.filter(user=self.request.user)
-
+            
+        if user.is_authenticated and user.user_type == 'therapist':
+            # Just return the user's own profile if they're a therapist
+            return TherapistProfile.objects.filter(user=user)
+            
+        # For patients or anonymous users, return all therapist profiles
         return queryset
 
     @extend_schema(
@@ -106,11 +93,50 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                     "languages": therapist.languages_spoken,
                 }
             )
-        except Exception as e:
-            logger.error(f"Error checking availability: {str(e)}")
+        except TherapistProfile.DoesNotExist:
+            logger.warning(f"Therapist profile not found: {pk}")
             return Response(
-                {"error": "Could not fetch availability"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "Therapist profile not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.error(f"Error checking availability: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Could not fetch availability. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"])
+    def update_availability(self, request, pk=None):
+        """
+        Update therapist availability
+        """
+        try:
+            therapist = self.get_object()
+            
+            # Check permissions
+            if therapist.user != request.user and not request.user.is_superuser:
+                return Response(
+                    {"error": "You don't have permission to update this therapist's availability"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+                
+            # Update available days
+            available_days = request.data.get('available_days')
+            if available_days:
+                therapist.available_days = available_days
+                therapist.save()
+                
+            return Response({
+                "message": "Availability updated successfully",
+                "available_days": therapist.available_days,
+            })
+            
+        except Exception as e:
+            logger.error(f"Error updating availability: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Could not update availability. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

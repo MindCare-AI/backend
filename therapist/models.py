@@ -76,6 +76,13 @@ class TherapistProfile(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
 
+    # Profile type
+    profile_type = models.CharField(
+        max_length=10, 
+        choices=[('patient', 'Patient'), ('therapist', 'Therapist')], 
+        default='therapist'
+    )
+
     class Meta:
         verbose_name_plural = "Therapist Profiles"
 

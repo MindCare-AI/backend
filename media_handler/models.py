@@ -21,6 +21,10 @@ class MediaFile(models.Model):
     file_size = models.BigIntegerField(editable=False)
     mime_type = models.CharField(max_length=100, editable=False)
 
+    # Add user relationship
+    uploaded_by = models.ForeignKey('users.CustomUser', on_delete=models.CASCADE, 
+                                    related_name='uploaded_media', null=True, blank=True)
+
     # Generic relation fields
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
@@ -34,8 +38,15 @@ class MediaFile(models.Model):
 
     def _get_mime_type(self):
         import magic
-
-        return magic.from_buffer(self.file.read(1024), mime=True)
+        try:
+            mime = magic.from_buffer(self.file.read(1024), mime=True)
+            self.file.seek(0)  # Reset file pointer after reading
+            return mime
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error determining MIME type: {str(e)}")
+            return "application/octet-stream"  # Default mime type
 
     @property
     def filename(self):

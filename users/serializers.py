@@ -8,6 +8,9 @@ from therapist.models import TherapistProfile
 from patient.serializers import PatientProfileSerializer
 from therapist.serializers import TherapistProfileSerializer
 import logging
+from django.db import transaction
+from .models import CustomUser, PatientProfile, TherapistProfile, UserPreferences, UserSettings
+from utils.validators import validate_emergency_contact, validate_blood_type, validate_profile_pic
 
 logger = logging.getLogger(__name__)
 CustomUser = get_user_model()
@@ -32,90 +35,76 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class UserPreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPreferences
-        fields = ["id", "user", "dark_mode", "notification_preferences"]
+        fields = ['language', 'dark_mode', 'notification_email', 'notification_sms', 'notification_app']
 
 
 class UserSettingsSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-
     class Meta:
         model = UserSettings
-        fields = [
-            "id",
-            "user",
-            "theme",
-            "privacy_level",
-            "notifications",  # Single JSON field for all notification settings
-        ]
+        fields = ['timezone', 'two_factor_auth', 'data_sharing']
 
 
 class PatientProfileSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-    profile_pic = serializers.ImageField(required=False, allow_null=True)
+    profile_pic = serializers.ImageField(validators=[validate_profile_pic], required=False)
+    emergency_contact = serializers.JSONField(validators=[validate_emergency_contact], required=False)
+    blood_type = serializers.CharField(validators=[validate_blood_type], required=False)
 
     class Meta:
         model = PatientProfile
-        fields = [
-            "id",
-            "user",
-            "bio",
-            "profile_pic",
-            "timezone",
-            "stress_level",
-            "wearable_data",
-            "therapy_preferences",
-        ]
-
-    def validate_profile_pic(self, value):
-        if value and value.size > 5 * 1024 * 1024:  # 5MB limit
-            raise serializers.ValidationError("Image file too large ( > 5MB )")
-        return value
+        fields = ['id', 'bio', 'profile_pic', 'emergency_contact', 'medical_history', 
+                 'current_medications', 'blood_type', 'treatment_plan', 'pain_level',
+                 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class TherapistProfileSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-    profile_pic = serializers.ImageField(required=False, allow_null=True)
+    profile_pic = serializers.ImageField(validators=[validate_profile_pic], required=False)
+    profile_completion_percentage = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = TherapistProfile
-        fields = [
-            "id",
-            "user",
-            "bio",
-            "profile_pic",
-            "specialization",
-            "license_number",
-            "years_of_experience",
-            "availability",
-        ]
-
-    def validate_profile_pic(self, value):
-        if value and value.size > 5 * 1024 * 1024:
-            raise serializers.ValidationError("Image file too large ( > 5MB )")
-        return value
+        fields = ['id', 'bio', 'profile_pic', 'specialization', 'license_number', 
+                 'years_of_experience', 'treatment_approaches', 'consultation_fee',
+                 'available_days', 'license_expiry', 'video_session_link',
+                 'languages_spoken', 'profile_completion_percentage',
+                 'created_at', 'updated_at']
+        read_only_fields = ['id', 'profile_completion_percentage', 'created_at', 'updated_at']
 
 
-class UserTypeSerializer(serializers.Serializer):
-    user_type = serializers.ChoiceField(
-        choices=['patient', 'therapist'],
-        required=True
-    )
+class UserTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['user_type']
 
     def validate_user_type(self, value):
-        user = self.context['request'].user
-        if user.user_type and user.user_type != value:
-            raise ValidationError("User type cannot be changed once set")
+        if value not in ['patient', 'therapist']:
+            raise serializers.ValidationError("User type must be either 'patient' or 'therapist'")
         return value
 
+    def validate(self, attrs):
+        if self.instance and self.instance.user_type is not None:
+            raise serializers.ValidationError({
+                "user_type": "User type can only be set once"
+            })
+        return attrs
+
     def update(self, instance, validated_data):
-        instance.user_type = validated_data['user_type']
-        # Create corresponding profile
-        if validated_data['user_type'] == 'patient':
-            PatientProfile.objects.get_or_create(user=instance)
-        elif validated_data['user_type'] == 'therapist':
-            TherapistProfile.objects.get_or_create(user=instance)
-        instance.save()
-        return instance
+        try:
+            with transaction.atomic():
+                instance.user_type = validated_data['user_type']
+                instance.save()
+                
+                # Signal handler will create the profile, but let's verify
+                if not hasattr(instance, f"{instance.user_type}_profile"):
+                    logger.warning(f"Profile not created for user {instance.username}")
+                    
+                return instance
+                
+        except Exception as e:
+            logger.error(f"Error updating user type: {str(e)}")
+            raise serializers.ValidationError({
+                "detail": "Unable to update user type"
+            })
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
@@ -173,3 +162,29 @@ class UserDetailSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.error(f"Error getting profile for user {obj.username}: {str(e)}")
             return None
+
+
+class UserSerializer(serializers.ModelSerializer):
+    patient_profile = PatientProfileSerializer(source='patientprofile', read_only=True)
+    therapist_profile = TherapistProfileSerializer(source='therapistprofile', read_only=True)
+    preferences = UserPreferencesSerializer(read_only=True)
+    settings = UserSettingsSerializer(read_only=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 
+                 'user_type', 'date_of_birth', 'phone_number', 
+                 'patient_profile', 'therapist_profile',
+                 'preferences', 'settings']
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
+    
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = CustomUser(**validated_data)
+        if password:
+            user.set_password(password)
+        user.save()
+        return user

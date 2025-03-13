@@ -1,9 +1,5 @@
 from django.contrib import admin
-from .models import (
-    CustomUser,
-    UserPreferences,
-    UserSettings,
-)
+from .models import CustomUser, UserPreferences, UserSettings, PatientProfile, TherapistProfile
 
 
 @admin.register(CustomUser)
@@ -13,21 +9,12 @@ class CustomUserAdmin(admin.ModelAdmin):
     search_fields = ["username", "email"]
 
 
+@admin.register(UserPreferences)
 class UserPreferencesAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "language", "notification_settings")
-    search_fields = ("user__email", "language")
-    list_filter = ("language",)
-    ordering = ("-user__created_at",)
+    list_display = ('user', 'language', 'dark_mode', 'get_notification_settings')
 
 
-admin.site.register(UserPreferences, UserPreferencesAdmin)
-
-
+@admin.register(UserSettings)
 class UserSettingsAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "theme", "privacy_level")
-    search_fields = ("user__email", "theme")
-    list_filter = ("theme",)
-    ordering = ("-user__created_at",)
-
-
-admin.site.register(UserSettings, UserSettingsAdmin)
+    list_display = ('user', 'timezone', 'get_theme', 'get_privacy_level')
+    list_filter = ('timezone',)  # Remove 'theme'

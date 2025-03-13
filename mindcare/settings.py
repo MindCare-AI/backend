@@ -149,14 +149,18 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 REST_AUTH = {
-    'REGISTER_SERIALIZER': 'auth.registration.serializers.CustomRegisterSerializer',
+    'REGISTER_SERIALIZER': 'auth.serializers.CustomRegisterSerializer',
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': 'auth',
     'JWT_AUTH_REFRESH_COOKIE': 'refresh-auth',
 }
 
-ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomSocialAccountAdapter"
+ACCOUNT_ADAPTER = 'auth.registration.custom_adapter.CustomAccountAdapter'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+
+SOCIALACCOUNT_ADAPTER = 'auth.registration.custom_adapter.CustomSocialAccountAdapter'
 
 # Configure django-allauth to use email as the primary identifier
 ACCOUNT_USER_MODEL_USERNAME_FIELD = "username"

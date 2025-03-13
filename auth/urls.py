@@ -1,9 +1,8 @@
 # auth\urls.py
-from django.urls import path, re_path
+from django.urls import path, re_path, include
 from auth.registration.views import (
     CustomConfirmEmailView,
     CustomRegisterView,
-    ResendVerificationEmailView,
     CustomResendEmailVerificationView,
 )
 from dj_rest_auth.views import (
@@ -17,16 +16,12 @@ from auth.views import (
     CustomPasswordResetConfirmView,
     GoogleLogin,
     GoogleAuthRedirect,
-    GitHubLogin,
-    GoogleCallback,
-    Enable2FAView,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
-from auth.registration.custom_adapter import FacebookLogin, LinkedInLogin
 
 urlpatterns = [
     path("token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
@@ -36,8 +31,8 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("register/", CustomRegisterView.as_view(), name="rest_register"),
     path("password/reset/", PasswordResetView.as_view(), name="password_reset"),
-    re_path(
-        r"^password/reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z\-_]+)/$",
+    path(
+        "password/reset/confirm/<uidb64>/<token>/",
         CustomPasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
@@ -45,7 +40,7 @@ urlpatterns = [
     path("email/verify/", VerifyEmailView.as_view(), name="verify_email"),
     path(
         "email/verify/resend/",
-        ResendVerificationEmailView.as_view(),
+        CustomResendEmailVerificationView.as_view(),
         name="resend_email_verification",
     ),
     re_path(
@@ -57,13 +52,4 @@ urlpatterns = [
     path(
         "login/google/start/", GoogleAuthRedirect.as_view(), name="google_auth_redirect"
     ),
-    path("login/github/", GitHubLogin.as_view(), name="github_login"),
-    path("login/google/callback/", GoogleCallback.as_view(), name="google_callback"),
-    # New endpoints
-    path("login/facebook/", FacebookLogin.as_view(), name="facebook_login"),
-    path("login/linkedin/", LinkedInLogin.as_view(), name="linkedin_login"),
-    path("enable-2fa/", Enable2FAView.as_view(), name="enable_2fa"),
-    path('confirm-email/<str:key>/', CustomConfirmEmailView.as_view(), name='account_confirm_email'),
-    path('resend-email-verification/', CustomResendEmailVerificationView.as_view(), name='rest_resend_email_verification'),
-    path('send-verification-email/', ResendVerificationEmailView.as_view(), name='send_verification_email'),
 ]

@@ -58,11 +58,8 @@ class ChatbotRateThrottle(BaseMessageThrottle):
     rate = settings.THROTTLE_RATES.get("chatbot", "30/minute")
 
 
-class GroupMessageThrottle(BaseMessageThrottle):
-    """Group message rate throttling"""
-
-    scope = "group_message"
-    rate = settings.THROTTLE_RATES.get("group_message", "100/hour")
+class GroupMessageThrottle(UserRateThrottle):
+    rate = "10/min"  # adjust the rate as needed
 
 
 class OneToOneMessageThrottle(BaseMessageThrottle):

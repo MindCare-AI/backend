@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from django.db.models import Q
 from django_filters import rest_framework as django_filters
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import PatientProfile, MoodLog
-from .serializers import PatientProfileSerializer, MoodLogSerializer
+from .models import PatientProfile, MoodLog, HealthMetric, MedicalHistoryEntry
+from .serializers import PatientProfileSerializer, MoodLogSerializer, HealthMetricSerializer, MedicalHistorySerializer
 import logging
 from rest_framework.permissions import IsAuthenticated
 
@@ -99,3 +99,24 @@ class MoodLogViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class HealthMetricViewSet(viewsets.ModelViewSet):
+    serializer_class = HealthMetricSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Filter by patient profile related to the current user
+        return HealthMetric.objects.filter(
+            patient__user=self.request.user
+        )
+
+
+class MedicalHistoryViewSet(viewsets.ModelViewSet):
+    serializer_class = MedicalHistorySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return MedicalHistoryEntry.objects.filter(
+            patient__user=self.request.user
+        )

@@ -1,6 +1,11 @@
 # patient/urls.py
 from django.urls import path
-from .views import PatientProfileViewSet, MoodLogViewSet  # Import MoodLogViewSet
+from .views import (
+    PatientProfileViewSet, 
+    MoodLogViewSet,
+    HealthMetricViewSet,
+    MedicalHistoryViewSet
+)
 
 urlpatterns = [
     # Patient Profiles (No POST allowed)
@@ -44,5 +49,37 @@ urlpatterns = [
             }
         ),
         name="mood-log-detail",
+    ),
+
+    # Health Metrics Endpoints
+    path(
+        "health-metrics/",
+        HealthMetricViewSet.as_view({"get": "list", "post": "create"}),
+        name="health-metric-list",
+    ),
+    path(
+        "health-metrics/<int:pk>/",
+        HealthMetricViewSet.as_view({
+            "get": "retrieve",
+            "put": "update",
+            "delete": "destroy"
+        }),
+        name="health-metric-detail",
+    ),
+
+    # Medical History Endpoints
+    path(
+        "medical-history/",
+        MedicalHistoryViewSet.as_view({"get": "list", "post": "create"}),
+        name="medical-history-list",
+    ),
+    path(
+        "medical-history/<int:pk>/",
+        MedicalHistoryViewSet.as_view({
+            "get": "retrieve",
+            "put": "update",
+            "delete": "destroy"
+        }),
+        name="medical-history-detail",
     ),
 ]

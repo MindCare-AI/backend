@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 class BaseConversation(models.Model):
     participants = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="%(class)s_conversations"
+        settings.AUTH_USER_MODEL,
+        related_name="%(class)s_conversations",
+        blank=True  # Allow blank to prevent immediate validation issues
     )
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
@@ -21,6 +24,12 @@ class BaseConversation(models.Model):
 
     class Meta:
         abstract = True
+
+    def clean(self):
+        super().clean()
+        # When the conversation exists (has a pk), ensure it has at least 2 participants.
+        if self.pk and self.participants.count() < 2:
+            raise ValidationError("Conversation must have at least 2 participants")
 
     def archive(self):
         """Archive the conversation"""
@@ -33,6 +42,9 @@ class BaseConversation(models.Model):
         self.archived = False
         self.archive_date = None
         self.save()
+
+    def __str__(self):
+        return f"Conversation {self.pk}"
 
 
 class BaseMessage(models.Model):

@@ -1,6 +1,6 @@
 # patient/serializers.py
 from rest_framework import serializers
-from .models import PatientProfile
+from .models import PatientProfile, MoodLog, HealthMetric, MedicalHistoryEntry
 import logging
 
 logger = logging.getLogger(__name__)
@@ -80,10 +80,21 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         return value
 
 
-from .models import MoodLog  # import the MoodLog model
-
-
 class MoodLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = MoodLog
         fields = ["id", "user", "mood", "timestamp"]
+
+
+class HealthMetricSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HealthMetric
+        fields = '__all__'
+        read_only_fields = ['patient', 'timestamp']
+
+
+class MedicalHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MedicalHistoryEntry
+        fields = '__all__'
+        read_only_fields = ['patient']

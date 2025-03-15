@@ -19,7 +19,8 @@ from ..serializers.one_to_one import (
     OneToOneConversationSerializer,
     OneToOneMessageSerializer,
 )
-
+# New corrected import
+from messaging.throttling import GroupMessageThrottle  # Use the correct module name
 
 @extend_schema_view(
     list=extend_schema(

@@ -12,6 +12,9 @@ class GroupConversation(BaseConversation):
     )
     is_private = models.BooleanField(default=True)
 
+    def __str__(self):
+        return self.name
+
 
 class GroupMessage(BaseMessage):
     conversation = models.ForeignKey(
@@ -20,3 +23,6 @@ class GroupMessage(BaseMessage):
     message_type = models.CharField(
         max_length=10, choices=[("text", "Text"), ("system", "System")], default="text"
     )
+
+    def __str__(self):
+        return f"Message by {self.sender} in {self.conversation}"

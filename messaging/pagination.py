@@ -2,6 +2,10 @@
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+# Simple placeholder encryption function
+def encrypt(content):
+    # For now, return content unchanged – replace with actual encryption
+    return content
 
 class CustomMessagePagination(PageNumberPagination):
     page_size = 20
@@ -18,3 +22,11 @@ class CustomMessagePagination(PageNumberPagination):
                 "results": data,
             }
         )
+
+
+class EncryptedMessagePagination(CustomMessagePagination):
+    def get_paginated_response(self, data):
+        encrypted_data = [
+            {**msg, 'content': encrypt(msg['content'])} for msg in data
+        ]
+        return super().get_paginated_response(encrypted_data)

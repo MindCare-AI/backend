@@ -1,26 +1,30 @@
 # messaging/tasks.py
 from celery import shared_task
 from .models.chatbot import ChatbotMessage, ChatbotConversation
-from .services.chatbot import get_chatbot_response
+from .services.chatbot import get_chatbot_response as chatbot_service
 import logging
 
 logger = logging.getLogger(__name__)
 
-
-@shared_task(bind=True, max_retries=3)
-def process_chatbot_response(self, conversation_id: int, message_content: str):
+@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3)
+def process_chatbot_response(self, conversation_id, message_id):
     try:
-        conversation = ChatbotConversation.objects.get(id=conversation_id)
-
-        # Get bot response
-        response = get_chatbot_response(message_content, [])
-
-        # Create message in database
-        message = ChatbotMessage.objects.create(
-            conversation=conversation, content=response, is_bot=True
+        message = ChatbotMessage.objects.get(id=message_id)
+        # Retrieve up to ten messages from the conversation as history context.
+        history = list(
+            message.conversation.messages.values('content', 'is_bot')[:10]
         )
-
-        return True
+        
+        response = chatbot_service(
+            message.content,
+            [{'content': msg['content'], 'is_bot': msg['is_bot']} for msg in history]
+        )
+        
+        ChatbotMessage.objects.create(
+            conversation=message.conversation,
+            content=response['response'],
+            is_bot=True
+        )
     except Exception as e:
-        logger.error(f"Error processing chatbot response: {e}")
-        self.retry(countdown=2**self.request.retries)
+        logger.error(f"Chatbot processing failed: {str(e)}")
+        raise self.retry(exc=e)

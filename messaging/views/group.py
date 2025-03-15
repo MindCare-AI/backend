@@ -18,7 +18,8 @@ from ..serializers.group import GroupConversationSerializer, GroupMessageSeriali
 from ..pagination import CustomMessagePagination
 from notifications.services import NotificationService
 from celery import shared_task
-
+from messaging.permissions import IsParticipantOrModerator
+from messaging.throttling import GroupMessageThrottle  # Use the correct module name
 logger = logging.getLogger(__name__)
 
 notification_service = NotificationService()
@@ -64,7 +65,8 @@ def create_group_notifications(group_id, message, exclude_users=None):
 class GroupConversationViewSet(viewsets.ModelViewSet):
     queryset = GroupConversation.objects.all()
     serializer_class = GroupConversationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsParticipantOrModerator]
+    throttle_classes = [GroupMessageThrottle]
 
     def get_queryset(self):
         """Filter conversations and optimize queries"""
@@ -270,6 +272,40 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 {"error": "Failed to remove participant"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=True, methods=['post'])
+    def pin_message(self, request, pk=None):
+        group = self.get_object()
+        # Check that the current user is a moderator
+        if not group.moderators.filter(id=request.user.id).exists():
+            return Response(
+                {"detail": "Only moderators can pin messages"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        # Pinning logic: For example, set a pinned_message field or mark a message as pinned.
+        pinned_message_id = request.data.get("message_id")
+        if not pinned_message_id:
+            return Response(
+                {"detail": "Message ID is required to pin a message."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Here, you could implement your pinning mechanism.
+        # For demonstration, we update a hypothetical `pinned_message` field on the group.
+        group.pinned_message_id = pinned_message_id
+        group.save()
+
+        # Send notifications to group participants except the request.user
+        notification_service.create_group_notification(
+            group=group,
+            message=f"Message {pinned_message_id} has been pinned by {request.user.username}",
+            exclude_users=[request.user]
+        )
+        
+        return Response(
+            {"detail": "Message pinned successfully."},
+            status=status.HTTP_200_OK
+        )
 
 
 class GroupMessageViewSet(viewsets.ModelViewSet):

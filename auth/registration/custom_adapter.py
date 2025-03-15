@@ -9,6 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class CustomAccountAdapter(DefaultAccountAdapter):
     """
     Custom account adapter for saving additional user fields during registration.
@@ -21,35 +22,29 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         user.email = data.get("email", user.email)
         user.first_name = data.get("first_name", user.first_name or "")
         user.last_name = data.get("last_name", user.last_name or "")
-        
+
         # Set user_type, but allow it to be null/empty
         user.user_type = data.get("user_type", None)  # Can be None/empty
-        
+
         password = data.get("password1", None)
         if password:
             user.set_password(password)
         else:
             user.set_unusable_password()
-            
+
         if commit:
             user.save()
-            
+
             # Only create profile if user_type is set
             try:
                 if user.user_type == "patient":
-                    PatientProfile.objects.create(
-                        user=user,
-                        profile_type="patient"
-                    )
+                    PatientProfile.objects.create(user=user, profile_type="patient")
                 elif user.user_type == "therapist":
-                    TherapistProfile.objects.create(
-                        user=user,
-                        profile_type="therapist"
-                    )
+                    TherapistProfile.objects.create(user=user, profile_type="therapist")
                 # No profile created if user_type is empty
             except Exception as e:
                 logger.error(f"Error creating profile during registration: {str(e)}")
-                
+
         return user
 
     def send_mail(self, template_prefix, email, context):

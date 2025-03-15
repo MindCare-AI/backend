@@ -1,4 +1,4 @@
-#media_handler/apps.py
+# media_handler/apps.py
 from django.apps import AppConfig
 
 

@@ -1,57 +1,108 @@
 # messaging/services/chatbot.py
 import requests
 from typing import List, Dict
+from django.conf import settings
+import logging
+from .exceptions import ChatbotError
+from .constants import THERAPEUTIC_GUIDELINES
+
+logger = logging.getLogger(__name__)
 
 
-def get_chatbot_response(message: str, history: List[Dict]) -> str:
-    gemini_api_key = "AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734"
-    gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_api_key}"
+class ChatbotService:
+    """Service for handling chatbot interactions"""
 
-    # Build history string separately
-    history_str = "\n".join([f"{msg['sender']}: {msg['content']}" for msg in history])
+    def __init__(self):
+        if not settings.GEMINI_API_KEY:
+            raise ChatbotError("Gemini API key not configured")
 
-    # Create prompt
-    prompt = f"""Context: You are Samantha, a mental health support assistant. Your primary goal is to provide empathetic, thoughtful, and practical support to users experiencing a range of mental health challenges, including anxiety, depression, stress, and grief.
+        self.api_key = settings.GEMINI_API_KEY
+        self.api_url = settings.GEMINI_API_URL
+        self.max_retries = settings.CHATBOT_SETTINGS["MAX_RETRIES"]
+        self.timeout = settings.CHATBOT_SETTINGS["RESPONSE_TIMEOUT"]
 
-Therapeutic Approach:
-- Employ a person-centered approach, focusing on the user's unique experiences and perspectives.
-- Utilize techniques from Cognitive Behavioral Therapy (CBT) to help users identify and challenge negative thought patterns.
-- Incorporate mindfulness practices to promote relaxation and emotional regulation.
-- Offer validation and normalization of feelings to reduce stigma and isolation.
+    def get_response(self, message: str, history: List[Dict]) -> Dict[str, any]:
+        """Get chatbot response with error handling and retries"""
+        try:
+            # Validate input
+            if not self._validate_input(message, history):
+                return self._error_response("Invalid input parameters")
 
-Guidelines for your responses:
-- Be warm, compassionate, and non-judgmental. Create a safe and supportive space for users to share their feelings.
-- Practice active listening by summarizing and reflecting on the user's statements.
-- Help users identify and challenge negative or unhelpful thought patterns. Offer alternative, more balanced perspectives.
-- Suggest practical coping mechanisms and self-care strategies tailored to the user's specific concerns. Examples include deep breathing exercises, progressive muscle relaxation, journaling, and engaging in enjoyable activities.
-- Encourage users to focus on the present moment and cultivate mindfulness through guided meditations or simple awareness exercises.
-- Normalize a wide range of emotions and experiences. Validate that it's okay to feel anxious, sad, or overwhelmed, and reassure users that they are not alone.
-- Encourage professional help when appropriate. If a user expresses thoughts of self-harm or suicide, or if their symptoms are severe and persistent, advise them to seek help from a qualified mental health professional.
-- Keep responses concise but thoughtful (1-3 paragraphs). Prioritize clarity and relevance.
-- Prioritize user safety; take mentions of self-harm or suicide seriously. Provide immediate support and guidance, and encourage the user to seek professional help.
+            # Build prompt with context
+            prompt = self._build_prompt(message, history)
 
-Remember that you are not a replacement for professional help, but you can provide immediate support and guidance. Your role is to empower users to take care of their mental health and well-being.
+            # Make API request with retries
+            for attempt in range(self.max_retries):
+                try:
+                    return self._make_api_request(prompt)
+                except requests.RequestException as e:
+                    if attempt == self.max_retries - 1:
+                        logger.error(
+                            f"API request failed after {self.max_retries} attempts: {str(e)}"
+                        )
+                        return self._error_response("Service temporarily unavailable")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Chatbot error: {str(e)}")
+            return self._error_response("Internal service error")
+
+    def _validate_input(self, message: str, history: List[Dict]) -> bool:
+        """Validate input parameters"""
+        if not isinstance(message, str) or not message.strip():
+            return False
+
+        if not isinstance(history, list):
+            return False
+
+        # Validate history format
+        return all(
+            isinstance(msg, dict) and "sender" in msg and "content" in msg
+            for msg in history[-settings.CHATBOT_SETTINGS["MAX_HISTORY_MESSAGES"] :]
+        )
+
+    def _build_prompt(self, message: str, history: List[Dict]) -> str:
+        """Build prompt with context and history"""
+        # Format recent history
+        history_str = "\n".join(
+            f"{msg['sender']}: {msg['content']}"
+            for msg in history[-settings.CHATBOT_SETTINGS["MAX_HISTORY_MESSAGES"] :]
+        )
+
+        return f"""Context: {THERAPEUTIC_GUIDELINES}
 
 History:
 {history_str}
+
 User: {message}
 Samantha:"""
 
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    def _make_api_request(self, prompt: str) -> Dict[str, any]:
+        """Make API request with error handling"""
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
-    try:
-        response = requests.post(gemini_api_url, json=payload, timeout=60)
+        response = requests.post(
+            f"{self.api_url}?key={self.api_key}", json=payload, timeout=self.timeout
+        )
         response.raise_for_status()
-        response_json = response.json()
 
-        # Extract the response text
-        if "candidates" in response_json and len(response_json["candidates"]) > 0:
-            response_text = response_json["candidates"][0]["content"]["parts"][0][
-                "text"
-            ]
-            return response_text.strip()
-        else:
-            return "I need a moment to think."
-    except Exception as e:
-        print(f"Error: {e}")
-        return "Sorry, I'm having trouble responding right now."
+        data = response.json()
+        if "candidates" not in data or not data["candidates"]:
+            raise ChatbotError("Invalid API response format")
+
+        return {
+            "success": True,
+            "response": data["candidates"][0]["content"]["parts"][0]["text"].strip(),
+        }
+
+    def _error_response(self, message: str) -> Dict[str, any]:
+        """Format error response"""
+        return {
+            "success": False,
+            "error": message,
+            "response": "I'm having trouble responding right now. Please try again later.",
+        }
+
+
+# Create singleton instance
+chatbot_service = ChatbotService()

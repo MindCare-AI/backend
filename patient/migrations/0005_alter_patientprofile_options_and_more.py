@@ -4,29 +4,51 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patient', '0004_add_timestamp_fields'),
+        ("patient", "0004_add_timestamp_fields"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='patientprofile',
-            options={'ordering': ['-created_at'], 'verbose_name_plural': 'Patient Profiles'},
+            name="patientprofile",
+            options={
+                "ordering": ["-created_at"],
+                "verbose_name_plural": "Patient Profiles",
+            },
         ),
         migrations.AlterField(
-            model_name='patientprofile',
-            name='blood_type',
-            field=models.CharField(blank=True, choices=[('A+', 'A Positive'), ('A-', 'A Negative'), ('B+', 'B Positive'), ('B-', 'B Negative'), ('AB+', 'AB Positive'), ('AB-', 'AB Negative'), ('O+', 'O Positive'), ('O-', 'O Negative')], max_length=3, null=True),
+            model_name="patientprofile",
+            name="blood_type",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("A+", "A Positive"),
+                    ("A-", "A Negative"),
+                    ("B+", "B Positive"),
+                    ("B-", "B Negative"),
+                    ("AB+", "AB Positive"),
+                    ("AB-", "AB Negative"),
+                    ("O+", "O Positive"),
+                    ("O-", "O Negative"),
+                ],
+                max_length=3,
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='patientprofile',
-            name='emergency_contact',
-            field=models.JSONField(blank=True, default=dict, help_text='Must include name, relationship, and phone'),
+            model_name="patientprofile",
+            name="emergency_contact",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Must include name, relationship, and phone",
+            ),
         ),
         migrations.AlterField(
-            model_name='patientprofile',
-            name='profile_pic',
-            field=models.ImageField(blank=True, null=True, upload_to='patient_profile_pics/%Y/%m/'),
+            model_name="patientprofile",
+            name="profile_pic",
+            field=models.ImageField(
+                blank=True, null=True, upload_to="patient_profile_pics/%Y/%m/"
+            ),
         ),
     ]

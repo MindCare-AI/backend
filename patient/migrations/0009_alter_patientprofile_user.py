@@ -6,16 +6,19 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('patient', '0008_remove_patientprofile_emergency_contact'),
+        ("patient", "0008_remove_patientprofile_emergency_contact"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='patientprofile',
-            name='user',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='patient_profile_patient', to=settings.AUTH_USER_MODEL),
+            model_name="patientprofile",
+            name="user",
+            field=models.OneToOneField(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="patient_profile_patient",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]

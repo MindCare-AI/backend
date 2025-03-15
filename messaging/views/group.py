@@ -1,22 +1,33 @@
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError, transaction
+# messaging/views/group.py
+from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.db.models import Q, Prefetch
+from django.db.models import Prefetch, Count
 from django.contrib.auth import get_user_model
+from django.conf import settings
 import logging
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError, APIException
+from rest_framework.exceptions import ValidationError
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models.group import GroupConversation, GroupMessage
 from ..serializers.group import GroupConversationSerializer, GroupMessageSerializer
 from ..pagination import CustomMessagePagination
+from notifications.services import NotificationService
+from celery import shared_task
 
 logger = logging.getLogger(__name__)
+
+notification_service = NotificationService()
+
+@shared_task
+def create_group_notifications(group_id, message, exclude_users=None):
+    group = GroupConversation.objects.get(id=group_id)
+    notification_service.create_group_notification(group, message, exclude_users)
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -56,18 +67,48 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return self.queryset.filter(participants=self.request.user)
+        """Filter conversations and optimize queries"""
+        return (
+            self.queryset.filter(participants=self.request.user)
+            .select_related("created_by")
+            .prefetch_related("participants", "moderators")
+            .annotate(
+                participant_count=Count("participants"), message_count=Count("messages")
+            )
+        )
 
+    @transaction.atomic
     def perform_create(self, serializer):
+        """Create group with atomic transaction"""
         try:
-            with transaction.atomic():
-                instance = serializer.save()
-                instance.participants.add(self.request.user)
-                instance.moderators.add(self.request.user)
-        except IntegrityError as e:
-            raise ValidationError(f"Failed to create group conversation: {str(e)}")
-        except DjangoValidationError as e:
-            raise ValidationError(f"Validation error: {str(e)}")
+            # Validate group limits
+            user_groups = GroupConversation.objects.filter(
+                participants=self.request.user
+            ).count()
+
+            if user_groups >= settings.MAX_GROUPS_PER_USER:
+                raise ValidationError(
+                    f"Maximum group limit ({settings.MAX_GROUPS_PER_USER}) reached"
+                )
+
+            # Create group and add creator
+            instance = serializer.save(created_by=self.request.user)
+            instance.participants.add(self.request.user)
+            instance.moderators.add(self.request.user)
+            notification_service.create_group_notification(
+                instance,
+                f"Group '{instance.name}' created successfully",
+                exclude_users=[self.request.user]  # Exclude creator
+            )
+
+            logger.info(
+                f"Group conversation {instance.id} created by user {self.request.user.id}"
+            )
+            return instance
+
+        except Exception as e:
+            logger.error(f"Group creation failed: {str(e)}")
+            raise ValidationError(f"Failed to create group: {str(e)}")
 
     @extend_schema(
         description="Add a user as a moderator to the group. The current user must be a moderator.",
@@ -78,12 +119,38 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     def add_moderator(self, request, pk=None):
         group = self.get_object()
         if not group.moderators.filter(id=request.user.id).exists():
-            return Response({"detail": "You don't have permission to add moderators."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "You don't have permission to add moderators."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         user = get_object_or_404(get_user_model(), id=request.data.get("user_id"))
         if not group.participants.filter(id=user.id).exists():
-            return Response({"detail": "User must be a participant before being promoted to moderator."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "detail": "User must be a participant before being promoted to moderator."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         group.moderators.add(user)
-        return Response({"detail": f"User {user.username} is now a moderator."}, status=status.HTTP_200_OK)
+
+        # Send notifications
+        notification_service.create_notification(
+            user=user,
+            message=f"You are now a moderator in group '{group.name}'",
+            notification_type="group_update",
+            url=f"/groups/{group.id}/",
+        )
+
+        notification_service.create_group_notification(
+            group=group,
+            message=f"{user.username} was promoted to moderator",
+            exclude_users=[user],
+        )
+
+        return Response(
+            {"detail": f"User {user.username} is now a moderator."},
+            status=status.HTTP_200_OK,
+        )
 
     @extend_schema(
         description="List all moderators of the group.",
@@ -93,12 +160,117 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def moderators(self, request, pk=None):
         group = self.get_object()
-        moderator_data = [{
-            "id": mod.id, "username": mod.username,
-            "first_name": mod.first_name, "last_name": mod.last_name,
-            "email": mod.email
-        } for mod in group.moderators.all()]
+        moderator_data = [
+            {
+                "id": mod.id,
+                "username": mod.username,
+                "first_name": mod.first_name,
+                "last_name": mod.last_name,
+                "email": mod.email,
+            }
+            for mod in group.moderators.all()
+        ]
         return Response(moderator_data)
+
+    @action(detail=True, methods=["post"])
+    def add_participant(self, request, pk=None):
+        """Add participant to group with validation"""
+        try:
+            group = self.get_object()
+
+            # Validate moderator permission
+            if not group.moderators.filter(id=request.user.id).exists():
+                return Response(
+                    {"error": "Only moderators can add participants"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Get user to add
+            user_id = request.data.get("user_id")
+            user = get_object_or_404(get_user_model(), id=user_id)
+
+            # Validate participant limit
+            if group.participants.count() >= settings.MAX_PARTICIPANTS_PER_GROUP:
+                return Response(
+                    {"error": "Maximum participant limit reached"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Add participant
+            group.participants.add(user)
+
+            # Send notifications
+            notification_service.create_notification(
+                user=user,
+                message=f"You were added to group '{group.name}'",
+                notification_type="group_update",
+                url=f"/groups/{group.id}/",
+            )
+
+            notification_service.create_group_notification(
+                group=group,
+                message=f"{user.username} joined the group",
+                exclude_users=[user],
+            )
+
+            return Response(
+                {"message": f"Added {user.username} to group"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error adding participant: {str(e)}")
+            return Response(
+                {"error": "Failed to add participant"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"])
+    def remove_participant(self, request, pk=None):
+        """Remove participant with proper validation"""
+        try:
+            group = self.get_object()
+            user_id = request.data.get("user_id")
+            user = get_object_or_404(get_user_model(), id=user_id)
+
+            # Validate permissions
+            if not (
+                request.user.id == user_id  # Self-removal
+                or group.moderators.filter(id=request.user.id).exists()  # Moderator
+            ):
+                return Response(
+                    {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Remove from both participants and moderators
+            group.participants.remove(user)
+            group.moderators.remove(user)
+
+            # Send notifications
+            notification_service.create_notification(
+                user=user,
+                message=f"You were removed from group '{group.name}'",
+                notification_type="group_update",
+            )
+
+            notification_service.create_group_notification(
+                group=group,
+                message=f"{user.username} left the group",
+                exclude_users=[user],
+            )
+
+            return Response(
+                {"message": f"Removed {user.username} from group"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error removing participant: {str(e)}")
+            return Response(
+                {"error": "Failed to remove participant"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class GroupMessageViewSet(viewsets.ModelViewSet):
     serializer_class = GroupMessageSerializer
@@ -110,74 +282,35 @@ class GroupMessageViewSet(viewsets.ModelViewSet):
         Returns messages from groups where user is a participant,
         with optimized queries
         """
-        return (GroupMessage.objects
-                .filter(conversation__participants=self.request.user)
-                .select_related('sender', 'conversation')
-                .prefetch_related(
-                    Prefetch('conversation__participants'),
-                    Prefetch('read_by')
-                )
-                .order_by('-timestamp'))
-
-    def list(self, request, *args, **kwargs):
-        """Enhanced list view with group context"""
-        queryset = self.get_queryset()
-        
-        # Check if user is in any groups
-        if not GroupConversation.objects.filter(participants=request.user).exists():
-            return Response({
-                'detail': 'You are not a member of any group conversations.',
-                'results': [],
-                'count': 0
-            }, status=status.HTTP_200_OK)
-
-        # Get paginated results
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            response = self.get_paginated_response(serializer.data)
-            # Add group context
-            response.data['user_groups'] = self.get_user_groups(request.user)
-            return response
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def get_user_groups(self, user):
-        """Helper method to get user's groups information"""
-        groups = GroupConversation.objects.filter(participants=user)
-        return [{
-            'id': group.id,
-            'name': group.name,
-            'participant_count': group.participants.count(),
-            'is_moderator': group.moderators.filter(id=user.id).exists()
-        } for group in groups]
+        return (
+            GroupMessage.objects.filter(conversation__participants=self.request.user)
+            .select_related("sender", "conversation")
+            .prefetch_related(
+                Prefetch("conversation__participants"), Prefetch("read_by")
+            )
+            .order_by("-timestamp")
+        )
 
     def perform_create(self, serializer):
         try:
-            conversation_id = serializer.validated_data.get('conversation')
-            
-            # Debug logging
-            logger.debug(f"Creating message for conversation {conversation_id}")
-            logger.debug(f"Current user: {self.request.user.id}")
-            
+            conversation_id = serializer.validated_data.get("conversation")
             conversation = GroupConversation.objects.get(id=conversation_id.id)
-            
-            # Explicitly check permissions
-            is_participant = conversation.participants.filter(id=self.request.user.id).exists()
-            is_moderator = conversation.moderators.filter(id=self.request.user.id).exists()
-            
-            logger.debug(f"Is participant: {is_participant}")
-            logger.debug(f"Is moderator: {is_moderator}")
 
-            if not is_participant:
+            # Check permissions
+            if not conversation.participants.filter(id=self.request.user.id).exists():
                 raise ValidationError("You are not a participant in this conversation.")
 
             message = serializer.save(
-                sender=self.request.user,
-                conversation=conversation
+                sender=self.request.user, conversation=conversation
             )
-            
+
+            # Send notifications to group members
+            create_group_notifications.delay(
+                message.conversation.id,
+                f"New message from {self.request.user.username}",
+                exclude_users=[self.request.user]
+            )
+
             return message
 
         except GroupConversation.DoesNotExist:
@@ -188,12 +321,43 @@ class GroupMessageViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.sender != request.user and not instance.conversation.moderators.filter(id=request.user.id).exists():
-            return Response({"detail": "You do not have permission to edit this message."}, status=status.HTTP_403_FORBIDDEN)
-        return super().update(request, *args, **kwargs)
+        if (
+            instance.sender != request.user
+            and not instance.conversation.moderators.filter(id=request.user.id).exists()
+        ):
+            return Response(
+                {"detail": "You do not have permission to edit this message."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        response = super().update(request, *args, **kwargs)
+
+        # Notify participants of message edit
+        notification_service.create_group_notification(
+            group=instance.conversation,
+            message=f"Message edited by {request.user.username}",
+            exclude_users=[request.user],
+            url=f"/groups/{instance.conversation.id}/messages/{instance.id}/",
+        )
+
+        return response
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.sender != request.user and not instance.conversation.moderators.filter(id=request.user.id).exists():
-            return Response({"detail": "You do not have permission to delete this message."}, status=status.HTTP_403_FORBIDDEN)
+        if (
+            instance.sender != request.user
+            and not instance.conversation.moderators.filter(id=request.user.id).exists()
+        ):
+            return Response(
+                {"detail": "You do not have permission to delete this message."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Notify participants of message deletion
+        notification_service.create_group_notification(
+            group=instance.conversation,
+            message=f"Message deleted by {request.user.username}",
+            exclude_users=[request.user],
+        )
+
         return super().destroy(request, *args, **kwargs)

@@ -6,6 +6,8 @@ from django.db import IntegrityError
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError
 from django.db.models import Count, Max, Q, Prefetch
+from django.utils import timezone
+from django.conf import settings
 
 # Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
 # • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
@@ -304,26 +306,139 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
             raise ValidationError(f"Validation error: {str(e)}")
 
     def update(self, request, *args, **kwargs):
-        """Allow message update only by the sender."""
+        """
+        Update message with validation and tracking
+        """
         try:
             instance = self.get_object()
+
+            # Check if user is message sender
             if instance.sender != request.user:
                 return Response(
-                    {"detail": "You can only edit messages you've sent."},
+                    {"error": "You can only edit your own messages"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            return super().update(request, *args, **kwargs)
+
+            # Check if message is deleted
+            if instance.deleted:
+                return Response(
+                    {"error": "Deleted messages cannot be edited"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check edit time window
+            edit_window = getattr(
+                settings, "MESSAGE_EDIT_WINDOW", 3600
+            )  # 1 hour default
+            if (timezone.now() - instance.timestamp).seconds > edit_window:
+                return Response(
+                    {
+                        "error": f"Messages can only be edited within {edit_window//60} minutes"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Store previous version
+            if not instance.edit_history:
+                instance.edit_history = []
+
+            instance.edit_history.append(
+                {
+                    "content": instance.content,
+                    "edited_at": instance.edited_at.isoformat()
+                    if instance.edited_at
+                    else None,
+                    "edited_by": instance.edited_by.id if instance.edited_by else None,
+                }
+            )
+
+            # Update message
+            response = super().update(request, *args, **kwargs)
+
+            if response.status_code == status.HTTP_200_OK:
+                instance.edited = True
+                instance.edited_at = timezone.now()
+                instance.edited_by = request.user
+                instance.save()
+
+            return response
+
         except Exception as e:
             return Response(
-                {"detail": f"An error occurred: {str(e)}"},
+                {"error": f"Failed to update message: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def perform_update(self, serializer):
-        """Prevent changing the sender."""
+    @action(detail=True, methods=["post"])
+    def soft_delete(self, request, pk=None):
+        """
+        Soft delete a message
+        """
         try:
-            serializer.save(sender=serializer.instance.sender)
-        except IntegrityError as e:
-            raise ValidationError(f"Failed to update message: {str(e)}")
-        except DjangoValidationError as e:
-            raise ValidationError(f"Validation error: {str(e)}")
+            instance = self.get_object()
+
+            # Check if user can delete message
+            if not (
+                instance.sender == request.user
+                or request.user.is_staff
+                or instance.conversation.moderators.filter(id=request.user.id).exists()
+            ):
+                return Response(
+                    {"error": "You don't have permission to delete this message"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            instance.deleted = True
+            instance.deletion_time = timezone.now()
+            instance.deleted_by = request.user
+            instance.save()
+
+            return Response(
+                {"message": "Message deleted successfully"}, status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to delete message: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["get"])
+    def edit_history(self, request, pk=None):
+        """
+        Get message edit history
+        """
+        try:
+            instance = self.get_object()
+
+            # Check if user can view history
+            if not (
+                instance.sender == request.user
+                or request.user.is_staff
+                or instance.conversation.participants.filter(
+                    id=request.user.id
+                ).exists()
+            ):
+                return Response(
+                    {"error": "You don't have permission to view edit history"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            return Response(
+                {
+                    "current": {
+                        "content": instance.content,
+                        "edited_at": instance.edited_at,
+                        "edited_by": instance.edited_by.id
+                        if instance.edited_by
+                        else None,
+                    },
+                    "history": instance.edit_history,
+                }
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to retrieve edit history: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

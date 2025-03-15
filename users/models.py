@@ -5,24 +5,24 @@ from django.utils import timezone
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 import logging
-from django.core.validators import MinValueValidator, MaxValueValidator
+from model_utils import FieldTracker
+from django.conf import settings
+import json
 
 logger = logging.getLogger(__name__)
 
-
 class CustomUser(AbstractUser):
-    # Define user type choices
     USER_TYPE_CHOICES = [
-        ('patient', 'Patient'),
-        ('therapist', 'Therapist'),
+        ("patient", "Patient"),
+        ("therapist", "Therapist"),
     ]
-    
-    # User type field
+
     user_type = models.CharField(
         max_length=10,
         choices=USER_TYPE_CHOICES,
         blank=True,
-        null=True  # Allow null values
+        null=True,
+        default="patient",
     )
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
@@ -34,7 +34,9 @@ class CustomUser(AbstractUser):
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    REQUIRED_FIELDS = ['email']
+    tracker = FieldTracker(["user_type", "email", "phone_number", "crisis_alert_enabled"])
+
+    REQUIRED_FIELDS = ["email"]
 
     class Meta:
         db_table = "users_user"
@@ -45,51 +47,85 @@ class CustomUser(AbstractUser):
     def __str__(self):
         return self.username
 
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+
+        if not is_new and self.tracker.has_changed("user_type"):
+            logger.info(
+                f"User type changed from {self.tracker.previous('user_type')} to {self.user_type}"
+            )
 
 class UserPreferences(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    language = models.CharField(max_length=10, default="en")
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='preferences'
+    )
     dark_mode = models.BooleanField(default=False)
-    notification_preferences = models.JSONField(default=dict, blank=True)  # This is likely the right field name
-    
-    # Add a method to display notification settings in admin
+    language = models.CharField(
+        max_length=10,
+        choices=settings.LANGUAGES,
+        default=settings.LANGUAGE_CODE
+    )
+    notification_preferences = models.JSONField(
+        default=dict,
+        blank=True
+    )
+
     def get_notification_settings(self):
-        return str(self.notification_preferences)
-    get_notification_settings.short_description = 'Notification Settings'
+        settings = self.notification_preferences or {}
+        return ", ".join(f"{k}: {v}" for k, v in settings.items())
+    
+    get_notification_settings.short_description = 'Notifications'
 
     class Meta:
         verbose_name_plural = "User preferences"
+        indexes = [
+            models.Index(fields=['user']),
+        ]
 
     def __str__(self):
         return f"{self.user.username}'s Preferences"
 
-
 class UserSettings(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    timezone = models.CharField(max_length=50, default="UTC")
-    theme_preferences = models.CharField(max_length=20, default="light")  # This might be the actual field name
-    privacy_settings = models.JSONField(default=dict, blank=True)  # This might be the actual field name
-    
-    # Add methods to display these in admin
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='settings'
+    )
+    user_timezone = models.CharField(  # renamed from 'timezone'
+        max_length=50,
+        default=settings.TIME_ZONE
+    )
+    theme_preferences = models.JSONField(
+        default=dict,
+        help_text="Theme preferences as JSON object"
+    )
+    privacy_settings = models.JSONField(
+        default=dict,
+        help_text="Privacy settings as JSON object"
+    )
+    created_at = models.DateTimeField(default=timezone.now)  # now works as expected
+    updated_at = models.DateTimeField(auto_now=True)
+
     def get_theme(self):
-        return self.theme_preferences
-    get_theme.short_description = 'Theme'
-    
+        return self.theme_preferences.get('mode', 'system')
+
     def get_privacy_level(self):
-        return str(self.privacy_settings)
-    get_privacy_level.short_description = 'Privacy Level'
+        return self.privacy_settings.get('profile_visibility', 'public')
 
     class Meta:
-        verbose_name_plural = "User settings"
+        verbose_name_plural = 'User settings'
+        indexes = [
+            models.Index(fields=['user']),
+        ]
 
     def __str__(self):
-        return f"{self.user.username}'s Settings"
-
+        return f"Settings for {self.user.username}"
 
 class Profile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    profile_type = models.CharField(max_length=10, choices=[('patient', 'Patient'), ('therapist', 'Therapist')])
-    # Common fields for both patient and therapist
     bio = models.TextField(blank=True, null=True)
     profile_pic = models.ImageField(upload_to="profile_pics/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,9 +134,7 @@ class Profile(models.Model):
     class Meta:
         abstract = True
 
-
 class PatientProfile(Profile):
-    # Patient-specific fields
     emergency_contact = models.JSONField(default=dict, blank=True, null=True)
     medical_history = models.TextField(blank=True, null=True)
     current_medications = models.TextField(blank=True, null=True)
@@ -115,9 +149,7 @@ class PatientProfile(Profile):
     def __str__(self):
         return f"{self.user.username}'s Patient Profile"
 
-
 class TherapistProfile(Profile):
-    # Therapist-specific fields
     specialization = models.CharField(max_length=100, blank=True, default="")
     license_number = models.CharField(max_length=50, blank=True, null=True)
     years_of_experience = models.IntegerField(default=0)
@@ -137,9 +169,16 @@ class TherapistProfile(Profile):
 
     def calculate_profile_completion(self):
         required_fields = [
-            'bio', 'profile_pic', 'specialization', 'license_number',
-            'years_of_experience', 'treatment_approaches', 'consultation_fee',
-            'available_days', 'license_expiry', 'video_session_link'
+            "bio",
+            "profile_pic",
+            "specialization",
+            "license_number",
+            "years_of_experience",
+            "treatment_approaches",
+            "consultation_fee",
+            "available_days",
+            "license_expiry",
+            "video_session_link",
         ]
 
         completed = sum(1 for field in required_fields if getattr(self, field))
@@ -149,39 +188,26 @@ class TherapistProfile(Profile):
     def profile_completion_percentage(self):
         return self.calculate_profile_completion()
 
-
 @receiver(post_save, sender=CustomUser)
 def create_user_related_models(sender, instance, created, **kwargs):
-    """
-    Signal handler to create associated models when a new user is created.
-    Uses transactions and existence checks to prevent duplicates.
-    """
     if not created:
         return
 
     try:
         with transaction.atomic():
-            # Create profile based on user type
             if instance.user_type == "patient":
                 if not PatientProfile.objects.filter(user=instance).exists():
-                    # Create with empty emergency contact dict
-                    PatientProfile.objects.create(
-                        user=instance
-                    )
+                    PatientProfile.objects.create(user=instance)
                     logger.info(f"Created patient profile for user {instance.username}")
             elif instance.user_type == "therapist":
                 if not TherapistProfile.objects.filter(user=instance).exists():
                     TherapistProfile.objects.create(user=instance)
-                    logger.info(
-                        f"Created therapist profile for user {instance.username}"
-                    )
+                    logger.info(f"Created therapist profile for user {instance.username}")
 
-            # Create preferences if they don't exist
             if not UserPreferences.objects.filter(user=instance).exists():
                 UserPreferences.objects.create(user=instance)
                 logger.info(f"Created preferences for user {instance.username}")
 
-            # Create settings if they don't exist
             if not UserSettings.objects.filter(user=instance).exists():
                 UserSettings.objects.create(user=instance)
                 logger.info(f"Created settings for user {instance.username}")

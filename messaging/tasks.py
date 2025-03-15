@@ -2,7 +2,6 @@
 from celery import shared_task
 from .models.chatbot import ChatbotMessage, ChatbotConversation
 from .services.chatbot import get_chatbot_response
-from .services.firebase import push_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,4 +23,4 @@ def process_chatbot_response(self, conversation_id: int, message_content: str):
         return True
     except Exception as e:
         logger.error(f"Error processing chatbot response: {e}")
-        self.retry(countdown=2 ** self.request.retries)
+        self.retry(countdown=2**self.request.retries)

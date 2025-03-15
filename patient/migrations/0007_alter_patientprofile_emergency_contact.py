@@ -4,15 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patient', '0006_alter_patientprofile_emergency_contact'),
+        ("patient", "0006_alter_patientprofile_emergency_contact"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='patientprofile',
-            name='emergency_contact',
-            field=models.JSONField(blank=True, default=dict, help_text='Optional: Contains name, relationship, and phone', null=True),
+            model_name="patientprofile",
+            name="emergency_contact",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Optional: Contains name, relationship, and phone",
+                null=True,
+            ),
         ),
     ]

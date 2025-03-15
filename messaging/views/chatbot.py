@@ -12,10 +12,11 @@ from ..serializers.chatbot import (
     ChatbotMessageSerializer,
 )
 from ..permissions import IsPatient
-from ..tasks import process_chatbot_response
 from ..throttling import ChatbotRateThrottle
 from ..pagination import CustomMessagePagination
 import logging
+import requests
+from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,9 @@ def get_chatbot_response(message, history):
     try:
         logger.debug(f"Processing message: {message}")
         logger.debug(f"History length: {len(history)}")
-        
-        # For immediate testing, return a static response
-        return "I'm here to help. How are you feeling today?"
-        
-        # TODO: Uncomment after testing
-        # return process_chatbot_response(message, history)
+
+        # Simple static response for now
+        return "I am the chatbot. Thank you for your message."
     except Exception as e:
         logger.error(f"Error getting chatbot response: {str(e)}")
         return "I apologize, but I'm having trouble processing your message."
@@ -82,66 +80,67 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
         Send a message to the chatbot and get response.
         """
         conversation = self.get_object()
-        
+
         try:
             # Validate and save user message
             serializer = ChatbotMessageSerializer(data=request.data)
             if not serializer.is_valid():
                 logger.error(f"Invalid message data: {serializer.errors}")
-                return Response(
-                    serializer.errors,
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
             # Save user message
             user_message = serializer.save(
-                sender=request.user,
-                conversation=conversation,
-                is_bot=False
+                sender=request.user, conversation=conversation, is_bot=False
             )
             logger.debug(f"Saved user message: {user_message.id}")
 
             # Get conversation history
             history = list(
-                conversation.messages
-                .order_by('-timestamp')
-                .values('sender', 'content')[:5]
+                conversation.messages.order_by("-timestamp").values(
+                    "sender", "content"
+                )[:5]
             )
             history.reverse()
 
             # Get bot response
             try:
                 bot_response = get_chatbot_response(
-                    message=serializer.validated_data['content'],
-                    history=history
+                    message=serializer.validated_data["content"], history=history
                 )
                 logger.debug(f"Got bot response: {bot_response[:50]}...")
+            except requests.RequestException as e:
+                logger.error(f"API request failed: {str(e)}")
+                return self._error_response("Service temporarily unavailable")
+            except ValidationError as e:
+                logger.error(f"Validation error: {str(e)}")
+                return self._error_response("Invalid input")
             except Exception as e:
                 logger.error(f"Error getting bot response: {str(e)}")
-                bot_response = "I apologize, but I'm having trouble processing your request."
+                bot_response = (
+                    "I apologize, but I'm having trouble processing your request."
+                )
 
             # Save bot response
             bot_message = ChatbotMessage.objects.create(
-                conversation=conversation,
-                content=bot_response,
-                is_bot=True
+                conversation=conversation, content=bot_response, is_bot=True
             )
             logger.debug(f"Saved bot message: {bot_message.id}")
 
-            return Response({
-                'user_message': ChatbotMessageSerializer(user_message).data,
-                'bot_response': ChatbotMessageSerializer(bot_message).data
-            }, status=status.HTTP_201_CREATED)
+            return Response(
+                {
+                    "user_message": ChatbotMessageSerializer(user_message).data,
+                    "bot_response": ChatbotMessageSerializer(bot_message).data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
         except ChatbotConversation.DoesNotExist:
             logger.error(f"Conversation {pk} not found")
             return Response(
-                {'error': 'Conversation not found'},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Conversation not found"}, status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.exception(f"Unexpected error in send_message: {str(e)}")
             return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

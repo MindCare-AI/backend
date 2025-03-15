@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "patient",
     "django_otp",
     "django_otp.plugins.otp_totp",
+    "django_filters",
 ]
 
 SITE_ID = 1
@@ -97,10 +98,10 @@ ASGI_APPLICATION = "mindcare.asgi.application"
 
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # Add this line
-        "APP_DIRS": True,
-        "OPTIONS": {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / "templates"],  # Your custom directories, if any
+        'APP_DIRS': True,  # This must be True
+        'OPTIONS': {
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -149,18 +150,17 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 REST_AUTH = {
-    'REGISTER_SERIALIZER': 'auth.serializers.CustomRegisterSerializer',
-    'USE_JWT': True,
-    'JWT_AUTH_COOKIE': 'auth',
-    'JWT_AUTH_REFRESH_COOKIE': 'refresh-auth',
+    "REGISTER_SERIALIZER": "auth.serializers.CustomRegisterSerializer",
+    "USE_JWT": True,
+    "JWT_AUTH_COOKIE": "auth",
+    "JWT_AUTH_REFRESH_COOKIE": "refresh-auth",
 }
 
-ACCOUNT_ADAPTER = 'auth.registration.custom_adapter.CustomAccountAdapter'
+ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
-ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 
-SOCIALACCOUNT_ADAPTER = 'auth.registration.custom_adapter.CustomSocialAccountAdapter'
+SOCIALACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomSocialAccountAdapter"
 
 # Configure django-allauth to use email as the primary identifier
 ACCOUNT_USER_MODEL_USERNAME_FIELD = "username"
@@ -180,9 +180,9 @@ DEFAULT_FROM_EMAIL = "azizbahloulextra@gmail.com"
 # Django-allauth Settings
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' if you want email verification
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"  # Keep only this one
 ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
@@ -266,6 +266,13 @@ ALLOWED_MEDIA_TYPES = {
     "video": ["video/mp4", "video/mpeg"],
     "audio": ["audio/mpeg", "audio/wav"],
     "document": ["application/pdf", "application/msword"],
+}
+
+MEDIA_FILE_STORAGE = {
+    "max_files_per_user": 100,
+    "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif", ".mp4", ".pdf", ".doc"],
+    "scan_on_upload": True,
+    "verify_content_type": True,
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -380,18 +387,14 @@ SIMPLE_JWT = {
 }
 
 # Channel Layers Configuration for WebSocket
-# CHANNEL_LAYERS = {
-#     "default": {
-#         "BACKEND": "channels_redis.core.RedisChannelLayer",
-#         "CONFIG": {
-#             "hosts": [f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/0"],
-#             "capacity": 1500,
-#             "expiry": 10,
-#         },
-#     },
-# }
-# CHANNEL_LAYERS_MAX_CONNECTIONS = 1000
-# CHANNEL_LAYERS_CAPACITY = 100
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 # Celery Configuration
 REDIS_URL = f"redis://{os.getenv('REDIS_HOST', 'localhost')}:{os.getenv('REDIS_PORT', '6379')}/0"
@@ -459,6 +462,37 @@ LOGGING = {
     },
 }
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": "logs/debug.log",
+            "formatter": "verbose",
+        },
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "auth.registration": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+    },
+}
+
 # Firebase configuration for hybrid SQL/NoSQL messaging
 try:
     # Update the path if needed—here we assume the file is in messaging/firebase_credentials.json
@@ -480,4 +514,111 @@ FIREBASE_DATABASE_URL = os.getenv(
 )
 
 # Gemini API Configuration
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+# Verification settings
+VERIFICATION_SETTINGS = {
+    "LICENSE_PATTERNS": [
+        r"License[:\s]+([A-Z0-9-]+)",
+        r"Registration[:\s]+([A-Z0-9-]+)",
+    ],
+    "MAX_VERIFICATION_ATTEMPTS": 3,
+    "VERIFICATION_COOLDOWN_HOURS": 24,
+}
+
+# Group Conversation Settings
+GROUP_SETTINGS = {
+    "MAX_GROUPS_PER_USER": 20,
+    "MAX_PARTICIPANTS_PER_GROUP": 50,
+    "MAX_MODERATORS_PER_GROUP": 5,
+    "MESSAGE_EDIT_WINDOW": 3600,  # 1 hour in seconds
+    "MAX_MESSAGE_LENGTH": 5000,
+}
+
+# Group Settings
+GROUP_SETTINGS = {
+    "MAX_PARTICIPANTS_PER_GROUP": 50,
+    "MAX_MESSAGE_LENGTH": 5000,
+    "MAX_GROUP_NAME_LENGTH": 100,
+    "MIN_PARTICIPANTS": 2,
+    "ALLOW_MESSAGE_EDITING": True,
+    "MESSAGE_EDIT_WINDOW": 3600,  # 1 hour in seconds
+}
+
+# Message Settings
+MESSAGE_SETTINGS = {
+    "MESSAGE_EDIT_WINDOW": 3600,  # 1 hour in seconds
+    "MAX_EDIT_HISTORY": 10,  # Maximum number of previous versions to keep
+    "ALLOW_MESSAGE_DELETION": True,
+    "KEEP_DELETED_MESSAGES": True,  # If False, will hard delete instead of soft delete
+}
+
+# Chatbot Settings
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+CHATBOT_SETTINGS = {
+    "MAX_HISTORY_MESSAGES": 10,
+    "RESPONSE_TIMEOUT": 60,
+    "MAX_RETRIES": 3,
+}
+
+# Throttling Configuration
+THROTTLE_RATES = {
+    "message_default": "60/minute",
+    "typing": "30/minute",
+    "chatbot": "30/minute",
+    "group_message": "100/hour",
+    "one_to_one_message": "200/hour",
+    "burst_message": "10/minute",
+}
+
+# User Type Specific Rates
+USER_TYPE_THROTTLE_RATES = {
+    "patient": "100/hour",
+    "therapist": "300/hour",
+    "premium_patient": "200/hour",
+}
+
+# Redis Cache Configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'db': 1,
+            'socket_timeout': 5,
+            'socket_connect_timeout': 5,
+            'retry_on_timeout': True,
+            'max_connections': 100,
+        }
+    }
+}
+
+# Session Configuration (if using Redis for sessions)
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+
+# Registration Settings
+MAX_REGISTRATION_ATTEMPTS = 5
+EMAIL_VERIFICATION_TIMEOUT = 3600  # 1 hour
+
+# Redis Connection Pool Settings
+REDIS_POOL_SETTINGS = {
+    'MAX_CONNECTIONS': 100,
+    'TIMEOUT': 20,
+    'RETRY_ON_TIMEOUT': True
+}
+
+# User Settings Configuration
+USER_SETTINGS = {
+    'THEME_MODES': ['light', 'dark', 'system'],
+    'PRIVACY_LEVELS': ['public', 'private', 'contacts_only'],
+    'DEFAULT_THEME': {
+        'mode': 'system',
+        'color_scheme': 'default'
+    },
+    'DEFAULT_PRIVACY': {
+        'profile_visibility': 'public',
+        'show_online_status': True
+    }
+}

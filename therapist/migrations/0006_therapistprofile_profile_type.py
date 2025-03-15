@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('therapist', '0005_alter_therapistprofile_user'),
+        ("therapist", "0005_alter_therapistprofile_user"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='therapistprofile',
-            name='profile_type',
-            field=models.CharField(choices=[('patient', 'Patient'), ('therapist', 'Therapist')], default='therapist', max_length=10),
+            model_name="therapistprofile",
+            name="profile_type",
+            field=models.CharField(
+                choices=[("patient", "Patient"), ("therapist", "Therapist")],
+                default="therapist",
+                max_length=10,
+            ),
         ),
     ]

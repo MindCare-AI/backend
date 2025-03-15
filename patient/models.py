@@ -7,52 +7,42 @@ from users.models import CustomUser
 
 class PatientProfile(models.Model):
     BLOOD_TYPE_CHOICES = [
-        ('A+', 'A Positive'),
-        ('A-', 'A Negative'),
-        ('B+', 'B Positive'),
-        ('B-', 'B Negative'),
-        ('AB+', 'AB Positive'),
-        ('AB-', 'AB Negative'),
-        ('O+', 'O Positive'),
-        ('O-', 'O Negative'),
+        ("A+", "A Positive"),
+        ("A-", "A Negative"),
+        ("B+", "B Positive"),
+        ("B-", "B Negative"),
+        ("AB+", "AB Positive"),
+        ("AB-", "AB Negative"),
+        ("O+", "O Positive"),
+        ("O-", "O Negative"),
     ]
 
     # Required Fields
     user = models.OneToOneField(
-        CustomUser, 
-        on_delete=models.CASCADE, 
-        related_name="patient_profile_patient"
+        CustomUser, on_delete=models.CASCADE, related_name="patient_profile"
     )
 
     # Add this field with a default value
     profile_type = models.CharField(
-        max_length=10, 
-        choices=[('patient', 'Patient'), ('therapist', 'Therapist')], 
-        default='patient',
-        null=True  # Add this temporarily
+        max_length=10,
+        choices=[("patient", "Patient"), ("therapist", "Therapist")],
+        default="patient",
     )
 
     # Optional Medical Information
     medical_history = models.TextField(blank=True, null=True)
     current_medications = models.TextField(blank=True, null=True)
     blood_type = models.CharField(
-        max_length=3, 
-        choices=BLOOD_TYPE_CHOICES,
-        blank=True, 
-        null=True
+        max_length=3, choices=BLOOD_TYPE_CHOICES, blank=True, null=True
     )
     treatment_plan = models.TextField(blank=True, null=True)
     pain_level = models.IntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(10)], 
-        blank=True, 
-        null=True
+        validators=[MinValueValidator(0), MaxValueValidator(10)], blank=True, null=True
     )
 
     # Optional Profile Info
     profile_pic = models.ImageField(
-        upload_to="patient_profile_pics/%Y/%m/", 
-        null=True, 
-        blank=True
+        upload_to="patient_profile_pics/%Y/%m/", null=True, blank=True
     )
 
     # Appointment Information
@@ -65,7 +55,7 @@ class PatientProfile(models.Model):
 
     class Meta:
         verbose_name_plural = "Patient Profiles"
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.user.username}'s patient profile"

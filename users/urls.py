@@ -4,18 +4,22 @@ from .views import (
     CustomUserViewSet,
     UserPreferencesViewSet,
     UserSettingsViewSet,
-    BecomePatientView,
-    BecomeTherapistView,
     SetUserTypeView,
 )
 
 urlpatterns = [
     # User Endpoints
     path("", CustomUserViewSet.as_view({"get": "list"}), name="user-list"),
+    path("<int:pk>/", CustomUserViewSet.as_view({"get": "retrieve"}), name="user-detail"),
+
+    # Custom action for updating preferences
     path(
-        "<int:pk>/", CustomUserViewSet.as_view({"get": "retrieve"}), name="user-detail"
+        "<int:pk>/update_preferences/",
+        CustomUserViewSet.as_view({"patch": "update_preferences"}),
+        name="user-update-preferences",
     ),
-    # Preferences & Settings
+
+    # Preferences Endpoints
     path(
         "preferences/",
         UserPreferencesViewSet.as_view({"get": "list"}),
@@ -26,13 +30,19 @@ urlpatterns = [
         UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="preferences-detail",
     ),
+
+    # Settings Endpoints
     path(
-        "settings/", UserSettingsViewSet.as_view({"get": "list"}), name="settings-list"
+        "settings/",
+        UserSettingsViewSet.as_view({"get": "list"}),
+        name="settings-list",
     ),
     path(
         "settings/<int:pk>/",
         UserSettingsViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="settings-detail",
     ),
-    path('set-user-type/', SetUserTypeView.as_view(), name='set-user-type'),
+
+    # Set User Type Endpoint
+    path("set-user-type/", SetUserTypeView.as_view(), name="set-user-type"),
 ]

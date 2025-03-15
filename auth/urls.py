@@ -1,5 +1,5 @@
 # auth\urls.py
-from django.urls import path, re_path, include
+from django.urls import path, re_path
 from auth.registration.views import (
     CustomConfirmEmailView,
     CustomRegisterView,

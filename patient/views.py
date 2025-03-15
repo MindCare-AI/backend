@@ -7,39 +7,38 @@ from django_filters import rest_framework as django_filters
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import PatientProfile, MoodLog
 from .serializers import PatientProfileSerializer, MoodLogSerializer
-from users.permissions import IsSuperUserOrSelf
 import logging
 from rest_framework.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 
+
 class PatientProfileFilter(django_filters.FilterSet):
-    blood_type = django_filters.CharFilter(lookup_expr='exact')
-    condition = django_filters.CharFilter(method='filter_condition')
+    blood_type = django_filters.CharFilter(lookup_expr="exact")
+    condition = django_filters.CharFilter(method="filter_condition")
     appointment_after = django_filters.DateTimeFilter(
-        field_name='next_appointment',
-        lookup_expr='gte'
+        field_name="next_appointment", lookup_expr="gte"
     )
 
     class Meta:
         model = PatientProfile
-        fields = ['blood_type', 'condition', 'appointment_after']
+        fields = ["blood_type", "condition", "appointment_after"]
 
     def filter_condition(self, queryset, name, value):
         return queryset.filter(
-            Q(medical_history__icontains=value) |
-            Q(current_medications__icontains=value)
+            Q(medical_history__icontains=value)
+            | Q(current_medications__icontains=value)
         )
+
 
 @extend_schema_view(
     list=extend_schema(
         description="List patient profiles with filtering options",
-        tags=["Patient Profiles"]
+        tags=["Patient Profiles"],
     ),
     retrieve=extend_schema(
-        description="Get detailed patient profile",
-        tags=["Patient Profiles"]
-    )
+        description="Get detailed patient profile", tags=["Patient Profiles"]
+    ),
 )
 class PatientProfileViewSet(viewsets.ModelViewSet):
     serializer_class = PatientProfileSerializer
@@ -47,29 +46,32 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter
+        filters.OrderingFilter,
     ]
     filterset_class = PatientProfileFilter
-    search_fields = ['medical_history', 'current_medications']
-    ordering_fields = ['created_at', 'next_appointment']
-    http_method_names = ['get', 'put', 'patch', 'delete']
+    search_fields = ["medical_history", "current_medications"]
+    ordering_fields = ["created_at", "next_appointment"]
+    http_method_names = ["get", "put", "patch", "delete"]
 
     def get_queryset(self):
-        queryset = PatientProfile.objects.select_related('user')
-        
+        queryset = PatientProfile.objects.select_related("user")
+
         if not self.request.user.is_superuser:
             queryset = queryset.filter(user=self.request.user)
-            
+
         return queryset
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def appointments(self, request, pk=None):
         profile = self.get_object()
-        return Response({
-            'last_appointment': profile.last_appointment,
-            'next_appointment': profile.next_appointment,
-            'has_upcoming': bool(profile.next_appointment)
-        })
+        return Response(
+            {
+                "last_appointment": profile.last_appointment,
+                "next_appointment": profile.next_appointment,
+                "has_upcoming": bool(profile.next_appointment),
+            }
+        )
+
 
 @extend_schema_view(
     list=extend_schema(

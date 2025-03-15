@@ -149,3 +149,8 @@ django-filter==24.3
 pytest-asyncio==0.25.3
 social-auth-app-django==5.4.3
 django-otp==1.5.4
+python-magic==0.4.27
+django-model-utils==5.0.0
+pytesseract==0.3.13
+channels-redis==4.2.1
+django-filter==25.1

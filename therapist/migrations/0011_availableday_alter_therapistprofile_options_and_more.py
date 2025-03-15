@@ -7,79 +7,135 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('therapist', '0010_appointment'),
+        ("therapist", "0010_appointment"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AvailableDay',
+            name="AvailableDay",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('day', models.CharField(max_length=10)),
-                ('start_time', models.TimeField()),
-                ('end_time', models.TimeField()),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("day", models.CharField(max_length=10)),
+                ("start_time", models.TimeField()),
+                ("end_time", models.TimeField()),
             ],
         ),
         migrations.AlterModelOptions(
-            name='therapistprofile',
-            options={'verbose_name': 'Therapist Profile', 'verbose_name_plural': 'Therapist Profiles'},
+            name="therapistprofile",
+            options={
+                "verbose_name": "Therapist Profile",
+                "verbose_name_plural": "Therapist Profiles",
+            },
         ),
         migrations.RemoveConstraint(
-            model_name='clientfeedback',
-            name='unique_session_feedback',
+            model_name="clientfeedback",
+            name="unique_session_feedback",
         ),
         migrations.RemoveField(
-            model_name='clientfeedback',
-            name='session_date',
+            model_name="clientfeedback",
+            name="session_date",
         ),
         migrations.RemoveField(
-            model_name='therapistprofile',
-            name='consultation_fee',
+            model_name="therapistprofile",
+            name="consultation_fee",
         ),
         migrations.RemoveField(
-            model_name='therapistprofile',
-            name='profile_type',
+            model_name="therapistprofile",
+            name="profile_type",
         ),
         migrations.AddField(
-            model_name='clientfeedback',
-            name='appointment',
-            field=models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='feedback', to='therapist.appointment'),
+            model_name="clientfeedback",
+            name="appointment",
+            field=models.OneToOneField(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="feedback",
+                to="therapist.appointment",
+            ),
         ),
         migrations.AddField(
-            model_name='sessionnote',
-            name='appointment',
-            field=models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='session_note', to='therapist.appointment'),
+            model_name="sessionnote",
+            name="appointment",
+            field=models.OneToOneField(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="session_note",
+                to="therapist.appointment",
+            ),
         ),
         migrations.AlterField(
-            model_name='appointment',
-            name='duration',
-            field=models.IntegerField(default=60, help_text='Duration in minutes (15-180)', validators=[django.core.validators.MinValueValidator(15), django.core.validators.MaxValueValidator(180)]),
+            model_name="appointment",
+            name="duration",
+            field=models.IntegerField(
+                default=60,
+                help_text="Duration in minutes (15-180)",
+                validators=[
+                    django.core.validators.MinValueValidator(15),
+                    django.core.validators.MaxValueValidator(180),
+                ],
+            ),
         ),
         migrations.AddIndex(
-            model_name='therapistprofile',
-            index=models.Index(fields=['user'], name='therapist_t_user_id_6b9d21_idx'),
+            model_name="therapistprofile",
+            index=models.Index(fields=["user"], name="therapist_t_user_id_6b9d21_idx"),
         ),
         migrations.AddIndex(
-            model_name='therapistprofile',
-            index=models.Index(fields=['specialization'], name='therapist_t_special_deee6f_idx'),
+            model_name="therapistprofile",
+            index=models.Index(
+                fields=["specialization"], name="therapist_t_special_deee6f_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='therapistprofile',
-            index=models.Index(fields=['is_verified'], name='therapist_t_is_veri_51236f_idx'),
+            model_name="therapistprofile",
+            index=models.Index(
+                fields=["is_verified"], name="therapist_t_is_veri_51236f_idx"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='appointment',
-            constraint=models.CheckConstraint(check=models.Q(('date_time__gt', datetime.datetime(2025, 3, 14, 20, 55, 13, 579732, tzinfo=datetime.timezone.utc))), name='appointment_future_date'),
+            model_name="appointment",
+            constraint=models.CheckConstraint(
+                check=models.Q(
+                    (
+                        "date_time__gt",
+                        datetime.datetime(
+                            2025,
+                            3,
+                            14,
+                            20,
+                            55,
+                            13,
+                            579732,
+                            tzinfo=datetime.timezone.utc,
+                        ),
+                    )
+                ),
+                name="appointment_future_date",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='clientfeedback',
-            constraint=models.UniqueConstraint(fields=('patient', 'therapist', 'appointment'), name='unique_appointment_feedback'),
+            model_name="clientfeedback",
+            constraint=models.UniqueConstraint(
+                fields=("patient", "therapist", "appointment"),
+                name="unique_appointment_feedback",
+            ),
         ),
         migrations.AddField(
-            model_name='availableday',
-            name='therapist',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='therapist.therapistprofile'),
+            model_name="availableday",
+            name="therapist",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                to="therapist.therapistprofile",
+            ),
         ),
     ]

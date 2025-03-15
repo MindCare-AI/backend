@@ -11,10 +11,13 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=OneToOneMessage)
 def create_message_notification(sender, instance, created, **kwargs):
-    if created and not Notification.objects.filter(
-        content_type=ContentType.objects.get_for_model(instance),
-        object_id=instance.id
-    ).exists():
+    if (
+        created
+        and not Notification.objects.filter(
+            content_type=ContentType.objects.get_for_model(instance),
+            object_id=instance.id,
+        ).exists()
+    ):
         try:
             participants = instance.conversation.participants.exclude(
                 id=instance.sender.id

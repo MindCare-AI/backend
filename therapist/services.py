@@ -1,6 +1,5 @@
-#therapist/services.py
+# therapist/services.py
 import pytesseract
-from PIL import Image
 import re
 import logging
 
@@ -17,6 +16,7 @@ class TherapistVerificationService:
         """
         try:
             from PIL import Image
+
             image = Image.open(document_path)
             image.verify()  # Validate image integrity
             image = Image.open(document_path)  # Reopen for processing

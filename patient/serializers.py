@@ -89,12 +89,12 @@ class MoodLogSerializer(serializers.ModelSerializer):
 class HealthMetricSerializer(serializers.ModelSerializer):
     class Meta:
         model = HealthMetric
-        fields = '__all__'
-        read_only_fields = ['patient', 'timestamp']
+        fields = "__all__"
+        read_only_fields = ["patient", "timestamp"]
 
 
 class MedicalHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = MedicalHistoryEntry
-        fields = '__all__'
-        read_only_fields = ['patient']
+        fields = "__all__"
+        read_only_fields = ["patient"]

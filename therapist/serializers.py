@@ -2,7 +2,6 @@
 from rest_framework import serializers
 from django.utils import timezone
 from .models import TherapistProfile, SessionNote, ClientFeedback, Appointment
-from users.models import CustomUser
 
 
 class TherapistProfileSerializer(serializers.ModelSerializer):
@@ -54,8 +53,8 @@ class ClientFeedbackSerializer(serializers.ModelSerializer):
 
 
 class AppointmentSerializer(serializers.ModelSerializer):
-    therapist_name = serializers.CharField(source='therapist.username', read_only=True)
-    patient_name = serializers.CharField(source='patient.username', read_only=True)
+    therapist_name = serializers.CharField(source="therapist.username", read_only=True)
+    patient_name = serializers.CharField(source="patient.username", read_only=True)
 
     class Meta:
         model = Appointment
@@ -76,24 +75,25 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         # Ensure appointment time is in the future
-        if data.get('date_time') and data['date_time'] <= timezone.now():
-            raise serializers.ValidationError({
-                "date_time": "Appointment time must be in the future"
-            })
+        if data.get("date_time") and data["date_time"] <= timezone.now():
+            raise serializers.ValidationError(
+                {"date_time": "Appointment time must be in the future"}
+            )
 
         # Check if the therapist is available at this time
         if self.instance is None:  # Only check on create
             conflicting_appointments = Appointment.objects.filter(
-                therapist=data['therapist'],
+                therapist=data["therapist"],
                 date_time__range=(
-                    data['date_time'],
-                    data['date_time'] + timezone.timedelta(minutes=data.get('duration', 60))
+                    data["date_time"],
+                    data["date_time"]
+                    + timezone.timedelta(minutes=data.get("duration", 60)),
                 ),
-                status__in=['scheduled', 'confirmed']
+                status__in=["scheduled", "confirmed"],
             )
             if conflicting_appointments.exists():
-                raise serializers.ValidationError({
-                    "date_time": "This time slot is already booked"
-                })
+                raise serializers.ValidationError(
+                    {"date_time": "This time slot is already booked"}
+                )
 
         return data

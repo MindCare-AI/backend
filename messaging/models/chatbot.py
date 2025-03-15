@@ -8,7 +8,7 @@ class ChatbotConversation(BaseConversation):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="chatbot_conversation"
+        related_name="chatbot_conversation",
     )
     # ... other fields as needed ...
 
@@ -25,5 +25,5 @@ class ChatbotMessage(BaseMessage):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="chatbot_sent_messages"
+        related_name="chatbot_sent_messages",
     )

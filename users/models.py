@@ -7,9 +7,9 @@ from django.dispatch import receiver
 import logging
 from model_utils import FieldTracker
 from django.conf import settings
-import json
 
 logger = logging.getLogger(__name__)
+
 
 class CustomUser(AbstractUser):
     USER_TYPE_CHOICES = [
@@ -34,7 +34,9 @@ class CustomUser(AbstractUser):
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    tracker = FieldTracker(["user_type", "email", "phone_number", "crisis_alert_enabled"])
+    tracker = FieldTracker(
+        ["user_type", "email", "phone_number", "crisis_alert_enabled"]
+    )
 
     REQUIRED_FIELDS = ["email"]
 
@@ -56,73 +58,64 @@ class CustomUser(AbstractUser):
                 f"User type changed from {self.tracker.previous('user_type')} to {self.user_type}"
             )
 
+
 class UserPreferences(models.Model):
     user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='preferences'
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="preferences"
     )
     dark_mode = models.BooleanField(default=False)
     language = models.CharField(
-        max_length=10,
-        choices=settings.LANGUAGES,
-        default=settings.LANGUAGE_CODE
+        max_length=10, choices=settings.LANGUAGES, default=settings.LANGUAGE_CODE
     )
-    notification_preferences = models.JSONField(
-        default=dict,
-        blank=True
-    )
+    notification_preferences = models.JSONField(default=dict, blank=True)
 
     def get_notification_settings(self):
         settings = self.notification_preferences or {}
         return ", ".join(f"{k}: {v}" for k, v in settings.items())
-    
-    get_notification_settings.short_description = 'Notifications'
+
+    get_notification_settings.short_description = "Notifications"
 
     class Meta:
         verbose_name_plural = "User preferences"
         indexes = [
-            models.Index(fields=['user']),
+            models.Index(fields=["user"]),
         ]
 
     def __str__(self):
         return f"{self.user.username}'s Preferences"
 
+
 class UserSettings(models.Model):
     user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='settings'
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="settings"
     )
     user_timezone = models.CharField(  # renamed from 'timezone'
-        max_length=50,
-        default=settings.TIME_ZONE
+        max_length=50, default=settings.TIME_ZONE
     )
     theme_preferences = models.JSONField(
-        default=dict,
-        help_text="Theme preferences as JSON object"
+        default=dict, help_text="Theme preferences as JSON object"
     )
     privacy_settings = models.JSONField(
-        default=dict,
-        help_text="Privacy settings as JSON object"
+        default=dict, help_text="Privacy settings as JSON object"
     )
     created_at = models.DateTimeField(default=timezone.now)  # now works as expected
     updated_at = models.DateTimeField(auto_now=True)
 
     def get_theme(self):
-        return self.theme_preferences.get('mode', 'system')
+        return self.theme_preferences.get("mode", "system")
 
     def get_privacy_level(self):
-        return self.privacy_settings.get('profile_visibility', 'public')
+        return self.privacy_settings.get("profile_visibility", "public")
 
     class Meta:
-        verbose_name_plural = 'User settings'
+        verbose_name_plural = "User settings"
         indexes = [
-            models.Index(fields=['user']),
+            models.Index(fields=["user"]),
         ]
 
     def __str__(self):
         return f"Settings for {self.user.username}"
+
 
 class Profile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
@@ -133,6 +126,7 @@ class Profile(models.Model):
 
     class Meta:
         abstract = True
+
 
 class PatientProfile(Profile):
     emergency_contact = models.JSONField(default=dict, blank=True, null=True)
@@ -148,6 +142,7 @@ class PatientProfile(Profile):
 
     def __str__(self):
         return f"{self.user.username}'s Patient Profile"
+
 
 class TherapistProfile(Profile):
     specialization = models.CharField(max_length=100, blank=True, default="")
@@ -188,6 +183,7 @@ class TherapistProfile(Profile):
     def profile_completion_percentage(self):
         return self.calculate_profile_completion()
 
+
 @receiver(post_save, sender=CustomUser)
 def create_user_related_models(sender, instance, created, **kwargs):
     if not created:
@@ -202,7 +198,9 @@ def create_user_related_models(sender, instance, created, **kwargs):
             elif instance.user_type == "therapist":
                 if not TherapistProfile.objects.filter(user=instance).exists():
                     TherapistProfile.objects.create(user=instance)
-                    logger.info(f"Created therapist profile for user {instance.username}")
+                    logger.info(
+                        f"Created therapist profile for user {instance.username}"
+                    )
 
             if not UserPreferences.objects.filter(user=instance).exists():
                 UserPreferences.objects.create(user=instance)

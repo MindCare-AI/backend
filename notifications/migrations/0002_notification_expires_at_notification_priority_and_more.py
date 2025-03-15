@@ -4,34 +4,39 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('notifications', '0001_initial'),
+        ("notifications", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='notification',
-            name='expires_at',
+            model_name="notification",
+            name="expires_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='notification',
-            name='priority',
-            field=models.CharField(choices=[('low', 'Low'), ('normal', 'Normal'), ('high', 'High')], default='normal', max_length=10),
+            model_name="notification",
+            name="priority",
+            field=models.CharField(
+                choices=[("low", "Low"), ("normal", "Normal"), ("high", "High")],
+                default="normal",
+                max_length=10,
+            ),
         ),
         migrations.AddField(
-            model_name='notification',
-            name='read_at',
+            model_name="notification",
+            name="read_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AlterField(
-            model_name='notification',
-            name='notification_type',
+            model_name="notification",
+            name="notification_type",
             field=models.CharField(max_length=50),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['notification_type'], name='notificatio_notific_f2898f_idx'),
+            model_name="notification",
+            index=models.Index(
+                fields=["notification_type"], name="notificatio_notific_f2898f_idx"
+            ),
         ),
     ]

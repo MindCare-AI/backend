@@ -23,7 +23,7 @@ class UserSettingsAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """Optimize queries by selecting related user"""
-        return super().get_queryset(request).select_related('user')
+        return super().get_queryset(request).select_related("user")
 
     def has_add_permission(self, request):
         """Prevent manual creation as settings are auto-created"""
@@ -31,22 +31,24 @@ class UserSettingsAdmin(admin.ModelAdmin):
 
     def get_theme(self, obj):
         """Display theme settings in a readable format"""
-        theme_mode = obj.theme_preferences.get('mode', 'system')
-        if theme_mode == 'dark':
+        theme_mode = obj.theme_preferences.get("mode", "system")
+        if theme_mode == "dark":
             return format_html('<span style="color: #666;">🌙 Dark</span>')
-        elif theme_mode == 'light':
+        elif theme_mode == "light":
             return format_html('<span style="color: #f90;">☀️ Light</span>')
-        return format_html('<span>⚙️ System</span>')
-    get_theme.short_description = 'Theme'
-    get_theme.admin_order_field = 'theme_preferences'
+        return format_html("<span>⚙️ System</span>")
+
+    get_theme.short_description = "Theme"
+    get_theme.admin_order_field = "theme_preferences"
 
     def get_privacy_level(self, obj):
         """Display privacy level with an icon"""
-        visibility = obj.privacy_settings.get('profile_visibility', 'public')
-        if visibility is 'private':
+        visibility = obj.privacy_settings.get("profile_visibility", "public")
+        if visibility == "private":
             return format_html('<span style="color: red;">🔒 Private</span>')
-        elif visibility is 'friends':
+        elif visibility == "friends":
             return format_html('<span style="color: blue;">👥 Friends</span>')
         return format_html('<span style="color: green;">🌐 Public</span>')
-    get_privacy_level.short_description = 'Privacy'
-    get_privacy_level.admin_order_field = 'privacy_settings'
+
+    get_privacy_level.short_description = "Privacy"
+    get_privacy_level.admin_order_field = "privacy_settings"

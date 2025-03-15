@@ -63,12 +63,14 @@ urlpatterns = [
     ),
     path(
         "session-notes/<int:pk>/",
-        SessionNoteViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        SessionNoteViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="therapist-session-note-detail",
     ),
     # New routes for client feedback
@@ -79,12 +81,14 @@ urlpatterns = [
     ),
     path(
         "client-feedback/<int:pk>/",
-        ClientFeedbackViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        ClientFeedbackViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="therapist-client-feedback-detail",
     ),
 ]

@@ -71,9 +71,9 @@ class MoodLog(models.Model):
     patient = models.ForeignKey(
         PatientProfile,
         on_delete=models.CASCADE,
-        related_name='mood_logs',
-        null=True,         # allow null values temporarily
-        blank=True         # allow forms to leave this field empty
+        related_name="mood_logs",
+        null=True,  # allow null values temporarily
+        blank=True,  # allow forms to leave this field empty
     )
     mood = models.CharField(
         max_length=20,
@@ -89,17 +89,15 @@ class MoodLog(models.Model):
 
 class HealthMetric(models.Model):
     patient = models.ForeignKey(
-        PatientProfile,
-        on_delete=models.CASCADE,
-        related_name='health_metrics'
+        PatientProfile, on_delete=models.CASCADE, related_name="health_metrics"
     )
     metric_type = models.CharField(
         max_length=20,
         choices=[
-            ('blood_pressure', 'Blood Pressure'),
-            ('weight', 'Weight'),
-            ('heart_rate', 'Heart Rate')
-        ]
+            ("blood_pressure", "Blood Pressure"),
+            ("weight", "Weight"),
+            ("heart_rate", "Heart Rate"),
+        ],
     )
     value = models.CharField(max_length=20)
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -107,9 +105,7 @@ class HealthMetric(models.Model):
 
 class MedicalHistoryEntry(models.Model):
     patient = models.ForeignKey(
-        PatientProfile,
-        on_delete=models.CASCADE,
-        related_name='medical_history_entries'
+        PatientProfile, on_delete=models.CASCADE, related_name="medical_history_entries"
     )
     title = models.CharField(max_length=200)
     description = models.TextField()

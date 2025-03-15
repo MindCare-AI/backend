@@ -5,25 +5,24 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0002_remove_patientprofile_profile_type_and_more'),
+        ("users", "0002_remove_patientprofile_profile_type_and_more"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='usersettings',
-            old_name='timezone',
-            new_name='user_timezone',
+            model_name="usersettings",
+            old_name="timezone",
+            new_name="user_timezone",
         ),
         migrations.AddField(
-            model_name='usersettings',
-            name='created_at',
+            model_name="usersettings",
+            name="created_at",
             field=models.DateTimeField(default=django.utils.timezone.now),
         ),
         migrations.AddField(
-            model_name='usersettings',
-            name='updated_at',
+            model_name="usersettings",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True),
         ),
     ]

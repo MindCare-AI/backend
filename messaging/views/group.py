@@ -20,9 +20,11 @@ from notifications.services import NotificationService
 from celery import shared_task
 from messaging.permissions import IsParticipantOrModerator
 from messaging.throttling import GroupMessageThrottle  # Use the correct module name
+
 logger = logging.getLogger(__name__)
 
 notification_service = NotificationService()
+
 
 @shared_task
 def create_group_notifications(group_id, message, exclude_users=None):
@@ -100,7 +102,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             notification_service.create_group_notification(
                 instance,
                 f"Group '{instance.name}' created successfully",
-                exclude_users=[self.request.user]  # Exclude creator
+                exclude_users=[self.request.user],  # Exclude creator
             )
 
             logger.info(
@@ -273,23 +275,23 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def pin_message(self, request, pk=None):
         group = self.get_object()
         # Check that the current user is a moderator
         if not group.moderators.filter(id=request.user.id).exists():
             return Response(
                 {"detail": "Only moderators can pin messages"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
         # Pinning logic: For example, set a pinned_message field or mark a message as pinned.
         pinned_message_id = request.data.get("message_id")
         if not pinned_message_id:
             return Response(
                 {"detail": "Message ID is required to pin a message."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Here, you could implement your pinning mechanism.
         # For demonstration, we update a hypothetical `pinned_message` field on the group.
         group.pinned_message_id = pinned_message_id
@@ -299,12 +301,11 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         notification_service.create_group_notification(
             group=group,
             message=f"Message {pinned_message_id} has been pinned by {request.user.username}",
-            exclude_users=[request.user]
+            exclude_users=[request.user],
         )
-        
+
         return Response(
-            {"detail": "Message pinned successfully."},
-            status=status.HTTP_200_OK
+            {"detail": "Message pinned successfully."}, status=status.HTTP_200_OK
         )
 
 
@@ -344,7 +345,7 @@ class GroupMessageViewSet(viewsets.ModelViewSet):
             create_group_notifications.delay(
                 message.conversation.id,
                 f"New message from {self.request.user.username}",
-                exclude_users=[self.request.user]
+                exclude_users=[self.request.user],
             )
 
             return message

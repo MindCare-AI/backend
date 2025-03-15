@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 from .models import OneToOneMessage, GroupMessage, ChatbotMessage
 
+
 @receiver(post_save, sender=OneToOneMessage)
 @receiver(post_save, sender=GroupMessage)
 @receiver(post_save, sender=ChatbotMessage)

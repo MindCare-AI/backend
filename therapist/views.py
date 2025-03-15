@@ -2,10 +2,19 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import TherapistProfile, Appointment, SessionNote, ClientFeedback  # Ensure SessionNote and ClientFeedback are defined in therapist/models.py
-from .serializers import TherapistProfileSerializer, AppointmentSerializer, SessionNoteSerializer, ClientFeedbackSerializer
+from .models import (
+    TherapistProfile,
+    Appointment,
+    SessionNote,
+    ClientFeedback,
+)  # Ensure SessionNote and ClientFeedback are defined in therapist/models.py
+from .serializers import (
+    TherapistProfileSerializer,
+    AppointmentSerializer,
+    SessionNoteSerializer,
+    ClientFeedbackSerializer,
+)
 from users.permissions import IsSuperUserOrSelf
 import logging
 from rest_framework.exceptions import ValidationError
@@ -15,11 +24,14 @@ from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
+
 @extend_schema_view(
     list=extend_schema(description="List therapist profiles", tags=["Therapist"]),
     retrieve=extend_schema(description="Get therapist profile", tags=["Therapist"]),
     update=extend_schema(description="Update therapist profile", tags=["Therapist"]),
-    partial_update=extend_schema(description="Patch therapist profile", tags=["Therapist"]),
+    partial_update=extend_schema(
+        description="Patch therapist profile", tags=["Therapist"]
+    ),
 )
 class TherapistProfileViewSet(viewsets.ModelViewSet):
     serializer_class = TherapistProfileSerializer
@@ -64,11 +76,13 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         """Custom endpoint to check therapist availability."""
         try:
             therapist = self.get_object()
-            return Response({
-                "available_days": therapist.available_days,
-                "video_session_link": therapist.video_session_link,
-                "languages": therapist.languages_spoken,
-            })
+            return Response(
+                {
+                    "available_days": therapist.available_days,
+                    "video_session_link": therapist.video_session_link,
+                    "languages": therapist.languages_spoken,
+                }
+            )
         except Exception as e:
             logger.error(f"Error checking availability: {str(e)}", exc_info=True)
             return Response(
@@ -86,19 +100,19 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         """Book an appointment with the therapist."""
         try:
             therapist_profile = self.get_object()
-            
-            if request.user.user_type != 'patient':
+
+            if request.user.user_type != "patient":
                 return Response(
                     {"error": "Only patients can book appointments"},
-                    status=status.HTTP_403_FORBIDDEN
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
             appointment_data = {
-                'therapist': therapist_profile.user.id,
-                'patient': request.user.id,
-                'date_time': request.data.get('date_time'),
-                'duration': request.data.get('duration', 60),
-                'notes': request.data.get('notes', '')
+                "therapist": therapist_profile.user.id,
+                "patient": request.user.id,
+                "date_time": request.data.get("date_time"),
+                "duration": request.data.get("duration", 60),
+                "notes": request.data.get("notes", ""),
             }
 
             serializer = AppointmentSerializer(data=appointment_data)
@@ -111,7 +125,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             logger.error(f"Error booking appointment: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not book appointment"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -126,8 +140,8 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             therapist_profile = self.get_object()
             appointments = Appointment.objects.filter(
                 therapist=therapist_profile.user
-            ).order_by('date_time')
-            
+            ).order_by("date_time")
+
             serializer = AppointmentSerializer(appointments, many=True)
             return Response(serializer.data)
 
@@ -135,7 +149,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             logger.error(f"Error fetching appointments: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not fetch appointments"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=True, methods=["post"])
@@ -179,7 +193,15 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         if not isinstance(schedule, dict):
             raise ValidationError("Schedule must be a dictionary")
 
-        valid_days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+        valid_days = {
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        }
 
         for day, slots in schedule.items():
             if day.lower() not in valid_days:
@@ -189,7 +211,11 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 raise ValidationError(f"Schedule for {day} must be a list")
 
             for slot in slots:
-                if not isinstance(slot, dict) or "start" not in slot or "end" not in slot:
+                if (
+                    not isinstance(slot, dict)
+                    or "start" not in slot
+                    or "end" not in slot
+                ):
                     raise ValidationError(f"Invalid time slot in {day}")
 
         return schedule
@@ -211,7 +237,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 profile.save()
 
                 verification_service = TherapistVerificationService()
-                result = verification_service.verify_license(profile.verification_documents.path)
+                result = verification_service.verify_license(
+                    profile.verification_documents.path
+                )
 
                 if result["success"]:
                     return Response(
@@ -235,60 +263,75 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+
 @extend_schema_view(
     list=extend_schema(description="List user's appointments", tags=["Appointments"]),
-    retrieve=extend_schema(description="Get appointment details", tags=["Appointments"]),
+    retrieve=extend_schema(
+        description="Get appointment details", tags=["Appointments"]
+    ),
     update=extend_schema(description="Update appointment", tags=["Appointments"]),
-    partial_update=extend_schema(description="Patch appointment", tags=["Appointments"]),
+    partial_update=extend_schema(
+        description="Patch appointment", tags=["Appointments"]
+    ),
 )
 class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ['get', 'patch', 'put', 'delete']  # No POST - use book_appointment instead
+    http_method_names = [
+        "get",
+        "patch",
+        "put",
+        "delete",
+    ]  # No POST - use book_appointment instead
 
     def get_queryset(self):
         user = self.request.user
-        if user.user_type == 'therapist':
+        if user.user_type == "therapist":
             return Appointment.objects.filter(therapist=user)
-        elif user.user_type == 'patient':
+        elif user.user_type == "patient":
             return Appointment.objects.filter(patient=user)
         return Appointment.objects.none()
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
         """Confirm an appointment."""
         appointment = self.get_object()
-        
+
         if appointment.therapist != request.user:
             return Response(
                 {"error": "Only the therapist can confirm appointments"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
-        appointment.status = 'confirmed'
+
+        appointment.status = "confirmed"
         appointment.save()
         serializer = self.get_serializer(appointment)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
         """Cancel an appointment."""
         appointment = self.get_object()
-        
-        if appointment.therapist != request.user and appointment.patient != request.user:
+
+        if (
+            appointment.therapist != request.user
+            and appointment.patient != request.user
+        ):
             return Response(
                 {"error": "Only the therapist or patient can cancel appointments"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
-        appointment.status = 'cancelled'
+
+        appointment.status = "cancelled"
         appointment.save()
         serializer = self.get_serializer(appointment)
         return Response(serializer.data)
+
 
 class SessionNoteViewSet(viewsets.ModelViewSet):
     queryset = SessionNote.objects.all()
     serializer_class = SessionNoteSerializer
+
 
 class ClientFeedbackViewSet(viewsets.ModelViewSet):
     queryset = ClientFeedback.objects.all()

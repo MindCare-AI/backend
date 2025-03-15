@@ -98,10 +98,10 @@ ASGI_APPLICATION = "mindcare.asgi.application"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / "templates"],  # Your custom directories, if any
-        'APP_DIRS': True,  # This must be True
-        'OPTIONS': {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],  # Your custom directories, if any
+        "APP_DIRS": True,  # This must be True
+        "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -388,10 +388,10 @@ SIMPLE_JWT = {
 
 # Channel Layers Configuration for WebSocket
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
         },
     },
 }
@@ -581,16 +581,16 @@ USER_TYPE_THROTTLE_RATES = {
 
 # Redis Cache Configuration
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-        'OPTIONS': {
-            'db': 1,
-            'socket_timeout': 5,
-            'socket_connect_timeout': 5,
-            'retry_on_timeout': True,
-            'max_connections': 100,
-        }
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "db": 1,
+            "socket_timeout": 5,
+            "socket_connect_timeout": 5,
+            "retry_on_timeout": True,
+            "max_connections": 100,
+        },
     }
 }
 
@@ -603,22 +603,12 @@ MAX_REGISTRATION_ATTEMPTS = 5
 EMAIL_VERIFICATION_TIMEOUT = 3600  # 1 hour
 
 # Redis Connection Pool Settings
-REDIS_POOL_SETTINGS = {
-    'MAX_CONNECTIONS': 100,
-    'TIMEOUT': 20,
-    'RETRY_ON_TIMEOUT': True
-}
+REDIS_POOL_SETTINGS = {"MAX_CONNECTIONS": 100, "TIMEOUT": 20, "RETRY_ON_TIMEOUT": True}
 
 # User Settings Configuration
 USER_SETTINGS = {
-    'THEME_MODES': ['light', 'dark', 'system'],
-    'PRIVACY_LEVELS': ['public', 'private', 'contacts_only'],
-    'DEFAULT_THEME': {
-        'mode': 'system',
-        'color_scheme': 'default'
-    },
-    'DEFAULT_PRIVACY': {
-        'profile_visibility': 'public',
-        'show_online_status': True
-    }
+    "THEME_MODES": ["light", "dark", "system"],
+    "PRIVACY_LEVELS": ["public", "private", "contacts_only"],
+    "DEFAULT_THEME": {"mode": "system", "color_scheme": "default"},
+    "DEFAULT_PRIVACY": {"profile_visibility": "public", "show_online_status": True},
 }

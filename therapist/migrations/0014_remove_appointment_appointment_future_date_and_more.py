@@ -5,18 +5,34 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('therapist', '0013_remove_appointment_appointment_future_date_and_more'),
+        ("therapist", "0013_remove_appointment_appointment_future_date_and_more"),
     ]
 
     operations = [
         migrations.RemoveConstraint(
-            model_name='appointment',
-            name='appointment_future_date',
+            model_name="appointment",
+            name="appointment_future_date",
         ),
         migrations.AddConstraint(
-            model_name='appointment',
-            constraint=models.CheckConstraint(check=models.Q(('date_time__gt', datetime.datetime(2025, 3, 14, 21, 42, 45, 915400, tzinfo=datetime.timezone.utc))), name='appointment_future_date'),
+            model_name="appointment",
+            constraint=models.CheckConstraint(
+                check=models.Q(
+                    (
+                        "date_time__gt",
+                        datetime.datetime(
+                            2025,
+                            3,
+                            14,
+                            21,
+                            42,
+                            45,
+                            915400,
+                            tzinfo=datetime.timezone.utc,
+                        ),
+                    )
+                ),
+                name="appointment_future_date",
+            ),
         ),
     ]

@@ -8,18 +8,18 @@ class TherapistProfileAdmin(admin.ModelAdmin):
     list_display = (
         "user",
         "specialization",
-        "license_number", 
+        "license_number",
         "years_of_experience",
         "verification_status",
         "license_expiry_status",
         "profile_completion_percentage",
     )
     list_filter = (
-        "specialization", 
-        "years_of_experience", 
+        "specialization",
+        "years_of_experience",
         "license_expiry",
         "verification_status",
-        "is_verified"
+        "is_verified",
     )
     search_fields = ("user__username", "specialization", "license_number")
     readonly_fields = (
@@ -27,7 +27,7 @@ class TherapistProfileAdmin(admin.ModelAdmin):
         "profile_completion_percentage",
         "is_profile_complete",
         "created_at",
-        "updated_at"
+        "updated_at",
     )
     fieldsets = (
         (
@@ -49,58 +49,47 @@ class TherapistProfileAdmin(admin.ModelAdmin):
                     "license_number",
                     "years_of_experience",
                     "treatment_approaches",
-                    "languages_spoken"
+                    "languages_spoken",
                 )
             },
         ),
+        ("Availability", {"fields": ("available_days", "video_session_link")}),
         (
-            "Availability", 
-            {
-                "fields": (
-                    "available_days", 
-                    "video_session_link"
-                )
-            }
-        ),
-        (
-            "Verification", 
+            "Verification",
             {
                 "fields": (
                     "verification_status",
                     "verification_notes",
                     "verification_documents",
                     "is_verified",
-                    "last_verification_attempt"
+                    "last_verification_attempt",
                 )
-            }
+            },
         ),
         (
-            "Profile Status", 
+            "Profile Status",
             {
                 "fields": (
                     "profile_completion_percentage",
                     "is_profile_complete",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
                 )
-            }
+            },
         ),
-        (
-            "License Information", 
-            {
-                "fields": ("license_expiry",)
-            }
-        ),
+        ("License Information", {"fields": ("license_expiry",)}),
     )
 
     def license_expiry_status(self, obj):
         if obj.license_expiry:
             from django.utils.timezone import now
+
             if obj.license_expiry > now().date():
                 return format_html('<span style="color: green;">Valid</span>')
             else:
                 return format_html('<span style="color: red;">Expired</span>')
         return "N/A"
+
     license_expiry_status.short_description = "License Status"
 
     def profile_pic_preview(self, obj):
@@ -110,6 +99,7 @@ class TherapistProfileAdmin(admin.ModelAdmin):
                 obj.profile_pic.url,
             )
         return "No Image"
+
     profile_pic_preview.short_description = "Profile Picture"
 
 
@@ -121,47 +111,25 @@ class AppointmentAdmin(admin.ModelAdmin):
         "date_time",
         "duration",
         "status",
-        "created_at"
+        "created_at",
     )
     list_filter = ("status", "date_time")
-    search_fields = (
-        "therapist__username",
-        "patient__username",
-        "notes"
-    )
+    search_fields = ("therapist__username", "patient__username", "notes")
     readonly_fields = ("created_at", "updated_at")
     ordering = ("-date_time",)
 
 
 @admin.register(SessionNote)
 class SessionNoteAdmin(admin.ModelAdmin):
-    list_display = (
-        "therapist",
-        "patient",
-        "session_date",
-        "timestamp"
-    )
+    list_display = ("therapist", "patient", "session_date", "timestamp")
     list_filter = ("session_date", "timestamp")
-    search_fields = (
-        "therapist__username",
-        "patient__username",
-        "notes"
-    )
+    search_fields = ("therapist__username", "patient__username", "notes")
     readonly_fields = ("timestamp", "updated_at")
 
 
 @admin.register(ClientFeedback)
 class ClientFeedbackAdmin(admin.ModelAdmin):
-    list_display = (
-        "therapist",
-        "patient",
-        "rating",
-        "timestamp"
-    )
+    list_display = ("therapist", "patient", "rating", "timestamp")
     list_filter = ("rating", "timestamp")
-    search_fields = (
-        "therapist__username",
-        "patient__username",
-        "feedback"
-    )
+    search_fields = ("therapist__username", "patient__username", "feedback")
     readonly_fields = ("timestamp",)

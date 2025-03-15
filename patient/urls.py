@@ -1,10 +1,10 @@
 # patient/urls.py
 from django.urls import path
 from .views import (
-    PatientProfileViewSet, 
+    PatientProfileViewSet,
     MoodLogViewSet,
     HealthMetricViewSet,
-    MedicalHistoryViewSet
+    MedicalHistoryViewSet,
 )
 
 urlpatterns = [
@@ -31,7 +31,6 @@ urlpatterns = [
         PatientProfileViewSet.as_view({"get": "appointments"}),
         name="patient-appointments",
     ),
-
     # Mood Logs Endpoints
     path(
         "mood-logs/",
@@ -50,7 +49,6 @@ urlpatterns = [
         ),
         name="mood-log-detail",
     ),
-
     # Health Metrics Endpoints
     path(
         "health-metrics/",
@@ -59,14 +57,11 @@ urlpatterns = [
     ),
     path(
         "health-metrics/<int:pk>/",
-        HealthMetricViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "delete": "destroy"
-        }),
+        HealthMetricViewSet.as_view(
+            {"get": "retrieve", "put": "update", "delete": "destroy"}
+        ),
         name="health-metric-detail",
     ),
-
     # Medical History Endpoints
     path(
         "medical-history/",
@@ -75,11 +70,9 @@ urlpatterns = [
     ),
     path(
         "medical-history/<int:pk>/",
-        MedicalHistoryViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "delete": "destroy"
-        }),
+        MedicalHistoryViewSet.as_view(
+            {"get": "retrieve", "put": "update", "delete": "destroy"}
+        ),
         name="medical-history-detail",
     ),
 ]

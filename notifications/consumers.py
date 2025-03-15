@@ -1,10 +1,9 @@
 # notifications/consumers.py
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
-from channels.db import database_sync_to_async
-from django.core.exceptions import ObjectDoesNotExist
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -17,10 +16,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
 
             # Add user to their notification group
             self.user_group = f"notifications_{self.scope['user'].id}"
-            await self.channel_layer.group_add(
-                self.user_group,
-                self.channel_name
-            )
+            await self.channel_layer.group_add(self.user_group, self.channel_name)
             await self.accept()
 
         except Exception as e:
@@ -30,10 +26,9 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, close_code):
         """Clean up on disconnect"""
         try:
-            if hasattr(self, 'user_group'):
+            if hasattr(self, "user_group"):
                 await self.channel_layer.group_discard(
-                    self.user_group,
-                    self.channel_name
+                    self.user_group, self.channel_name
                 )
         except Exception as e:
             logger.error(f"WebSocket disconnect error: {str(e)}")

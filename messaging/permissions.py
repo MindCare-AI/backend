@@ -103,14 +103,15 @@ class CanSendMessage(BasePermission):
 
 class IsParticipantOrModerator(BasePermission):
     """
-    Custom permission to allow access if the user is either 
+    Custom permission to allow access if the user is either
     a participant or a moderator of the conversation.
     """
+
     def has_object_permission(self, request, view, obj):
         try:
             return (
-                request.user in obj.participants.all() or
-                request.user in obj.moderators.all()
+                request.user in obj.participants.all()
+                or request.user in obj.moderators.all()
             )
         except Exception as e:
             logger.error(f"Error checking IsParticipantOrModerator: {str(e)}")

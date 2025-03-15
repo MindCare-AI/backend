@@ -85,9 +85,7 @@ class UserPreferencesViewSet(viewsets.ModelViewSet):
         tags=["Settings"],
     ),
     update=extend_schema(
-        description="Update user settings",
-        summary="Update Settings",
-        tags=["Settings"]
+        description="Update user settings", summary="Update Settings", tags=["Settings"]
     ),
     partial_update=extend_schema(
         description="Partially update user settings",
@@ -173,18 +171,13 @@ class CustomUserViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         if self.request.user.is_superuser:
-            return CustomUser.objects.all().select_related(
-                'preferences',
-                'settings'
-            ).prefetch_related(
-                'therapist_appointments',
-                'patient_appointments'
+            return (
+                CustomUser.objects.all()
+                .select_related("preferences", "settings")
+                .prefetch_related("therapist_appointments", "patient_appointments")
             )
-        return CustomUser.objects.filter(
-            id=self.request.user.id
-        ).select_related(
-            'preferences',
-            'settings'
+        return CustomUser.objects.filter(id=self.request.user.id).select_related(
+            "preferences", "settings"
         )
 
     @extend_schema(
@@ -200,45 +193,41 @@ class CustomUserViewSet(viewsets.ReadOnlyModelViewSet):
             preferences, created = UserPreferences.objects.get_or_create(
                 user=user,
                 defaults={
-                    'dark_mode': False,
-                    'language': settings.LANGUAGE_CODE,
-                    'notification_preferences': {}
-                }
+                    "dark_mode": False,
+                    "language": settings.LANGUAGE_CODE,
+                    "notification_preferences": {},
+                },
             )
-            
+
             serializer = UserPreferencesSerializer(
-                preferences,
-                data=request.data,
-                partial=True
+                preferences, data=request.data, partial=True
             )
-            
+
             if serializer.is_valid():
                 serializer.save()
                 logger.info(f"Updated preferences for user {user.username}")
-                return Response({
-                    "message": "Preferences updated successfully",
-                    "preferences": serializer.data
-                })
-            
+                return Response(
+                    {
+                        "message": "Preferences updated successfully",
+                        "preferences": serializer.data,
+                    }
+                )
+
             logger.warning(
                 f"Invalid preference data for user {user.username}: {serializer.errors}"
             )
-            return Response(
-                serializer.errors, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except CustomUser.DoesNotExist:
             logger.error(f"User {pk} not found")
             return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.error(f"Error updating preferences: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not update preferences"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -254,45 +243,41 @@ class CustomUserViewSet(viewsets.ReadOnlyModelViewSet):
             settings, created = UserSettings.objects.get_or_create(
                 user=user,
                 defaults={
-                    'timezone': settings.TIME_ZONE,
-                    'theme_preferences': {'mode': 'system'},
-                    'privacy_settings': {'profile_visibility': 'public'}
-                }
+                    "timezone": settings.TIME_ZONE,
+                    "theme_preferences": {"mode": "system"},
+                    "privacy_settings": {"profile_visibility": "public"},
+                },
             )
-            
+
             serializer = UserSettingsSerializer(
-                settings,
-                data=request.data,
-                partial=True
+                settings, data=request.data, partial=True
             )
-            
+
             if serializer.is_valid():
                 serializer.save()
                 logger.info(f"Updated settings for user {user.username}")
-                return Response({
-                    "message": "Settings updated successfully",
-                    "settings": serializer.data
-                })
-            
+                return Response(
+                    {
+                        "message": "Settings updated successfully",
+                        "settings": serializer.data,
+                    }
+                )
+
             logger.warning(
                 f"Invalid settings data for user {user.username}: {serializer.errors}"
             )
-            return Response(
-                serializer.errors, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except CustomUser.DoesNotExist:
             logger.error(f"User {pk} not found")
             return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.error(f"Error updating settings: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not update settings"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
@@ -461,26 +446,26 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             user = self.get_object()
             preferences, created = UserPreferences.objects.get_or_create(user=user)
-            
+
             serializer = UserPreferencesSerializer(
-                preferences,
-                data=request.data,
-                partial=True
+                preferences, data=request.data, partial=True
             )
-            
+
             if serializer.is_valid():
                 serializer.save()
-                return Response({
-                    "message": "Preferences updated successfully",
-                    "preferences": serializer.data
-                })
+                return Response(
+                    {
+                        "message": "Preferences updated successfully",
+                        "preferences": serializer.data,
+                    }
+                )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             logger.error(f"Error updating preferences: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not update preferences"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=True, methods=["patch"])
@@ -491,26 +476,26 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             user = self.get_object()
             settings, created = UserSettings.objects.get_or_create(user=user)
-            
+
             serializer = UserSettingsSerializer(
-                settings,
-                data=request.data,
-                partial=True
+                settings, data=request.data, partial=True
             )
-            
+
             if serializer.is_valid():
                 serializer.save()
-                return Response({
-                    "message": "Settings updated successfully",
-                    "settings": serializer.data
-                })
+                return Response(
+                    {
+                        "message": "Settings updated successfully",
+                        "settings": serializer.data,
+                    }
+                )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             logger.error(f"Error updating settings: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not update settings"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

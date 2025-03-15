@@ -31,10 +31,10 @@ def create_user_related_models(sender, instance, created, **kwargs):
             preferences, prefs_created = UserPreferences.objects.get_or_create(
                 user=instance,
                 defaults={
-                    'dark_mode': False,
-                    'language': 'en',
-                    'notification_preferences': {}
-                }
+                    "dark_mode": False,
+                    "language": "en",
+                    "notification_preferences": {},
+                },
             )
             if prefs_created:
                 logger.info(f"Created preferences for user {instance.username}")
@@ -43,15 +43,17 @@ def create_user_related_models(sender, instance, created, **kwargs):
             settings, settings_created = UserSettings.objects.get_or_create(
                 user=instance,
                 defaults={
-                    'theme_preferences': {'mode': 'system'},
-                    'privacy_settings': {'profile_visibility': 'public'}
-                }
+                    "theme_preferences": {"mode": "system"},
+                    "privacy_settings": {"profile_visibility": "public"},
+                },
             )
             if settings_created:
                 logger.info(f"Created settings for user {instance.username}")
 
     except Exception as e:
-        logger.error(f"Error in create_user_related_models for {instance.username}: {str(e)}")
+        logger.error(
+            f"Error in create_user_related_models for {instance.username}: {str(e)}"
+        )
         # Don't raise the exception here as it would prevent superuser creation
         # Just log the error and continue
 
@@ -99,8 +101,12 @@ def create_user_settings(sender, instance, created, **kwargs):
         try:
             UserSettings.objects.create(
                 user=instance,
-                theme_preferences=settings.USER_SETTINGS.get('DEFAULT_THEME', {'mode': 'system'}),
-                privacy_settings=settings.USER_SETTINGS.get('DEFAULT_PRIVACY', {'profile_visibility': 'public'})
+                theme_preferences=settings.USER_SETTINGS.get(
+                    "DEFAULT_THEME", {"mode": "system"}
+                ),
+                privacy_settings=settings.USER_SETTINGS.get(
+                    "DEFAULT_PRIVACY", {"profile_visibility": "public"}
+                ),
             )
             logger.info(f"Created settings for user {instance.id}")
         except Exception as e:

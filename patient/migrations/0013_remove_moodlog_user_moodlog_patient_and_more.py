@@ -5,40 +5,85 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patient', '0012_alter_patientprofile_profile_type'),
+        ("patient", "0012_alter_patientprofile_profile_type"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='moodlog',
-            name='user',
+            model_name="moodlog",
+            name="user",
         ),
         migrations.AddField(
-            model_name='moodlog',
-            name='patient',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='mood_logs', to='patient.patientprofile'),
+            model_name="moodlog",
+            name="patient",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="mood_logs",
+                to="patient.patientprofile",
+            ),
         ),
         migrations.CreateModel(
-            name='MedicalHistoryEntry',
+            name="MedicalHistoryEntry",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=200)),
-                ('description', models.TextField()),
-                ('date_occurred', models.DateField()),
-                ('is_chronic', models.BooleanField(default=False)),
-                ('patient', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='medical_history_entries', to='patient.patientprofile')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("title", models.CharField(max_length=200)),
+                ("description", models.TextField()),
+                ("date_occurred", models.DateField()),
+                ("is_chronic", models.BooleanField(default=False)),
+                (
+                    "patient",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="medical_history_entries",
+                        to="patient.patientprofile",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='HealthMetric',
+            name="HealthMetric",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('metric_type', models.CharField(choices=[('blood_pressure', 'Blood Pressure'), ('weight', 'Weight'), ('heart_rate', 'Heart Rate')], max_length=20)),
-                ('value', models.CharField(max_length=20)),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('patient', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='health_metrics', to='patient.patientprofile')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "metric_type",
+                    models.CharField(
+                        choices=[
+                            ("blood_pressure", "Blood Pressure"),
+                            ("weight", "Weight"),
+                            ("heart_rate", "Heart Rate"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("value", models.CharField(max_length=20)),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
+                (
+                    "patient",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="health_metrics",
+                        to="patient.patientprofile",
+                    ),
+                ),
             ],
         ),
     ]

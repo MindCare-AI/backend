@@ -14,7 +14,7 @@ class BaseConversation(models.Model):
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="%(class)s_conversations",
-        blank=True  # Allow blank to prevent immediate validation issues
+        blank=True,  # Allow blank to prevent immediate validation issues
     )
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
@@ -127,7 +127,7 @@ class BaseMessage(models.Model):
                 content_type=ContentType.objects.get_for_model(self),
                 object_id=self.id,
                 previous_content=self.content,
-                edited_by=edited_by_user
+                edited_by=edited_by_user,
             )
 
             # Update message
@@ -155,31 +155,29 @@ class BaseMessage(models.Model):
 
 class MessageEditHistory(models.Model):
     """Tracks edit history for any message type using a generic foreign key."""
-    
+
     # Generic Foreign Key fields
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
-    message = GenericForeignKey('content_type', 'object_id')
-    
+    message = GenericForeignKey("content_type", "object_id")
+
     # Edit history fields
-    previous_content = models.TextField(
-        help_text="The content before this edit"
-    )
+    previous_content = models.TextField(help_text="The content before this edit")
     edited_at = models.DateTimeField(auto_now_add=True)
     edited_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='message_edits'
+        related_name="message_edits",
     )
 
     class Meta:
         verbose_name = "Message Edit History"
         verbose_name_plural = "Message Edit Histories"
-        ordering = ['-edited_at']
+        ordering = ["-edited_at"]
         indexes = [
-            models.Index(fields=['content_type', 'object_id']),
-            models.Index(fields=['edited_at']),
+            models.Index(fields=["content_type", "object_id"]),
+            models.Index(fields=["edited_at"]),
         ]
 
     def __str__(self):
@@ -189,7 +187,9 @@ class MessageEditHistory(models.Model):
     def edit_summary(self):
         """Returns a human-readable summary of the edit"""
         return {
-            'editor': self.edited_by.get_full_name() or self.edited_by.username,
-            'timestamp': self.edited_at,
-            'previous_content': self.previous_content[:100] + '...' if len(self.previous_content) > 100 else self.previous_content
+            "editor": self.edited_by.get_full_name() or self.edited_by.username,
+            "timestamp": self.edited_at,
+            "previous_content": self.previous_content[:100] + "..."
+            if len(self.previous_content) > 100
+            else self.previous_content,
         }

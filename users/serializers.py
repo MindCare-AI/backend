@@ -14,7 +14,6 @@ from utils.validators import (
 )
 from django.conf import settings
 import pytz
-import json
 
 logger = logging.getLogger(__name__)
 CustomUser = get_user_model()
@@ -39,21 +38,21 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class UserPreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPreferences
-        fields = ['dark_mode', 'language', 'notification_preferences']
-        read_only_fields = ['user']
+        fields = ["dark_mode", "language", "notification_preferences"]
+        read_only_fields = ["user"]
 
 
 class UserSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserSettings
         fields = [
-            'timezone',
-            'theme_preferences',
-            'privacy_settings',
-            'created_at',
-            'updated_at'
+            "timezone",
+            "theme_preferences",
+            "privacy_settings",
+            "created_at",
+            "updated_at",
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ["created_at", "updated_at"]
 
 
 class UserSettingsSerializer(serializers.ModelSerializer):
@@ -61,17 +60,17 @@ class UserSettingsSerializer(serializers.ModelSerializer):
         max_length=50,
         required=False,
         default=settings.TIME_ZONE,
-        help_text="User's preferred timezone (e.g., 'UTC', 'America/New_York')"
+        help_text="User's preferred timezone (e.g., 'UTC', 'America/New_York')",
     )
     theme_preferences = serializers.DictField(
         required=False,
         default=dict,
-        help_text="User's theme preferences including mode and color scheme"
+        help_text="User's theme preferences including mode and color scheme",
     )
     privacy_settings = serializers.DictField(
         required=False,
         default=dict,
-        help_text="User's privacy configuration including visibility and status"
+        help_text="User's privacy configuration including visibility and status",
     )
 
     class Meta:
@@ -103,15 +102,15 @@ class UserSettingsSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Theme preferences must be an object")
 
-        required_keys = {'mode', 'color_scheme'}
+        required_keys = {"mode", "color_scheme"}
         missing_keys = required_keys - set(value.keys())
         if missing_keys:
             raise serializers.ValidationError(
                 f"Missing required theme preferences: {', '.join(missing_keys)}"
             )
 
-        valid_modes = settings.USER_SETTINGS['THEME_MODES']
-        if value['mode'] not in valid_modes:
+        valid_modes = settings.USER_SETTINGS["THEME_MODES"]
+        if value["mode"] not in valid_modes:
             raise serializers.ValidationError(
                 f"Invalid theme mode. Must be one of: {', '.join(valid_modes)}"
             )
@@ -123,20 +122,20 @@ class UserSettingsSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Privacy settings must be an object")
 
-        required_keys = {'profile_visibility', 'show_online_status'}
+        required_keys = {"profile_visibility", "show_online_status"}
         missing_keys = required_keys - set(value.keys())
         if missing_keys:
             raise serializers.ValidationError(
                 f"Missing required privacy settings: {', '.join(missing_keys)}"
             )
 
-        valid_visibilities = settings.USER_SETTINGS['PRIVACY_LEVELS']
-        if value['profile_visibility'] not in valid_visibilities:
+        valid_visibilities = settings.USER_SETTINGS["PRIVACY_LEVELS"]
+        if value["profile_visibility"] not in valid_visibilities:
             raise serializers.ValidationError(
                 f"Invalid visibility level. Must be one of: {', '.join(valid_visibilities)}"
             )
 
-        if not isinstance(value['show_online_status'], bool):
+        if not isinstance(value["show_online_status"], bool):
             raise serializers.ValidationError("show_online_status must be a boolean")
 
         return value
@@ -154,14 +153,14 @@ class UserSettingsSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         """Add default values to response"""
         data = super().to_representation(instance)
-        
+
         # Add default theme preferences
-        if not data.get('theme_preferences'):
-            data['theme_preferences'] = settings.USER_SETTINGS['DEFAULT_THEME']
+        if not data.get("theme_preferences"):
+            data["theme_preferences"] = settings.USER_SETTINGS["DEFAULT_THEME"]
 
         # Add default privacy settings
-        if not data.get('privacy_settings'):
-            data['privacy_settings'] = settings.USER_SETTINGS['DEFAULT_PRIVACY']
+        if not data.get("privacy_settings"):
+            data["privacy_settings"] = settings.USER_SETTINGS["DEFAULT_PRIVACY"]
 
         return data
 
@@ -342,10 +341,16 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [
-            'id', 'username', 'email', 'user_type',
-            'phone_number', 'date_of_birth', 'preferences', 'settings'
+            "id",
+            "username",
+            "email",
+            "user_type",
+            "phone_number",
+            "date_of_birth",
+            "preferences",
+            "settings",
         ]
-        read_only_fields = ['id', 'date_joined', 'last_login']
+        read_only_fields = ["id", "date_joined", "last_login"]
         extra_kwargs = {"password": {"write_only": True}}
 
     def create(self, validated_data):

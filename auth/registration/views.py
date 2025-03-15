@@ -32,21 +32,21 @@ class CustomRegisterView(RegisterView):
         try:
             # Check cache connection
             try:
-                cache.get('test_key')
+                cache.get("test_key")
             except Exception as cache_error:
                 logger.error(f"Cache connection error: {str(cache_error)}")
                 # Continue without caching if Redis is down
                 return serializer.save(self.request)
 
             user = serializer.save(self.request)
-            
+
             # Cache user registration attempt with fallback
             try:
                 cache_key = f"registration_attempt_{user.email}"
                 cache.set(cache_key, True, timeout=300)  # 5 minutes
             except Exception as e:
                 logger.warning(f"Failed to cache registration attempt: {str(e)}")
-            
+
             return user
 
         except Exception as e:
@@ -57,21 +57,23 @@ class CustomRegisterView(RegisterView):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            
+
             # Check for rate limiting
-            email = serializer.validated_data.get('email')
+            email = serializer.validated_data.get("email")
             if self._check_rate_limit(email):
                 return Response(
-                    {"detail": "Too many registration attempts. Please try again later."},
-                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                    {
+                        "detail": "Too many registration attempts. Please try again later."
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
-            
+
             user = self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
-            
+
             # Send verification email
             email_status = self._send_verification_email(request, user)
-            
+
             return Response(
                 {
                     "status": "success",
@@ -82,12 +84,12 @@ class CustomRegisterView(RegisterView):
                 status=status.HTTP_201_CREATED,
                 headers=headers,
             )
-            
+
         except Exception as e:
             logger.error(f"Registration error: {str(e)}")
             return Response(
                 {"detail": "Registration failed. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def _check_rate_limit(self, email):
@@ -98,17 +100,17 @@ class CustomRegisterView(RegisterView):
         try:
             cache_key = f"registration_attempts_{email}"
             attempts = cache.get(cache_key, 0)
-            
+
             if attempts >= settings.MAX_REGISTRATION_ATTEMPTS:
                 return True
-                
+
             cache.set(
-                cache_key, 
-                attempts + 1, 
-                timeout=getattr(settings, 'EMAIL_VERIFICATION_TIMEOUT', 3600)
+                cache_key,
+                attempts + 1,
+                timeout=getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 3600),
             )
             return False
-            
+
         except Exception as e:
             logger.error(f"Rate limit check failed: {str(e)}")
             # If cache fails, allow registration

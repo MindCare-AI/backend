@@ -19,23 +19,15 @@ class Notification(models.Model):
         ("therapy_update", "Therapy Update"),
     )
 
-    PRIORITY_CHOICES = [
-        ('low', 'Low'),
-        ('normal', 'Normal'),
-        ('high', 'High')
-    ]
+    PRIORITY_CHOICES = [("low", "Low"), ("normal", "Normal"), ("high", "High")]
 
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='notifications'
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
     )
     message = models.TextField()
     notification_type = models.CharField(max_length=50)
     priority = models.CharField(
-        max_length=10,
-        choices=PRIORITY_CHOICES,
-        default='normal'
+        max_length=10, choices=PRIORITY_CHOICES, default="normal"
     )
     url = models.URLField(null=True, blank=True)
     is_read = models.BooleanField(default=False)
@@ -49,11 +41,11 @@ class Notification(models.Model):
     content_object = GenericForeignKey("content_type", "object_id")
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=['user', 'is_read']),
-            models.Index(fields=['created_at']),
-            models.Index(fields=['notification_type'])
+            models.Index(fields=["user", "is_read"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["notification_type"]),
         ]
 
     def __str__(self):

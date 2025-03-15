@@ -10,15 +10,15 @@ from .views import (
 urlpatterns = [
     # User Endpoints
     path("", CustomUserViewSet.as_view({"get": "list"}), name="user-list"),
-    path("<int:pk>/", CustomUserViewSet.as_view({"get": "retrieve"}), name="user-detail"),
-
+    path(
+        "<int:pk>/", CustomUserViewSet.as_view({"get": "retrieve"}), name="user-detail"
+    ),
     # Custom action for updating preferences
     path(
         "<int:pk>/update_preferences/",
         CustomUserViewSet.as_view({"patch": "update_preferences"}),
         name="user-update-preferences",
     ),
-
     # Preferences Endpoints
     path(
         "preferences/",
@@ -30,7 +30,6 @@ urlpatterns = [
         UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="preferences-detail",
     ),
-
     # Settings Endpoints
     path(
         "settings/",
@@ -42,7 +41,6 @@ urlpatterns = [
         UserSettingsViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="settings-detail",
     ),
-
     # Set User Type Endpoint
     path("set-user-type/", SetUserTypeView.as_view(), name="set-user-type"),
 ]

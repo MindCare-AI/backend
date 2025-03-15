@@ -16,32 +16,34 @@ from .services import NotificationService
 notification_service = NotificationService()
 logger = logging.getLogger(__name__)
 
+
 @extend_schema_view(
     list=extend_schema(
         description="List notifications with filtering options",
         summary="List Notifications",
-        tags=["Notifications"]
+        tags=["Notifications"],
     ),
     retrieve=extend_schema(
         description="Get a specific notification",
         summary="Get Notification",
-        tags=["Notifications"]
-    )
+        tags=["Notifications"],
+    ),
 )
-class NotificationViewSet(viewsets.GenericViewSet,
-                         mixins.ListModelMixin,
-                         mixins.RetrieveModelMixin):
+class NotificationViewSet(
+    viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin
+):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated, IsNotificationOwner]
     ordering = ["-created_at"]
 
     def get_queryset(self):
         """Get notifications with prefetch optimization"""
-        return (Notification.objects
-                .filter(user=self.request.user)
-                .select_related('content_type', 'user')
-                .prefetch_related('action_object')
-                .exclude(expires_at__lt=timezone.now()))
+        return (
+            Notification.objects.filter(user=self.request.user)
+            .select_related("content_type", "user")
+            .prefetch_related("action_object")
+            .exclude(expires_at__lt=timezone.now())
+        )
 
     @extend_schema(
         parameters=[
@@ -62,14 +64,14 @@ class NotificationViewSet(viewsets.GenericViewSet,
                 description="Filter notifications since timestamp (ISO format)",
                 required=False,
                 type=str,
-            )
+            ),
         ]
     )
     def list(self, request, *args, **kwargs):
         """List notifications with filtering"""
         try:
             queryset = self.get_queryset()
-            
+
             # Apply filters
             unread = request.query_params.get("unread")
             notification_type = request.query_params.get("type")
@@ -77,7 +79,7 @@ class NotificationViewSet(viewsets.GenericViewSet,
 
             if unread is not None:
                 queryset = queryset.filter(is_read=False)
-            
+
             if notification_type:
                 queryset = queryset.filter(notification_type=notification_type)
 
@@ -88,7 +90,7 @@ class NotificationViewSet(viewsets.GenericViewSet,
                 except ValueError:
                     return Response(
                         {"error": "Invalid date format for 'since' parameter"},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
             # Apply pagination
@@ -104,7 +106,7 @@ class NotificationViewSet(viewsets.GenericViewSet,
             logger.error(f"Error listing notifications: {str(e)}")
             return Response(
                 {"error": "Failed to retrieve notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=True, methods=["patch"])
@@ -116,8 +118,10 @@ class NotificationViewSet(viewsets.GenericViewSet,
     @action(detail=False, methods=["post"])
     def mark_all_read(self, request):
         updated = notification_service.mark_as_read(
-            request.user.notifications.filter(is_read=False).values_list('id', flat=True),
-            request.user
+            request.user.notifications.filter(is_read=False).values_list(
+                "id", flat=True
+            ),
+            request.user,
         )
         return Response({"status": f"marked {updated} notifications as read"})
 
@@ -139,26 +143,23 @@ class NotificationViewSet(viewsets.GenericViewSet,
     @extend_schema(
         description="Mark multiple notifications as read",
         request={"application/json": {"ids": ["array", "integer"]}},
-        responses={200: {"marked_read": "integer"}}
+        responses={200: {"marked_read": "integer"}},
     )
     @action(detail=False, methods=["post"])
     def mark_multiple_read(self, request):
         """Mark multiple notifications as read"""
         try:
             with transaction.atomic():
-                notification_ids = request.data.get('ids', [])
+                notification_ids = request.data.get("ids", [])
                 if not notification_ids:
                     return Response(
                         {"error": "No notification IDs provided"},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                updated = (Notification.objects
-                          .filter(id__in=notification_ids, user=request.user)
-                          .update(
-                              is_read=True,
-                              read_at=timezone.now()
-                          ))
+                updated = Notification.objects.filter(
+                    id__in=notification_ids, user=request.user
+                ).update(is_read=True, read_at=timezone.now())
 
                 return Response({"marked_read": updated})
 
@@ -166,41 +167,41 @@ class NotificationViewSet(viewsets.GenericViewSet,
             logger.error(f"Error marking notifications read: {str(e)}")
             return Response(
                 {"error": "Failed to update notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
         description="Delete all read notifications",
-        responses={200: {"deleted": "integer"}}
+        responses={200: {"deleted": "integer"}},
     )
     @action(detail=False, methods=["delete"])
     def clear_all(self, request):
         """Clear all read notifications"""
         try:
             with transaction.atomic():
-                deleted = (request.user.notifications
-                          .filter(is_read=True)
-                          .delete()[0])
-                
+                deleted = request.user.notifications.filter(is_read=True).delete()[0]
+
                 return Response({"deleted": deleted})
 
         except Exception as e:
             logger.error(f"Error clearing notifications: {str(e)}")
             return Response(
                 {"error": "Failed to clear notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
         description="Get notification statistics",
-        responses={200: {
-            "type": "object",
-            "properties": {
-                "unread_count": {"type": "integer"},
-                "total_count": {"type": "integer"},
-                "newest_notification": {"type": "string", "format": "date-time"}
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "unread_count": {"type": "integer"},
+                    "total_count": {"type": "integer"},
+                    "newest_notification": {"type": "string", "format": "date-time"},
+                },
             }
-        }}
+        },
     )
     @action(detail=False, methods=["get"])
     def stats(self, request):
@@ -211,8 +212,8 @@ class NotificationViewSet(viewsets.GenericViewSet,
                 "unread_count": queryset.filter(is_read=False).count(),
                 "total_count": queryset.count(),
                 "newest_notification": queryset.values_list(
-                    'created_at', flat=True
-                ).first()
+                    "created_at", flat=True
+                ).first(),
             }
             return Response(stats)
 
@@ -220,7 +221,7 @@ class NotificationViewSet(viewsets.GenericViewSet,
             logger.error(f"Error getting notification stats: {str(e)}")
             return Response(
                 {"error": "Failed to retrieve notification stats"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(detail=False, methods=["post"])
@@ -228,24 +229,20 @@ class NotificationViewSet(viewsets.GenericViewSet,
         """Test notification creation (staff only)"""
         if not request.user.is_staff:
             return Response(
-                {"error": "Staff access required"},
-                status=status.HTTP_403_FORBIDDEN
+                {"error": "Staff access required"}, status=status.HTTP_403_FORBIDDEN
             )
 
         try:
             notification = notification_service.create_notification(
-                user=request.user,
-                message="Test notification",
-                notification_type="test"
+                user=request.user, message="Test notification", notification_type="test"
             )
-            return Response({
-                "status": "notification sent",
-                "notification_id": notification.id
-            })
+            return Response(
+                {"status": "notification sent", "notification_id": notification.id}
+            )
 
         except Exception as e:
             logger.error(f"Error creating test notification: {str(e)}")
             return Response(
                 {"error": "Failed to create test notification"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

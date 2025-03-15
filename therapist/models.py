@@ -15,50 +15,48 @@ logger = logging.getLogger(__name__)
 
 class Appointment(models.Model):
     STATUS_CHOICES = [
-        ('scheduled', 'Scheduled'),
-        ('confirmed', 'Confirmed'),
-        ('cancelled', 'Cancelled'),
-        ('completed', 'Completed'),
+        ("scheduled", "Scheduled"),
+        ("confirmed", "Confirmed"),
+        ("cancelled", "Cancelled"),
+        ("completed", "Completed"),
     ]
 
     therapist = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
-        related_name='therapist_appointments',
-        limit_choices_to={'user_type': 'therapist'}
+        related_name="therapist_appointments",
+        limit_choices_to={"user_type": "therapist"},
     )
     patient = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
-        related_name='patient_appointments',
-        limit_choices_to={'user_type': 'patient'}
+        related_name="patient_appointments",
+        limit_choices_to={"user_type": "patient"},
     )
     date_time = models.DateTimeField()
     duration = models.IntegerField(
         default=60,
         validators=[MinValueValidator(15), MaxValueValidator(180)],
-        help_text="Duration in minutes (15-180)"
+        help_text="Duration in minutes (15-180)",
     )
     status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='scheduled'
+        max_length=20, choices=STATUS_CHOICES, default="scheduled"
     )
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-date_time']
+        ordering = ["-date_time"]
         indexes = [
-            models.Index(fields=['therapist', 'date_time']),
-            models.Index(fields=['patient', 'date_time']),
-            models.Index(fields=['status']),
+            models.Index(fields=["therapist", "date_time"]),
+            models.Index(fields=["patient", "date_time"]),
+            models.Index(fields=["status"]),
         ]
         constraints = [
             models.CheckConstraint(
                 check=models.Q(date_time__gt=timezone.now()),
-                name='appointment_future_date'
+                name="appointment_future_date",
             )
         ]
 
@@ -68,17 +66,17 @@ class Appointment(models.Model):
     def clean(self):
         if self.date_time <= timezone.now():
             raise ValidationError("Appointment time must be in the future")
-        
+
         # Check for conflicting appointments
         conflicts = Appointment.objects.filter(
             therapist=self.therapist,
             date_time__range=(
                 self.date_time,
-                self.date_time + timedelta(minutes=self.duration)
+                self.date_time + timedelta(minutes=self.duration),
             ),
-            status__in=['scheduled', 'confirmed']
+            status__in=["scheduled", "confirmed"],
         ).exclude(pk=self.pk)
-        
+
         if conflicts.exists():
             raise ValidationError("This time slot is already booked")
 
@@ -126,10 +124,7 @@ class TherapistProfile(models.Model):
         help_text="Therapy methods and approaches used",
     )
     available_days = models.JSONField(
-        default=dict,
-        blank=True,
-        null=True,
-        help_text="Weekly availability schedule"
+        default=dict, blank=True, null=True, help_text="Weekly availability schedule"
     )
     license_expiry = models.DateField(blank=True, null=True)
     video_session_link = models.URLField(blank=True, null=True)
@@ -171,9 +166,9 @@ class TherapistProfile(models.Model):
         verbose_name = "Therapist Profile"
         verbose_name_plural = "Therapist Profiles"
         indexes = [
-            models.Index(fields=['user']),
-            models.Index(fields=['specialization']),
-            models.Index(fields=['is_verified']),
+            models.Index(fields=["user"]),
+            models.Index(fields=["specialization"]),
+            models.Index(fields=["is_verified"]),
         ]
 
     def __str__(self):
@@ -182,7 +177,7 @@ class TherapistProfile(models.Model):
     def clean(self):
         """Validate model fields"""
         super().clean()
-        
+
         if self.license_expiry and self.license_expiry < timezone.now().date():
             raise ValidationError(
                 {"license_expiry": "License expiry date cannot be in the past"}
@@ -196,25 +191,38 @@ class TherapistProfile(models.Model):
         # Validate available_days format
         if self.available_days:
             try:
-                valid_days = {"monday", "tuesday", "wednesday", "thursday", 
-                             "friday", "saturday", "sunday"}
+                valid_days = {
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday",
+                }
                 for day, slots in self.available_days.items():
                     if day.lower() not in valid_days:
                         raise ValidationError(f"Invalid day: {day}")
-                    
+
                     if not isinstance(slots, list):
                         raise ValidationError(f"Schedule for {day} must be a list")
-                    
+
                     for slot in slots:
-                        if not isinstance(slot, dict) or "start" not in slot or "end" not in slot:
+                        if (
+                            not isinstance(slot, dict)
+                            or "start" not in slot
+                            or "end" not in slot
+                        ):
                             raise ValidationError(f"Invalid time slot format in {day}")
-                        
+
                         # Validate time format
                         try:
-                            datetime.strptime(slot['start'], '%H:%M')
-                            datetime.strptime(slot['end'], '%H:%M')
+                            datetime.strptime(slot["start"], "%H:%M")
+                            datetime.strptime(slot["end"], "%H:%M")
                         except ValueError:
-                            raise ValidationError(f"Invalid time format in {day}. Use HH:MM format")
+                            raise ValidationError(
+                                f"Invalid time format in {day}. Use HH:MM format"
+                            )
             except AttributeError:
                 raise ValidationError("available_days must be a dictionary")
             except Exception as e:
@@ -228,15 +236,15 @@ class TherapistProfile(models.Model):
     def _calculate_profile_completion(self):
         """Calculate profile completion percentage based on essential fields"""
         field_weights = {
-            'specialization': 2,
-            'license_number': 2,
-            'bio': 1,
-            'profile_pic': 1,
-            'treatment_approaches': 1,
-            'available_days': 2,
-            'license_expiry': 2,
-            'video_session_link': 1,
-            'languages_spoken': 1,
+            "specialization": 2,
+            "license_number": 2,
+            "bio": 1,
+            "profile_pic": 1,
+            "treatment_approaches": 1,
+            "available_days": 2,
+            "license_expiry": 2,
+            "video_session_link": 1,
+            "languages_spoken": 1,
         }
 
         total_weight = sum(field_weights.values())
@@ -256,33 +264,33 @@ class TherapistProfile(models.Model):
 
         # Get day of week from datetime
         day = date_time.strftime("%A").lower()
-        
+
         # Check if day is in available days
         if day not in self.available_days:
             return False
-        
+
         # Convert datetime to time for comparison
         time = date_time.time()
         end_time = (date_time + timedelta(minutes=duration)).time()
-        
+
         # Check each available slot
         for slot in self.available_days[day]:
-            slot_start = datetime.strptime(slot['start'], '%H:%M').time()
-            slot_end = datetime.strptime(slot['end'], '%H:%M').time()
-            
+            slot_start = datetime.strptime(slot["start"], "%H:%M").time()
+            slot_end = datetime.strptime(slot["end"], "%H:%M").time()
+
             if slot_start <= time and end_time <= slot_end:
                 # Check for existing appointments
                 conflicting_appointments = Appointment.objects.filter(
                     therapist=self.user,
                     date_time__range=(
                         date_time,
-                        date_time + timedelta(minutes=duration)
+                        date_time + timedelta(minutes=duration),
                     ),
-                    status__in=['scheduled', 'confirmed']
+                    status__in=["scheduled", "confirmed"],
                 ).exists()
-                
+
                 return not conflicting_appointments
-                
+
         return False
 
 
@@ -311,13 +319,11 @@ class SessionNote(models.Model):
         on_delete=models.CASCADE,
         related_name="session_note",
         null=True,
-        blank=True
+        blank=True,
     )
     notes = models.TextField()
     session_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Date when the therapy session occurred"
+        null=True, blank=True, help_text="Date when the therapy session occurred"
     )
     timestamp = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -363,14 +369,13 @@ class ClientFeedback(models.Model):
         on_delete=models.CASCADE,
         related_name="feedback",
         null=True,
-        blank=True
+        blank=True,
     )
     feedback = models.TextField(
         help_text="Provide detailed feedback about your session"
     )
     rating = models.IntegerField(
-        choices=RATING_CHOICES,
-        validators=[MinValueValidator(1), MaxValueValidator(5)]
+        choices=RATING_CHOICES, validators=[MinValueValidator(1), MaxValueValidator(5)]
     )
     timestamp = models.DateTimeField(auto_now_add=True)
 
@@ -393,6 +398,8 @@ class ClientFeedback(models.Model):
     def clean(self):
         if self.appointment:
             if self.therapist != self.appointment.therapist:
-                raise ValidationError("Feedback therapist must match appointment therapist")
+                raise ValidationError(
+                    "Feedback therapist must match appointment therapist"
+                )
             if self.patient != self.appointment.patient:
                 raise ValidationError("Feedback patient must match appointment patient")

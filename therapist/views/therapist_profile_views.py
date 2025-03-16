@@ -129,20 +129,11 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             404: {"description": "Not found - therapist profile does not exist"},
         },
     )
-    @action(detail=True, methods=["get", "post"], permission_classes=[IsPatient])
+    @action(detail=True, methods=["post"], permission_classes=[IsPatient])
     def book_appointment(self, request, pk=None):
-        if request.method == "GET":
-            return Response(
-                {
-                    "example_request": {
-                        "date_time": "2024-01-01T10:00:00Z",
-                        "duration": 60,
-                        "notes": "Initial consultation",
-                    }
-                },
-                status=status.HTTP_200_OK,
-            )
-
+        """
+        Book an appointment with a therapist.
+        """
         try:
             therapist_profile = self.get_object()
 
@@ -159,9 +150,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 )
 
             appointment_data = {
-                "therapist": therapist_profile.id,  # ✅ Use TherapistProfile ID
-                "patient": request.user.patient_profile.id,  # ✅ Use PatientProfile ID
-                "date_time": request.data.get("date_time"),
+                "therapist": therapist_profile.id,  # Use TherapistProfile ID
+                "patient": request.user.patient_profile.id,  # Use PatientProfile ID
+                "appointment_date": request.data.get("appointment_date"),
                 "duration": request.data.get("duration", 60),
                 "notes": request.data.get("notes", ""),
                 "status": "scheduled",
@@ -176,7 +167,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 logger.info(
                     f"Appointment booked - Therapist: {therapist_profile.user.username}, "
                     f"Patient: {request.user.username}, "
-                    f"Time: {appointment.date_time}, "
+                    f"Time: {appointment.appointment_date}, "
                     f"Duration: {appointment.duration}min"
                 )
 

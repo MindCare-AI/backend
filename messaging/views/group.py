@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 
 from ..models.group import GroupConversation, GroupMessage
 from ..serializers.group import GroupConversationSerializer, GroupMessageSerializer
@@ -307,6 +307,12 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         return Response(
             {"detail": "Message pinned successfully."}, status=status.HTTP_200_OK
         )
+
+    @extend_schema(exclude=True)
+    @action(detail=False, methods=['post'])  # or detail=True, depending on your needs
+    def create_anonymous(self, request):
+        # ... your logic here ...
+        return Response({"status": "success"})
 
 
 class GroupMessageViewSet(viewsets.ModelViewSet):

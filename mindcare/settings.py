@@ -72,7 +72,6 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 
-# Use your custom user model to prevent clashes with django.contrib.auth.User
 AUTH_USER_MODEL = "users.CustomUser"
 
 AUTHENTICATION_BACKENDS = [
@@ -90,6 +89,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "notifications.middleware.NotificationSecurityMiddleware",  # <-- Added notifications security middleware
 ]
 
 ROOT_URLCONF = "mindcare.urls"
@@ -260,12 +260,26 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Media file size limits
-MAX_UPLOAD_SIZE = 5242880  # 5MB
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_MEDIA_TYPES = {
     "image": ["image/jpeg", "image/png", "image/gif"],
-    "video": ["video/mp4", "video/mpeg"],
-    "audio": ["audio/mpeg", "audio/wav"],
-    "document": ["application/pdf", "application/msword"],
+    "video": ["video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo"],
+    "audio": ["audio/mpeg", "audio/wav", "audio/ogg"],
+    "document": [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+    ],
+}
+
+# Media upload settings
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+ALLOWED_MEDIA_TYPES = {
+    "image": [".jpg", ".jpeg", ".png", ".gif"],
+    "video": [".mp4", ".mov", ".avi"],
+    "audio": [".mp3", ".wav", ".ogg"],
+    "document": [".pdf", ".doc", ".docx", ".txt"],
 }
 
 MEDIA_FILE_STORAGE = {
@@ -298,6 +312,10 @@ REST_FRAMEWORK = {
     },
     "DEFAULT_PAGINATION_CLASS": "messaging.pagination.CustomMessagePagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ],
 }
 
 SPECTACULAR_SETTINGS = {

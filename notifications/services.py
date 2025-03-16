@@ -1,9 +1,12 @@
 # notifications/services.py
-from django.db import transaction
-from django.utils import timezone
+from collections import defaultdict
 import logging
-from typing import List, Optional
+from django.db import transaction
+from typing import Optional, List
+from django.utils import timezone
 from .models import Notification
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 logger = logging.getLogger(__name__)
 
@@ -63,26 +66,19 @@ class NotificationService:
             logger.error(f"Failed to create group notifications: {str(e)}")
             return []
 
-    def create_bulk_notifications(
-        self, users, message, notification_type="info", url=None
-    ):
-        """Create notifications for multiple users"""
+    def create_bulk_notifications(self, users, message, **kwargs):
+        """Bulk create notifications with significantly fewer queries"""
         try:
-            notifications = []
-            with transaction.atomic():
-                for user in users:
-                    notification = Notification.objects.create(
-                        user=user,
-                        message=message,
-                        notification_type=notification_type,
-                        url=url,
-                    )
-                    notifications.append(notification)
+            notifications = [
+                Notification(user=user, message=message, **kwargs) for user in users
+            ]
 
-            logger.info(f"Created {len(notifications)} bulk notifications")
-            return notifications
+            created = Notification.objects.bulk_create(notifications, batch_size=500)
+            self._send_bulk_ws_notifications(created)
+            return created
+
         except Exception as e:
-            logger.error(f"Failed to create bulk notifications: {str(e)}")
+            logger.error(f"Bulk notification error: {str(e)}")
             return []
 
     def delete_old_notifications(self, days=30):
@@ -115,9 +111,6 @@ class NotificationService:
     def _notify_client(self, notification):
         """Send real-time notification via WebSocket"""
         try:
-            from channels.layers import get_channel_layer
-            from asgiref.sync import async_to_sync
-
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f"notifications_{notification.user.id}",
@@ -134,3 +127,27 @@ class NotificationService:
             )
         except Exception as e:
             logger.error(f"Failed to send WebSocket notification: {str(e)}")
+
+    def _send_bulk_ws_notifications(self, notifications):
+        """Batch WebSocket notifications by grouping messages per user"""
+        try:
+            grouped = defaultdict(list)
+
+            for notification in notifications:
+                grouped[notification.user.id].append(
+                    {
+                        "id": notification.id,
+                        "message": notification.message,
+                        "type": notification.notification_type,
+                    }
+                )
+
+            channel_layer = get_channel_layer()
+            for user_id, messages in grouped.items():
+                async_to_sync(channel_layer.group_send)(
+                    f"notifications_{user_id}",
+                    {"type": "notification.message", "messages": messages},
+                )
+
+        except Exception as e:
+            logger.error(f"Bulk WS error: {str(e)}")

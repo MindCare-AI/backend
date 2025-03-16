@@ -8,131 +8,50 @@ from allauth.account.models import (
     EmailConfirmationHMAC,
     EmailAddress,
 )
-from dj_rest_auth.registration.views import RegisterView, ResendEmailVerificationView
+from dj_rest_auth.registration.views import ResendEmailVerificationView, RegisterView
 from django.core.exceptions import ObjectDoesNotExist
-from allauth.account.utils import complete_signup
-from allauth.account import app_settings
 from rest_framework_simplejwt.tokens import RefreshToken
-import smtplib
-import socket
-from auth.serializers import CustomRegisterSerializer
 import logging
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 
 class CustomRegisterView(RegisterView):
-    serializer_class = CustomRegisterSerializer
-
-    def perform_create(self, serializer):
-        """Create new user with rate limiting"""
-        try:
-            # Check cache connection
-            try:
-                cache.get("test_key")
-            except Exception as cache_error:
-                logger.error(f"Cache connection error: {str(cache_error)}")
-                # Continue without caching if Redis is down
-                return serializer.save(self.request)
-
-            user = serializer.save(self.request)
-
-            # Cache user registration attempt with fallback
-            try:
-                cache_key = f"registration_attempt_{user.email}"
-                cache.set(cache_key, True, timeout=300)  # 5 minutes
-            except Exception as e:
-                logger.warning(f"Failed to cache registration attempt: {str(e)}")
-
-            return user
-
-        except Exception as e:
-            logger.error(f"Registration failed: {str(e)}")
-            raise
+    """
+    Enhanced registration view that inherits from dj-rest-auth's RegisterView
+    to properly handle email verification and user creation.
+    """
 
     def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+        # Let the parent class handle user creation and email verification
+        response = super().create(request, *args, **kwargs)
 
-            # Check for rate limiting
-            email = serializer.validated_data.get("email")
-            if self._check_rate_limit(email):
-                return Response(
+        # Only add custom logic if the registration was successful
+        if response.status_code == status.HTTP_201_CREATED:
+            try:
+                # Get the created user
+                user = response.data.get("user", {})
+                user_id = user.get("pk") if isinstance(user, dict) else None
+
+                # Enhance response with more user-friendly message
+                response.data.update(
                     {
-                        "detail": "Too many registration attempts. Please try again later."
-                    },
-                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                        "detail": "Registration successful. Please check your email to verify your account.",
+                        "user": {
+                            "id": user_id,
+                            "email": response.data.get("email", ""),
+                            "user_type": response.data.get("user_type", None),
+                        },
+                    }
                 )
 
-            user = self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
+            except Exception as e:
+                logger.error(
+                    f"Error enhancing registration response: {str(e)}", exc_info=True
+                )
 
-            # Send verification email
-            email_status = self._send_verification_email(request, user)
-
-            return Response(
-                {
-                    "status": "success",
-                    "message": "User registered successfully",
-                    "user": serializer.data,
-                    "email_verification": email_status,
-                },
-                status=status.HTTP_201_CREATED,
-                headers=headers,
-            )
-
-        except Exception as e:
-            logger.error(f"Registration error: {str(e)}")
-            return Response(
-                {"detail": "Registration failed. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def _check_rate_limit(self, email):
-        """Check registration rate limiting with fallback"""
-        if not settings.MAX_REGISTRATION_ATTEMPTS:
-            return False
-
-        try:
-            cache_key = f"registration_attempts_{email}"
-            attempts = cache.get(cache_key, 0)
-
-            if attempts >= settings.MAX_REGISTRATION_ATTEMPTS:
-                return True
-
-            cache.set(
-                cache_key,
-                attempts + 1,
-                timeout=getattr(settings, "EMAIL_VERIFICATION_TIMEOUT", 3600),
-            )
-            return False
-
-        except Exception as e:
-            logger.error(f"Rate limit check failed: {str(e)}")
-            # If cache fails, allow registration
-            return False
-
-    def _send_verification_email(self, request, user):
-        """Send verification email with error handling"""
-        try:
-            complete_signup(request, user, app_settings.EMAIL_VERIFICATION, None)
-            return {
-                "success": True,
-                "message": "Verification email sent successfully",
-                "status_code": status.HTTP_200_OK,
-            }
-        except (smtplib.SMTPException, socket.error, ConnectionRefusedError) as e:
-            logger.error(f"Email sending failed: {str(e)}")
-            return {
-                "success": False,
-                "message": "Failed to send verification email",
-                "error_type": e.__class__.__name__,
-                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-            }
+        return response
 
 
 class CustomConfirmEmailView(APIView):

@@ -1,3 +1,4 @@
+# messaging/services/exceptions.py
 class ChatbotError(Exception):
     """Base exception for chatbot-related errors"""
 

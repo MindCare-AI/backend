@@ -1,3 +1,4 @@
+# messaging/throttling.py
 from rest_framework.throttling import UserRateThrottle
 from django.conf import settings
 import logging

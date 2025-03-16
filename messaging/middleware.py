@@ -1,3 +1,4 @@
+# messaging/middleware.py
 from cryptography.fernet import Fernet
 from django.conf import settings
 from rest_framework.response import Response

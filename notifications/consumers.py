@@ -1,30 +1,33 @@
 # notifications/consumers.py
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 import logging
+from rest_framework.exceptions import AuthenticationFailed
+from django.core.exceptions import PermissionDenied
 
 logger = logging.getLogger(__name__)
 
 
 class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        """Handle WebSocket connection with authentication"""
         try:
-            # Verify authentication
-            if self.scope["user"].is_anonymous:
-                await self.close()
-                return
+            user = self.scope["user"]
+            if user.is_anonymous:
+                raise AuthenticationFailed("WebSocket authentication required")
 
-            # Add user to their notification group
-            self.user_group = f"notifications_{self.scope['user'].id}"
+            # Validate notification permissions
+            if not user.has_perm("notifications.receive_notifications"):
+                raise PermissionDenied("Notification access denied")
+
+            self.user_group = f"notifications_{user.id}"
             await self.channel_layer.group_add(self.user_group, self.channel_name)
             await self.accept()
+            await self.send_json({"status": "connected"})
 
         except Exception as e:
-            logger.error(f"WebSocket connection error: {str(e)}")
-            await self.close()
+            logger.error(f"Connection error: {str(e)}")
+            await self.close(code=4001)
 
     async def disconnect(self, close_code):
-        """Clean up on disconnect"""
         try:
             if hasattr(self, "user_group"):
                 await self.channel_layer.group_discard(
@@ -34,7 +37,6 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             logger.error(f"WebSocket disconnect error: {str(e)}")
 
     async def notification_message(self, event):
-        """Send notification to WebSocket"""
         try:
             await self.send_json(event["content"])
         except Exception as e:

@@ -7,15 +7,19 @@ from .base import BaseConversation, BaseMessage
 
 class OneToOneConversationParticipant(models.Model):
     conversation = models.ForeignKey("OneToOneConversation", on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,  # This should point to your CustomUser model correctly.
+        on_delete=models.CASCADE,
+    )
 
     class Meta:
         unique_together = (("conversation", "user"),)
-        db_table = "messaging_onetooneconversation_participants"
+        # Remove the custom db_table if it interferes with Django's column naming:
+        # db_table = "messaging_onetooneconversation_participants"
 
 
 class OneToOneConversation(BaseConversation):
-    # Override the inherited participants field with an explicit through model.
+    # Use the explicit through model for the ManyToMany field.
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through="OneToOneConversationParticipant",

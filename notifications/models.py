@@ -25,7 +25,7 @@ class Notification(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
     )
     message = models.TextField()
-    notification_type = models.CharField(max_length=50)
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
     priority = models.CharField(
         max_length=10, choices=PRIORITY_CHOICES, default="normal"
     )
@@ -42,28 +42,47 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(expires_at__gt=models.F("created_at")),
+                name="expiry_after_creation",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "message", "created_at"],
+                name="unique_notification_per_user",
+            ),
+        ]
         indexes = [
             models.Index(fields=["user", "is_read"]),
             models.Index(fields=["created_at"]),
             models.Index(fields=["notification_type"]),
+            models.Index(fields=["expires_at"], name="expiry_index"),
+            models.Index(fields=["priority", "created_at"], name="priority_index"),
         ]
 
     def __str__(self):
         return f"{self.user.username} - {self.notification_type}"
 
     def mark_as_read(self):
-        """Mark notification as read"""
+        """Mark the notification as read."""
         self.is_read = True
         self.read_at = timezone.now()
         self.save()
 
     def mark_as_unread(self):
+        """Mark the notification as unread."""
         self.is_read = False
         self.save()
 
-    def save(self, *args, **kwargs):
+    def clean(self):
+        super().clean()
+        if self.expires_at and self.expires_at <= timezone.now():
+            raise ValidationError("Expiry time must be in the future")
         if self.content_type and not self.object_id:
             raise ValidationError("object_id is required when content_type is set")
         if self.object_id and not self.content_type:
             raise ValidationError("content_type is required when object_id is set")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()  # Ensure clean() is called before saving
         super().save(*args, **kwargs)

@@ -1,21 +1,18 @@
 # patient/urls.py
 from django.urls import path
-from .views import (
-    PatientProfileViewSet,
-    MoodLogViewSet,
-    HealthMetricViewSet,
-    MedicalHistoryViewSet,
-)
+from patient.views.health_metric_views import HealthMetricViewSet
+from patient.views.medical_history_views import MedicalHistoryViewSet
+from patient.views.mood_log_views import MoodLogViewSet
+from patient.views.patient_profile_views import PatientProfileViewSet
 
 urlpatterns = [
-    # Patient Profiles (No POST allowed)
     path(
         "profiles/",
-        PatientProfileViewSet.as_view({"get": "list"}),  # GET only
+        PatientProfileViewSet.as_view({"get": "list"}),
         name="patient-profile-list",
     ),
     path(
-        "profiles/<int:pk>/",
+        "profiles/<uuid:unique_id>/",
         PatientProfileViewSet.as_view(
             {
                 "get": "retrieve",
@@ -27,11 +24,10 @@ urlpatterns = [
         name="patient-profile-detail",
     ),
     path(
-        "profiles/<int:pk>/appointments/",
+        "profiles/<uuid:unique_id>/appointments/",
         PatientProfileViewSet.as_view({"get": "appointments"}),
         name="patient-appointments",
     ),
-    # Mood Logs Endpoints
     path(
         "mood-logs/",
         MoodLogViewSet.as_view({"get": "list", "post": "create"}),
@@ -49,7 +45,6 @@ urlpatterns = [
         ),
         name="mood-log-detail",
     ),
-    # Health Metrics Endpoints
     path(
         "health-metrics/",
         HealthMetricViewSet.as_view({"get": "list", "post": "create"}),
@@ -62,7 +57,6 @@ urlpatterns = [
         ),
         name="health-metric-detail",
     ),
-    # Medical History Endpoints
     path(
         "medical-history/",
         MedicalHistoryViewSet.as_view({"get": "list", "post": "create"}),

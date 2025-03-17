@@ -90,31 +90,31 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
             try:
                 bot_response = chatbot_service.get_response(
                     message=serializer.validated_data["content"],
-                    history=[{
-                        "content": msg["content"],
-                        "is_bot": msg["is_bot"]
-                    } for msg in history]
+                    history=[
+                        {"content": msg["content"], "is_bot": msg["is_bot"]}
+                        for msg in history
+                    ],
                 )
-                
+
                 if not bot_response["success"]:
                     logger.error(f"Chatbot service error: {bot_response.get('error')}")
                     return Response(
                         {"error": bot_response["response"]},
-                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
                     )
-                
+
                 response_content = bot_response["response"]
                 logger.debug(f"Got bot response: {response_content[:50]}...")
-                
+
             except Exception as e:
                 logger.error(f"Error getting bot response: {str(e)}")
-                response_content = "I apologize, but I'm having trouble processing your request."
+                response_content = (
+                    "I apologize, but I'm having trouble processing your request."
+                )
 
             # Save bot response
             bot_message = ChatbotMessage.objects.create(
-                conversation=conversation,
-                content=response_content,
-                is_bot=True
+                conversation=conversation, content=response_content, is_bot=True
             )
             logger.debug(f"Saved bot message: {bot_message.id}")
 
@@ -129,12 +129,10 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
         except ChatbotConversation.DoesNotExist:
             logger.error(f"Conversation {pk} not found")
             return Response(
-                {"error": "Conversation not found"}, 
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Conversation not found"}, status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.exception(f"Unexpected error in send_message: {str(e)}")
             return Response(
-                {"error": str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

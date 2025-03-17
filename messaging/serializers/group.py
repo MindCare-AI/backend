@@ -14,7 +14,7 @@ class GroupConversationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GroupConversation
-        fields = [              
+        fields = [
             "id",
             "name",
             "description",

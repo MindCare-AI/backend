@@ -14,27 +14,27 @@ urlpatterns = [
     ),
     path(
         "profiles/<uuid:unique_id>/",
-        TherapistProfileViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        TherapistProfileViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="therapist-profile-detail",
     ),
-    
     # Therapist Profile Actions
     path(
-        "profiles/<uuid:unique_id>/book-appointment/", 
+        "profiles/<uuid:unique_id>/book-appointment/",
         TherapistProfileViewSet.as_view({"post": "book_appointment"}),
         name="therapist-book-appointment",
     ),
     path(
         "profiles/<int:pk>/availability/",
-        TherapistProfileViewSet.as_view({
-            "get": "availability",
-            "post": "update_availability"
-        }),
+        TherapistProfileViewSet.as_view(
+            {"get": "availability", "post": "update_availability"}
+        ),
         name="therapist-availability",
     ),
     path(
@@ -47,7 +47,6 @@ urlpatterns = [
         TherapistProfileViewSet.as_view({"get": "appointments"}),
         name="therapist-appointments",
     ),
-
     # Appointments
     path(
         "appointments/",
@@ -56,15 +55,16 @@ urlpatterns = [
     ),
     path(
         "appointments/<int:pk>/",
-        AppointmentViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        AppointmentViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="appointment-detail",
     ),
-
     # Client Feedback
     path(
         "client-feedback/",
@@ -73,15 +73,16 @@ urlpatterns = [
     ),
     path(
         "client-feedback/<int:pk>/",
-        ClientFeedbackViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        ClientFeedbackViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="client-feedback-detail",
     ),
-
     # Session Notes
     path(
         "session-notes/",
@@ -90,12 +91,14 @@ urlpatterns = [
     ),
     path(
         "session-notes/<int:pk>/",
-        SessionNoteViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        SessionNoteViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="session-notes-detail",
     ),
 ]

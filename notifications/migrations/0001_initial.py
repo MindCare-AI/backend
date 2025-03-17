@@ -5,31 +5,68 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("contenttypes", "0002_remove_content_type_name"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Notification',
+            name="Notification",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('message', models.TextField()),
-                ('notification_type', models.CharField(choices=[('message', 'New Message'), ('appointment', 'Appointment'), ('reminder', 'Reminder'), ('system', 'System Alert'), ('therapy_update', 'Therapy Update')], max_length=50)),
-                ('priority', models.CharField(choices=[('low', 'Low'), ('normal', 'Normal'), ('high', 'High')], default='normal', max_length=10)),
-                ('url', models.URLField(blank=True, null=True)),
-                ('is_read', models.BooleanField(default=False)),
-                ('read_at', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('expires_at', models.DateTimeField(blank=True, null=True)),
-                ('object_id', models.PositiveIntegerField(null=True)),
-                ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("message", models.TextField()),
+                (
+                    "notification_type",
+                    models.CharField(
+                        choices=[
+                            ("message", "New Message"),
+                            ("appointment", "Appointment"),
+                            ("reminder", "Reminder"),
+                            ("system", "System Alert"),
+                            ("therapy_update", "Therapy Update"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "priority",
+                    models.CharField(
+                        choices=[
+                            ("low", "Low"),
+                            ("normal", "Normal"),
+                            ("high", "High"),
+                        ],
+                        default="normal",
+                        max_length=10,
+                    ),
+                ),
+                ("url", models.URLField(blank=True, null=True)),
+                ("is_read", models.BooleanField(default=False)),
+                ("read_at", models.DateTimeField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("expires_at", models.DateTimeField(blank=True, null=True)),
+                ("object_id", models.PositiveIntegerField(null=True)),
+                (
+                    "content_type",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="contenttypes.contenttype",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-created_at'],
+                "ordering": ["-created_at"],
             },
         ),
     ]

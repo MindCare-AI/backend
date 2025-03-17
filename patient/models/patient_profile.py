@@ -20,10 +20,10 @@ class PatientProfile(Profile):
     ]
 
     GENDER_CHOICES = [
-        ('M', 'Male'),
-        ('F', 'Female'),
-        ('O', 'Other'),
-        ('N', 'Prefer not to say')
+        ("M", "Male"),
+        ("F", "Female"),
+        ("O", "Other"),
+        ("N", "Prefer not to say"),
     ]
 
     user = models.OneToOneField(
@@ -53,7 +53,7 @@ class PatientProfile(Profile):
         choices=GENDER_CHOICES,
         blank=True,
         null=True,
-        help_text="Patient's gender identification"
+        help_text="Patient's gender identification",
     )
 
     profile_pic = models.ImageField(

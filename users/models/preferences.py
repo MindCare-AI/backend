@@ -12,13 +12,52 @@ class UserPreferences(models.Model):
     )
     dark_mode = models.BooleanField(default=False)
     language = models.CharField(max_length=10, default="en")
-    notification_preferences = models.JSONField(default=dict, blank=True)
+    # Structured notification preferences instead of a JSON field:
+    email_notifications = models.BooleanField(default=True)
+    in_app_notifications = models.BooleanField(default=True)
+    disabled_notification_types = models.ManyToManyField(
+        "notifications.NotificationType", blank=True
+    )
 
     def get_notification_settings(self):
-        config = self.notification_preferences or {}
-        return ", ".join(f"{k}: {v}" for k, v in config.items())
+        settings_list = [
+            f"Email: {'enabled' if self.email_notifications else 'disabled'}",
+            f"In-App: {'enabled' if self.in_app_notifications else 'disabled'}",
+        ]
+        disabled = list(
+            self.disabled_notification_types.all().values_list("name", flat=True)
+        )
+        if disabled:
+            settings_list.append("Disabled Types: " + ", ".join(disabled))
+        return "; ".join(settings_list)
 
     get_notification_settings.short_description = "Notifications"
+
+    def is_notification_allowed(self, notification_type, channel):
+        """
+        Check if a specific notification is allowed.
+        :param notification_type: NotificationType instance.
+        :param channel: 'email' or 'in_app'
+        :return: bool
+        """
+        if channel == "email" and not self.email_notifications:
+            return False
+        if channel == "in_app" and not self.in_app_notifications:
+            return False
+
+        return not self.disabled_notification_types.filter(
+            pk=notification_type.pk
+        ).exists()
+
+    def get_notification_preferences(self):
+        """Structured format for API responses."""
+        return {
+            "email_enabled": self.email_notifications,
+            "in_app_enabled": self.in_app_notifications,
+            "disabled_types": list(
+                self.disabled_notification_types.all().values_list("name", flat=True)
+            ),
+        }
 
     class Meta:
         verbose_name_plural = "User preferences"

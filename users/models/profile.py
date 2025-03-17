@@ -1,7 +1,6 @@
 # users/models/profile.py
 from django.db import models
 from .user import CustomUser
-import uuid
 
 
 class Profile(models.Model):
@@ -13,6 +12,3 @@ class Profile(models.Model):
 
     class Meta:
         abstract = True
-
-
- 

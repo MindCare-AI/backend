@@ -99,8 +99,8 @@ ASGI_APPLICATION = "mindcare.asgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # Your custom directories, if any
-        "APP_DIRS": True,  # This must be True
+        "DIRS": [BASE_DIR / "templates", BASE_DIR / "notifications/templates"],
+        "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -424,10 +424,8 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
-CELERY_TASK_ROUTES = {
-    'messaging.tasks.process_chatbot_response': {'queue': 'chatbot'}
-}
-CELERY_TASK_DEFAULT_QUEUE = 'default'
+CELERY_TASK_ROUTES = {"messaging.tasks.process_chatbot_response": {"queue": "chatbot"}}
+CELERY_TASK_DEFAULT_QUEUE = "default"
 
 # Enhanced logging configuration
 LOGGING = {
@@ -578,14 +576,16 @@ MESSAGE_SETTINGS = {
 }
 
 # Chatbot Settings
-GEMINI_API_KEY = 'AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734'
-GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent'
+GEMINI_API_KEY = "AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734"
+GEMINI_API_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+)
 CHATBOT_SETTINGS = {
-    'MAX_RETRIES': 3,
-    'RESPONSE_TIMEOUT': 30,
-    'MAX_HISTORY_MESSAGES': 5,
-    'MIN_MESSAGE_LENGTH': 2,
-    'MAX_MESSAGE_LENGTH': 1000,
+    "MAX_RETRIES": 3,
+    "RESPONSE_TIMEOUT": 30,
+    "MAX_HISTORY_MESSAGES": 5,
+    "MIN_MESSAGE_LENGTH": 2,
+    "MAX_MESSAGE_LENGTH": 1000,
 }
 
 # Throttling Configuration

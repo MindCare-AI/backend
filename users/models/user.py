@@ -94,7 +94,9 @@ class CustomUser(AbstractUser):
             if OldProfileModel:
                 if old_type == "therapist":
                     # Delete appointments linked to the old therapist profile
-                    Appointment.objects.filter(therapist=self.therapist_profile).delete()
+                    Appointment.objects.filter(
+                        therapist=self.therapist_profile
+                    ).delete()
                 elif old_type == "patient":
                     # Delete appointments linked to the old patient profile
                     Appointment.objects.filter(patient=self.patient_profile).delete()

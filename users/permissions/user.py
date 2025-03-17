@@ -1,7 +1,6 @@
 # users/permissions/user.py
 from rest_framework import permissions
 import logging
-from rest_framework.permissions import BasePermission
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +9,7 @@ class IsSuperUserOrSelf(permissions.BasePermission):
     """
     Permission class to allow only superusers or the user themselves to access an object.
     """
+
     def has_object_permission(self, request, view, obj):
         # Superusers always have permission
         if request.user.is_superuser:
@@ -25,6 +25,3 @@ class IsSuperUserOrSelf(permissions.BasePermission):
             f"Permission check: user={request.user.username}, is_self={is_self}"
         )
         return is_self
-
-
- 

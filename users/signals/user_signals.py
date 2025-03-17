@@ -9,9 +9,7 @@ from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from users.models.preferences import UserPreferences
 from users.models.settings import UserSettings
-from patient.models.patient_profile import PatientProfile
 
-from therapist.models.therapist_profile import TherapistProfile
 from django.apps import apps
 
 logger = logging.getLogger(__name__)

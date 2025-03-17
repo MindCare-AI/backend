@@ -14,16 +14,16 @@ CustomUser = get_user_model()
 
 class CustomUserSerializer(serializers.ModelSerializer):
     USER_STATUS_CHOICES = [
-        ('ACTIVE', 'Active'),
-        ('INACTIVE', 'Inactive'),
-        ('SUSPENDED', 'Suspended'),
-        ('PENDING', 'Pending Verification')
+        ("ACTIVE", "Active"),
+        ("INACTIVE", "Inactive"),
+        ("SUSPENDED", "Suspended"),
+        ("PENDING", "Pending Verification"),
     ]
 
     status = serializers.ChoiceField(
         choices=USER_STATUS_CHOICES,
-        default='PENDING',
-        help_text="Current status of the user account"
+        default="PENDING",
+        help_text="Current status of the user account",
     )
 
     class Meta:
@@ -45,9 +45,9 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class UserTypeSerializer(serializers.ModelSerializer):
     user_type = serializers.ChoiceField(
         choices=CustomUser.USER_TYPE_CHOICES,
-        style={'base_template': 'radio.html'},
+        style={"base_template": "radio.html"},
         help_text="Select your role in the system. This can only be set once.",
-        label="User Role"
+        label="User Role",
     )
 
     class Meta:
@@ -103,72 +103,66 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     ACCOUNT_TYPE_CHOICES = [
-        ('INDIVIDUAL', 'Individual'),
-        ('ORGANIZATION', 'Organization'),
-        ('PROFESSIONAL', 'Professional')
+        ("INDIVIDUAL", "Individual"),
+        ("ORGANIZATION", "Organization"),
+        ("PROFESSIONAL", "Professional"),
     ]
 
     password = serializers.CharField(
         write_only=True,
         style={
-            'input_type': 'password',
-            'template': 'rest_framework/vertical/password.html',
-            'placeholder': '********'
+            "input_type": "password",
+            "template": "rest_framework/vertical/password.html",
+            "placeholder": "********",
         },
-        help_text="Enter a secure password with at least 8 characters"
+        help_text="Enter a secure password with at least 8 characters",
     )
     confirm_password = serializers.CharField(
         write_only=True,
         style={
-            'input_type': 'password',
-            'template': 'rest_framework/vertical/password.html',
-            'placeholder': '********'
+            "input_type": "password",
+            "template": "rest_framework/vertical/password.html",
+            "placeholder": "********",
         },
-        help_text="Re-enter your password for confirmation"
+        help_text="Re-enter your password for confirmation",
     )
     email = serializers.EmailField(
         style={
-            'template': 'rest_framework/vertical/input.html',
-            'placeholder': 'user@example.com',
-            'autofocus': True
+            "template": "rest_framework/vertical/input.html",
+            "placeholder": "user@example.com",
+            "autofocus": True,
         },
-        help_text="Enter a valid email address. This will be used for login."
+        help_text="Enter a valid email address. This will be used for login.",
     )
     user_type = serializers.ChoiceField(
         choices=CustomUser.USER_TYPE_CHOICES,
         style={
-            'base_template': 'radio.html',
-            'template': 'rest_framework/vertical/radio.html',
-            'inline': True
+            "base_template": "radio.html",
+            "template": "rest_framework/vertical/radio.html",
+            "inline": True,
         },
         help_text="Select your role in the system",
-        label="User Role"
+        label="User Role",
     )
     account_type = serializers.ChoiceField(
         choices=ACCOUNT_TYPE_CHOICES,
-        default='INDIVIDUAL',
+        default="INDIVIDUAL",
         style={
-            'base_template': 'select.html',
-            'template': 'rest_framework/vertical/select.html'
+            "base_template": "select.html",
+            "template": "rest_framework/vertical/select.html",
         },
         help_text="Select your account type",
-        required=False
+        required=False,
     )
     first_name = serializers.CharField(
         required=False,
-        style={
-            'template': 'rest_framework/vertical/input.html',
-            'placeholder': 'John'
-        },
-        help_text="Your first name"
+        style={"template": "rest_framework/vertical/input.html", "placeholder": "John"},
+        help_text="Your first name",
     )
     last_name = serializers.CharField(
         required=False,
-        style={
-            'template': 'rest_framework/vertical/input.html',
-            'placeholder': 'Doe'
-        },
-        help_text="Your last name"
+        style={"template": "rest_framework/vertical/input.html", "placeholder": "Doe"},
+        help_text="Your last name",
     )
 
     class Meta:
@@ -192,9 +186,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                 "required": False,
                 "style": {
                     "template": "rest_framework/vertical/input.html",
-                    "placeholder": "johndoe"
-                }
-            }
+                    "placeholder": "johndoe",
+                },
+            },
         }
 
     def validate(self, data):

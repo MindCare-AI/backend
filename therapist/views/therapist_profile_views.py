@@ -2,7 +2,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from therapist.models.appointment import Appointment
 from therapist.models.therapist_profile import TherapistProfile
 from therapist.serializers.appointment import AppointmentSerializer
@@ -141,7 +141,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             if not isinstance(unique_id, UUID):
                 unique_id = UUID(unique_id)
 
-            therapist_profile = TherapistProfile.objects.select_related("user").get(unique_id=unique_id)
+            therapist_profile = TherapistProfile.objects.select_related("user").get(
+                unique_id=unique_id
+            )
 
             if not therapist_profile.is_verified:
                 return Response(

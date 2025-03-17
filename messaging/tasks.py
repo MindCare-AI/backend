@@ -9,9 +9,12 @@ logger = logging.getLogger(__name__)
 
 def exponential_backoff(retries):
     """Calculate exponential backoff delay in seconds"""
-    return 2 ** retries * 60  # 1min, 2min, 4min, etc.
+    return 2**retries * 60  # 1min, 2min, 4min, etc.
 
-@shared_task(bind=True, autoretry_for=(Exception,), max_retries=3, countdown=exponential_backoff)
+
+@shared_task(
+    bind=True, autoretry_for=(Exception,), max_retries=3, countdown=exponential_backoff
+)
 def process_chatbot_response(self, conversation_id, message_id):
     """
     Process chatbot response asynchronously with error handling and retries.
@@ -24,40 +27,42 @@ def process_chatbot_response(self, conversation_id, message_id):
 
         # Get conversation history (last 10 messages) in chronological order
         history = list(
-            conversation.messages.filter(
-                timestamp__lt=user_message.timestamp
-            ).order_by('-timestamp')[:10]
+            conversation.messages.filter(timestamp__lt=user_message.timestamp).order_by(
+                "-timestamp"
+            )[:10]
         )
         history.reverse()  # Put in chronological order
 
         # Format history for chatbot service
-        formatted_history = [{
-            'content': msg.content,
-            'is_bot': msg.is_bot,
-            'sender': 'Samantha' if msg.is_bot else user_message.sender.username
-        } for msg in history]
+        formatted_history = [
+            {
+                "content": msg.content,
+                "is_bot": msg.is_bot,
+                "sender": "Samantha" if msg.is_bot else user_message.sender.username,
+            }
+            for msg in history
+        ]
 
         # Get chatbot response
         response = chatbot_service.get_response(
-            message=user_message.content,
-            history=formatted_history
+            message=user_message.content, history=formatted_history
         )
 
-        if not response['success']:
+        if not response["success"]:
             logger.error(f"Chatbot service error: {response.get('error')}")
-            error_message = response['response']  # Use provided fallback message
+            error_message = response["response"]  # Use provided fallback message
         else:
             error_message = None
 
         # Create bot response message
         ChatbotMessage.objects.create(
             conversation=conversation,
-            content=error_message or response['response'],
+            content=error_message or response["response"],
             is_bot=True,
             metadata={
-                'error': bool(error_message),
-                'attempt': self.request.retries + 1
-            }
+                "error": bool(error_message),
+                "attempt": self.request.retries + 1,
+            },
         )
 
     except ChatbotMessage.DoesNotExist:
@@ -71,4 +76,4 @@ def process_chatbot_response(self, conversation_id, message_id):
 
 def exponential_backoff(retries):
     """Calculate exponential backoff delay in seconds"""
-    return 2 ** retries * 60  # 1min, 2min, 4min, etc.
+    return 2**retries * 60  # 1min, 2min, 4min, etc.

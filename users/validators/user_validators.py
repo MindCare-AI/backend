@@ -1,6 +1,7 @@
 # users/validators/user_validators.py
 from rest_framework.exceptions import ValidationError
 
+
 def validate_emergency_contact(value):
     required_fields = ["name", "relationship", "phone"]
     if value and not all(field in value for field in required_fields):
@@ -11,6 +12,7 @@ def validate_emergency_contact(value):
         raise ValidationError("Phone number must contain only digits and optional +")
     return value
 
+
 def validate_blood_type(value):
     valid_types = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
     if value and value not in valid_types:
@@ -18,6 +20,7 @@ def validate_blood_type(value):
             f"Invalid blood type. Must be one of: {', '.join(valid_types)}"
         )
     return value
+
 
 def validate_profile_pic(value):
     if value and value.size > 5 * 1024 * 1024:

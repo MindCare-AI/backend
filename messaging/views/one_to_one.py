@@ -19,6 +19,7 @@ from ..serializers.one_to_one import (
     OneToOneConversationSerializer,
     OneToOneMessageSerializer,
 )
+from notifications.services.unified_service import UnifiedNotificationService
 # New corrected import
 
 
@@ -127,8 +128,10 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
 
             # Mark messages as read using Python filtering on the list
             unread_messages = [
-                message for message in messages
-                if message.sender != request.user and request.user not in message.read_by.all()
+                message
+                for message in messages
+                if message.sender != request.user
+                and request.user not in message.read_by.all()
             ]
             for message in unread_messages:
                 message.read_by.add(request.user)
@@ -300,9 +303,30 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
             )
 
     def perform_create(self, serializer):
-        """Set the current user as the sender of the message."""
+        """
+        Set the current user as the sender of the message and notify
+        the other participant via unified notification.
+        """
         try:
-            serializer.save(sender=self.request.user)
+            # Save the message with the current user as sender.
+            instance = serializer.save(sender=self.request.user)
+            conversation = instance.conversation
+
+            # Identify the recipient (non-sender participant)
+            recipient = conversation.participants.exclude(id=self.request.user.id).first()
+            if recipient:
+                UnifiedNotificationService.send_notification(
+                    user=recipient,
+                    notification_type="one_to_one_message",
+                    title="New Message Received",
+                    message=f"You have a new message from {self.request.user.username}.",
+                    send_email=False,
+                    send_in_app=True,
+                    email_template="notifications/one_to_one_new_message.email",
+                    link=f"/conversations/{conversation.id}/",
+                    priority="normal",
+                    category="message",
+                )
         except IntegrityError as e:
             raise ValidationError(f"Failed to create message: {str(e)}")
         except DjangoValidationError as e:

@@ -4,7 +4,6 @@ from typing import List, Dict
 from django.conf import settings
 import logging
 from .exceptions import ChatbotError
-from .constants import THERAPEUTIC_GUIDELINES
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,7 @@ class ChatbotService:
             if not isinstance(msg, dict):
                 logger.error(f"Invalid history message format: {msg}")
                 return False
-            if not all(key in msg for key in ('content', 'is_bot')):
+            if not all(key in msg for key in ("content", "is_bot")):
                 logger.error(f"Missing required fields in history message: {msg}")
                 return False
 
@@ -75,10 +74,10 @@ class ChatbotService:
 
         # Filter and format valid history entries
         valid_history = []
-        for msg in history[-self.max_history:]:  # Keep recent exchanges only
+        for msg in history[-self.max_history :]:  # Keep recent exchanges only
             try:
-                sender = "Samantha" if msg.get('is_bot') else "User"
-                content = msg.get('content', '').strip()
+                sender = "Samantha" if msg.get("is_bot") else "User"
+                content = msg.get("content", "").strip()
                 if content:
                     valid_history.append(f"{sender}: {content}")
             except Exception as e:
@@ -116,17 +115,13 @@ Samantha:
             logger.debug(f"Prompt length: {len(prompt)} characters")
 
             payload = {
-                "contents": [{
-                    "parts": [{
-                        "text": prompt
-                    }]
-                }],
+                "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "temperature": 0.7,
                     "topP": 0.8,
                     "topK": 40,
                     "maxOutputTokens": 1024,
-                }
+                },
             }
 
             try:
@@ -137,10 +132,10 @@ Samantha:
                     headers={
                         "Content-Type": "application/json",
                         "User-Agent": "MindCare-Chatbot/1.0",
-                        "x-goog-api-key": self.api_key  # Add API key as header
-                    }
+                        "x-goog-api-key": self.api_key,  # Add API key as header
+                    },
                 )
-                
+
                 # Log response details for debugging
                 logger.debug(f"API Response Status: {response.status_code}")
                 if response.status_code != 200:
@@ -150,25 +145,29 @@ Samantha:
                 if response.status_code == 404:
                     logger.error("API endpoint not found - check API URL")
                     return self._error_response("Invalid API configuration")
-                
+
                 if response.status_code == 401:
                     logger.error("API Authentication failed - check API key")
                     return self._error_response("API authentication failed")
-                    
+
                 if response.status_code == 429:
                     logger.warning("API rate limit exceeded")
                     return self._error_response("Service is currently busy")
 
                 response.raise_for_status()
-                
+
                 data = response.json()
                 if "candidates" not in data or not data["candidates"]:
                     logger.error(f"Invalid API response format: {data}")
                     return self._error_response("Unexpected API response format")
 
-                response_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                logger.info(f"Successfully got response of {len(response_text)} characters")
-                
+                response_text = data["candidates"][0]["content"]["parts"][0][
+                    "text"
+                ].strip()
+                logger.info(
+                    f"Successfully got response of {len(response_text)} characters"
+                )
+
                 return {
                     "success": True,
                     "response": response_text,
@@ -177,11 +176,11 @@ Samantha:
             except requests.exceptions.Timeout:
                 logger.error(f"API request timed out after {self.timeout}s")
                 return self._error_response("Request timed out")
-                
+
             except requests.exceptions.SSLError:
                 logger.error("SSL verification failed")
                 return self._error_response("Connection security error")
-                
+
             except requests.exceptions.ConnectionError:
                 logger.error(f"Connection failed to {self.api_url}")
                 return self._error_response("Could not connect to service")

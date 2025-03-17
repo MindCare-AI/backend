@@ -177,27 +177,28 @@ class SetUserTypeView(viewsets.ViewSet):
         user_type_choices = {
             choice[0]: choice[1] for choice in CustomUser.USER_TYPE_CHOICES
         }
-        return Response({
-            "available_user_types": user_type_choices,
-            "current_user_type": request.user.user_type,
-            "message": "Use POST to set your user type"
-        })
+        return Response(
+            {
+                "available_user_types": user_type_choices,
+                "current_user_type": request.user.user_type,
+                "message": "Use POST to set your user type",
+            }
+        )
 
     def create(self, request):
         user = request.user
         # Add a check to prevent changing user_type if already set
         if user.user_type and not user.is_superuser:
             return Response(
-                {"error": "User type can only be set once"}, 
-                status=status.HTTP_403_FORBIDDEN
+                {"error": "User type can only be set once"},
+                status=status.HTTP_403_FORBIDDEN,
             )
-            
+
         serializer = UserTypeSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "User type updated successfully"},
-                status=status.HTTP_200_OK
+                {"message": "User type updated successfully"}, status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -209,8 +210,8 @@ class SetUserTypeView(viewsets.ViewSet):
     request=UserRegistrationSerializer,
     responses={
         201: {"description": "User successfully registered"},
-        400: {"description": "Invalid input data"}
-    }
+        400: {"description": "Invalid input data"},
+    },
 )
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -218,7 +219,7 @@ class SetUserTypeView(viewsets.ViewSet):
 def register_user(request, format=None):
     """
     Register a new user with email, password, and optional profile information.
-    
+
     Supported formats:
     - JSON (default)
     - Browsable API (HTML)
@@ -229,12 +230,8 @@ def register_user(request, format=None):
         return Response(
             {
                 "message": "User registered successfully",
-                "user": {
-                    "id": user.id,
-                    "email": user.email,
-                    "username": user.username
-                }
+                "user": {"id": user.id, "email": user.email, "username": user.username},
             },
-            status=status.HTTP_201_CREATED
+            status=status.HTTP_201_CREATED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

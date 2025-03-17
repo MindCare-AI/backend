@@ -7,12 +7,14 @@ from users.validators.user_validators import (
     validate_emergency_contact,
     validate_blood_type,
 )
+
+
 class PatientProfileSerializer(serializers.ModelSerializer):
     GENDER_CHOICES = [
-        ('M', 'Male'),
-        ('F', 'Female'),
-        ('O', 'Other'),
-        ('N', 'Prefer not to say')
+        ("M", "Male"),
+        ("F", "Female"),
+        ("O", "Other"),
+        ("N", "Prefer not to say"),
     ]
 
     profile_pic = serializers.ImageField(
@@ -45,17 +47,19 @@ class PatientProfileSerializer(serializers.ModelSerializer):
 
 class TherapistProfileSerializer(serializers.ModelSerializer):
     AVAILABILITY_STATUS = [
-        ('ACTIVE', 'Active'),
-        ('AWAY', 'Away'),
-        ('BUSY', 'Busy'),
-        ('OFFLINE', 'Offline')
+        ("ACTIVE", "Active"),
+        ("AWAY", "Away"),
+        ("BUSY", "Busy"),
+        ("OFFLINE", "Offline"),
     ]
 
     profile_pic = serializers.ImageField(
         validators=[validate_profile_pic], required=False
     )
     profile_completion_percentage = serializers.IntegerField(read_only=True)
-    availability_status = serializers.ChoiceField(choices=AVAILABILITY_STATUS, default='ACTIVE')
+    availability_status = serializers.ChoiceField(
+        choices=AVAILABILITY_STATUS, default="ACTIVE"
+    )
 
     class Meta:
         model = TherapistProfile

@@ -29,22 +29,26 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at", "duration"]
-        extra_kwargs = {
-            'duration': {'read_only': True}
-        }
+        extra_kwargs = {"duration": {"read_only": True}}
 
     def get_therapist_name(self, obj):
-        return obj.therapist.user.username  # Access username through TherapistProfile -> User
+        return (
+            obj.therapist.user.username
+        )  # Access username through TherapistProfile -> User
 
     def get_patient_name(self, obj):
-        return obj.patient.user.username  # Access username through PatientProfile -> User
+        return (
+            obj.patient.user.username
+        )  # Access username through PatientProfile -> User
 
     def validate(self, data):
         status = data.get("status", getattr(self.instance, "status", "scheduled"))
         therapist = data.get("therapist", getattr(self.instance, "therapist", None))
-        appointment_date = data.get("appointment_date", getattr(self.instance, "appointment_date", None))
-        duration_minutes = data.get('duration_minutes', 60)
-        
+        appointment_date = data.get(
+            "appointment_date", getattr(self.instance, "appointment_date", None)
+        )
+        duration_minutes = data.get("duration_minutes", 60)
+
         if not all([therapist, appointment_date]):
             raise serializers.ValidationError(
                 {"error": "Therapist and appointment_date are required fields"}
@@ -60,7 +64,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
                 )
 
             new_end = appointment_date + timedelta(minutes=duration_minutes)
-            
+
             conflicts = Appointment.objects.annotate(
                 existing_end=ExpressionWrapper(
                     F("appointment_date") + F("duration"),
@@ -99,7 +103,9 @@ class AppointmentSerializer(serializers.ModelSerializer):
                     )
 
                 # Pass duration_minutes directly instead of converting to timedelta
-                if not therapist_profile.check_availability(appointment_date, duration_minutes):
+                if not therapist_profile.check_availability(
+                    appointment_date, duration_minutes
+                ):
                     available_slots = therapist_profile.available_days.get(
                         appointment_date.strftime("%A").lower(), []
                     )
@@ -119,15 +125,17 @@ class AppointmentSerializer(serializers.ModelSerializer):
                 )
 
         if duration_minutes < 1:
-            raise serializers.ValidationError({"duration_minutes": "Duration must be at least 1 minute."})
-        data['duration'] = timedelta(minutes=duration_minutes)
+            raise serializers.ValidationError(
+                {"duration_minutes": "Duration must be at least 1 minute."}
+            )
+        data["duration"] = timedelta(minutes=duration_minutes)
 
         return data
 
     def create(self, validated_data):
-        validated_data.pop('duration_minutes', None)  # Handled in validate
+        validated_data.pop("duration_minutes", None)  # Handled in validate
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        validated_data.pop('duration_minutes', None)
+        validated_data.pop("duration_minutes", None)
         return super().update(instance, validated_data)

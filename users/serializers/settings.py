@@ -9,16 +9,12 @@ logger = logging.getLogger(__name__)
 
 
 class UserSettingsSerializer(serializers.ModelSerializer):
-    THEME_MODES = [
-        ('LIGHT', 'Light'),
-        ('DARK', 'Dark'),
-        ('SYSTEM', 'System')
-    ]
+    THEME_MODES = [("LIGHT", "Light"), ("DARK", "Dark"), ("SYSTEM", "System")]
 
     VISIBILITY_LEVELS = [
-        ('PUBLIC', 'Public'),
-        ('PRIVATE', 'Private'),
-        ('CONTACTS_ONLY', 'Contacts Only')
+        ("PUBLIC", "Public"),
+        ("PRIVATE", "Private"),
+        ("CONTACTS_ONLY", "Contacts Only"),
     ]
 
     timezone = serializers.CharField(
@@ -28,14 +24,12 @@ class UserSettingsSerializer(serializers.ModelSerializer):
         help_text="User's preferred timezone (e.g., 'UTC', 'America/New_York')",
     )
     theme_mode = serializers.ChoiceField(
-        choices=THEME_MODES,
-        default='SYSTEM',
-        help_text="User's preferred theme mode"
+        choices=THEME_MODES, default="SYSTEM", help_text="User's preferred theme mode"
     )
     profile_visibility = serializers.ChoiceField(
         choices=VISIBILITY_LEVELS,
-        default='PUBLIC',
-        help_text="User's profile visibility setting"
+        default="PUBLIC",
+        help_text="User's profile visibility setting",
     )
     theme_preferences = serializers.DictField(
         required=False,

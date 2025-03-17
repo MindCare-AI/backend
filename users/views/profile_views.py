@@ -27,9 +27,7 @@ class BaseProfileViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         if self.request.user.is_superuser:
             return self.model.objects.select_related("user").all()
-        return self.model.objects.select_related("user").filter(
-            user=self.request.user
-        )
+        return self.model.objects.select_related("user").filter(user=self.request.user)
 
 
 @extend_schema_view(

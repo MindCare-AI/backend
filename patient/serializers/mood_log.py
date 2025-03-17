@@ -9,7 +9,14 @@ class MoodLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MoodLog
-        fields = ["id", "patient", "patient_username", "mood_rating", "notes", "logged_at"]
+        fields = [
+            "id",
+            "patient",
+            "patient_username",
+            "mood_rating",
+            "notes",
+            "logged_at",
+        ]
         read_only_fields = ["patient", "logged_at"]
 
     @extend_schema_field(serializers.CharField)  # Or the appropriate type

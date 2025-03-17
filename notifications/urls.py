@@ -1,27 +1,27 @@
 # notifications/urls.py
 from django.urls import path
-from .views import NotificationViewSet
+from .views import (
+    NotificationListView,
+    MarkNotificationReadView,
+    NotificationBulkActionView,
+    NotificationPreferencesView,
+    NotificationCountView,
+    MarkAllNotificationsReadView,
+    notifications_list,
+    activate,
+)
+
+app_name = "notifications"
 
 urlpatterns = [
-    path("", NotificationViewSet.as_view({"get": "list"}), name="notification-list"),
+    path("", NotificationListView.as_view(), name="list"),
+    path("count/", NotificationCountView.as_view(), name="count"),
+    path("bulk-action/", NotificationBulkActionView.as_view(), name="bulk-action"),
+    path("preferences/", NotificationPreferencesView.as_view(), name="preferences"),
+    path("category/<str:category>/", notifications_list, name="category-list"),
+    path("<int:pk>/mark-read/", MarkNotificationReadView.as_view(), name="mark-read"),
     path(
-        "<int:pk>/",
-        NotificationViewSet.as_view({"get": "retrieve"}),
-        name="notification-detail",
+        "mark-all-read/", MarkAllNotificationsReadView.as_view(), name="mark-all-read"
     ),
-    path(
-        "<int:pk>/mark_read/",
-        NotificationViewSet.as_view({"patch": "mark_read"}),
-        name="mark-read",
-    ),
-    path(
-        "mark_all_read/",
-        NotificationViewSet.as_view({"post": "mark_all_read"}),
-        name="mark-all-read",
-    ),
-    path(
-        "unread_count/",
-        NotificationViewSet.as_view({"get": "unread_count"}),
-        name="unread-count",
-    ),
+    path("activate/<uidb64>/<token>/", activate, name="activate"),
 ]

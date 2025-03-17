@@ -11,12 +11,13 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models.group import GroupConversation, GroupMessage
 from ..serializers.group import GroupConversationSerializer, GroupMessageSerializer
 from ..pagination import CustomMessagePagination
 from notifications.services import NotificationService
+from notifications.services.unified_service import UnifiedNotificationService
 from celery import shared_task
 from messaging.permissions import IsParticipantOrModerator
 from messaging.throttling import GroupMessageThrottle  # Use the correct module name
@@ -76,34 +77,39 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             self.queryset.filter(participants=self.request.user)
             .prefetch_related("participants", "moderators")
             .annotate(
-                participant_count=Count("participants"), 
-                message_count=Count("messages")
+                participant_count=Count("participants"), message_count=Count("messages")
             )
         )
 
     @transaction.atomic
     def perform_create(self, serializer):
-        """Create group with atomic transaction"""
+        """Create group with atomic transaction using unified notifications"""
         try:
             max_groups = getattr(settings, "MAX_GROUPS_PER_USER", 10)
-            # Validate group limits
             user_groups = GroupConversation.objects.filter(
                 participants=self.request.user
             ).count()
             if user_groups >= max_groups:
-                raise ValidationError(
-                    f"Maximum group limit ({max_groups}) reached"
-                )
+                raise ValidationError(f"Maximum group limit ({max_groups}) reached")
 
-            # Create group without the extra created_by field
             instance = serializer.save()
             instance.participants.add(self.request.user)
             instance.moderators.add(self.request.user)
-            notification_service.create_group_notification(
-                instance,
-                f"Group '{instance.name}' created successfully",
-                exclude_users=[self.request.user],  # Exclude creator
-            )
+            
+            # Send unified notifications to all participants except the creator.
+            for user in instance.participants.exclude(id=self.request.user.id):
+                UnifiedNotificationService.send_notification(
+                    user=user,
+                    notification_type="group_update",
+                    title="New Group Created",
+                    message=f"Group '{instance.name}' has been created successfully.",
+                    send_email=False,
+                    send_in_app=True,
+                    email_template="notifications/group_created.email",
+                    link=f"/groups/{instance.id}/",
+                    priority="high",
+                    category="group",
+                )
 
             logger.info(
                 f"Group conversation {instance.id} created by user {self.request.user.id}"
@@ -115,7 +121,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             raise ValidationError(f"Failed to create group: {str(e)}")
 
     @extend_schema(
-        description="Add a user as a moderator to the group. The current user must be a moderator.",
+        description="Add a user as a moderator to the group using unified notifications.",
         summary="Add Moderator",
         tags=["Group Conversation"],
     )
@@ -130,27 +136,40 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         user = get_object_or_404(get_user_model(), id=request.data.get("user_id"))
         if not group.participants.filter(id=user.id).exists():
             return Response(
-                {
-                    "detail": "User must be a participant before being promoted to moderator."
-                },
+                {"detail": "User must be a participant before being promoted to moderator."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         group.moderators.add(user)
-
-        # Send notifications
-        notification_service.create_notification(
+        
+        # Send unified notification to the promoted user for personal update.
+        UnifiedNotificationService.send_notification(
             user=user,
-            message=f"You are now a moderator in group '{group.name}'",
             notification_type="group_update",
-            url=f"/groups/{group.id}/",
+            title="Promotion to Moderator",
+            message=f"You are now a moderator in group '{group.name}'.",
+            send_email=False,
+            send_in_app=True,
+            email_template="notifications/moderator_promotion.email",
+            link=f"/groups/{group.id}/",
+            priority="medium",
+            category="group",
         )
-
-        notification_service.create_group_notification(
-            group=group,
-            message=f"{user.username} was promoted to moderator",
-            exclude_users=[user],
-        )
-
+        
+        # Notify other group members (excluding the promoted user)
+        for participant in group.participants.exclude(id=user.id):
+            UnifiedNotificationService.send_notification(
+                user=participant,
+                notification_type="group_update",
+                title="Group Update",
+                message=f"{user.username} was promoted to moderator in group '{group.name}'.",
+                send_email=False,
+                send_in_app=True,
+                email_template="notifications/group_update.email",
+                link=f"/groups/{group.id}/",
+                priority="medium",
+                category="group",
+            )
+            
         return Response(
             {"detail": f"User {user.username} is now a moderator."},
             status=status.HTTP_200_OK,
@@ -309,7 +328,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         )
 
     @extend_schema(exclude=True)
-    @action(detail=False, methods=['post'])  # or detail=True, depending on your needs
+    @action(detail=False, methods=["post"])  # or detail=True, depending on your needs
     def create_anonymous(self, request):
         # ... your logic here ...
         return Response({"status": "success"})

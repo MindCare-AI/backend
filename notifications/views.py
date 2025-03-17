@@ -1,249 +1,281 @@
 # notifications/views.py
 import logging
-from rest_framework import viewsets, mixins, status
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema, OpenApiParameter, extend_schema_view
-from django.db import transaction
 from django.utils import timezone
-
-from .models import Notification
-from .serializers import NotificationSerializer, NotificationUpdateSerializer
-from .permissions import IsNotificationOwner
+from django.shortcuts import render, redirect
+from django.core.cache import cache
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.utils.http import urlsafe_base64_decode
+from django.contrib.auth.tokens import default_token_generator
+from templated_email import send_templated_mail
+from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
+from .models import Notification, NotificationPreference
+from users.models.preferences import UserPreferences
+from .serializers import (
+    NotificationSerializer,
+    NotificationPreferenceSerializer,
+    NotificationBulkActionSerializer,
+    NotificationCountSerializer,
+    MarkAllReadSerializer,
+)
+from users.serializers.preferences import UserPreferencesSerializer
 from .services import NotificationService
+from .services.cache_service import NotificationCacheService
+from typing import Any, List
+from django.db.models.query import QuerySet
+from rest_framework.decorators import api_view, permission_classes
+from django_filters.rest_framework import DjangoFilterBackend
+from .filters import NotificationFilter
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from users.permissions.user import IsSuperUserOrSelf  # Added import
 
-notification_service = NotificationService()
 logger = logging.getLogger(__name__)
+User = get_user_model()
+
+
+class NotificationRateThrottle(UserRateThrottle):
+    rate = "60/minute"
+
 
 @extend_schema_view(
-    list=extend_schema(
-        description="List notifications with filtering options",
+    get=extend_schema(
         summary="List Notifications",
-        tags=["Notifications"],
-    ),
-    retrieve=extend_schema(
-        description="Get a specific notification",
-        summary="Get Notification",
-        tags=["Notifications"],
-    ),
+        description="Retrieve a list of notifications for the authenticated user.",
+    )
 )
-class NotificationViewSet(
-    viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin
-):
+class NotificationListView(generics.ListAPIView):
+    """
+    Retrieve a list of notifications for the authenticated user.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperUserOrSelf]  # Updated permissions
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated, IsNotificationOwner]
-    ordering = ["-created_at"]
+    throttle_classes = [NotificationRateThrottle]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = NotificationFilter
+
+    def get_queryset(self) -> QuerySet:
+        """
+        Optionally restricts the returned notifications by filtering against
+        query parameters in the URL.
+        """
+        try:
+            # Include query parameters into the cache key to avoid stale/incorrect data.
+            unread_only = self.request.query_params.get("unread", False)
+            limit = self.request.query_params.get("limit")
+            offset = self.request.query_params.get("offset", 0)
+            cache_key = f"user_notifications_{self.request.user.id}_{unread_only}_{limit}_{offset}"
+
+            notification_ids = cache.get(cache_key)
+            if not notification_ids:
+                queryset = (
+                    NotificationService.get_notifications(
+                        user=self.request.user,
+                        limit=int(limit) if limit else None,
+                        offset=int(offset),
+                        unread_only=unread_only,
+                    )
+                    .select_related("notification_type")
+                    .order_by("-priority", "-created_at")
+                )
+
+                notification_ids = list(queryset.values_list("id", flat=True))
+                cache.set(cache_key, notification_ids, 300)  # Cache for 5 minutes
+
+            return Notification.objects.filter(id__in=notification_ids).select_related(
+                "notification_type"
+            )
+        except Exception as e:
+            logger.error(f"Error fetching notifications: {e}")
+            return Notification.objects.none()
+
+
+@extend_schema_view(
+    patch=extend_schema(
+        summary="Mark Single Notification as Read",
+        description="Mark a single notification as read for the authenticated user.",
+    )
+)
+class MarkNotificationReadView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationSerializer
+    http_method_names = ["patch"]
 
     def get_queryset(self):
-        """Get notifications with prefetch optimization"""
-        return (
-            Notification.objects.filter(user=self.request.user)
-            .select_related("content_type", "user")
-            .prefetch_related("action_object")
-            .exclude(expires_at__lt=timezone.now())
-            .order_by("-created_at")
-        )
+        # Ensure the user can only update their own notifications
+        return Notification.objects.filter(user=self.request.user)
 
-    @extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="priority",
-                description="Filter by priority level",
-                enum=['low', 'normal', 'high']
-            ),
-            OpenApiParameter(
-                name="unread",
-                description="Filter unread notifications",
-                required=False,
-                type=bool,
-            ),
-            OpenApiParameter(
-                name="type",
-                description="Filter by notification type",
-                required=False,
-                type=str,
-            ),
-            OpenApiParameter(
-                name="since",
-                description="Filter notifications since timestamp (ISO format)",
-                required=False,
-                type=str,
-            ),
-        ]
-    )
-    def list(self, request, *args, **kwargs):
-        """List notifications with filtering"""
+    def patch(self, request, *args, **kwargs):
         try:
-            queryset = self.get_queryset()
-
-            # Apply filters
-            if priority := request.query_params.get("priority"):
-                queryset = queryset.filter(priority=priority)
-
-            if (unread := request.query_params.get("unread")) is not None:
-                if str(unread).lower() in ['true', '1']:
-                    queryset = queryset.filter(is_read=False)
-
-            if notification_type := request.query_params.get("type"):
-                queryset = queryset.filter(notification_type=notification_type)
-
-            if since := request.query_params.get("since"):
-                try:
-                    since_date = timezone.parse(since)
-                    queryset = queryset.filter(created_at__gte=since_date)
-                except ValueError:
-                    return Response(
-                        {"error": "Invalid date format for 'since' parameter"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-            page = self.paginate_queryset(queryset)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-
-            serializer = self.get_serializer(queryset, many=True)
-            return Response(serializer.data)
-
-        except Exception as e:
-            logger.error(f"Error listing notifications: {str(e)}")
+            notification = self.get_object()
+            notification.mark_as_read()
+            NotificationCacheService.invalidate_cache(
+                request.user.id
+            )  # invalidate cache
+            return Response(status=status.HTTP_200_OK)
+        except Notification.DoesNotExist:
             return Response(
-                {"error": "Failed to retrieve notifications"},
+                {"detail": "Notification not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception:
+            logger.exception("Error marking notification as read")
+            return Response(
+                {"detail": "Failed to mark as read."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=["patch"])
-    def mark_read(self, request, pk=None):
-        notification = self.get_object()
-        notification.mark_as_read()
-        return Response({"status": "marked as read"})
 
-    @action(detail=False, methods=["post"])
-    def mark_all_read(self, request):
-        """Optimized bulk read update"""
+@extend_schema_view(
+    post=extend_schema(
+        summary="Mark All Notifications as Read",
+        description="Mark all notifications as read for the authenticated user.",
+    )
+)
+class MarkAllNotificationsReadView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = MarkAllReadSerializer  # Now properly defined and imported
+
+    def post(self, request):
         try:
-            with transaction.atomic():
-                updated = request.user.notifications.filter(
-                    is_read=False
-                ).update(
-                    is_read=True,
-                    read_at=timezone.now()
-                )
-            return Response({"marked_read": updated})
+            Notification.objects.filter(user=request.user, is_read=False).update(
+                is_read=True, read_at=timezone.now()
+            )
+            NotificationCacheService.invalidate_cache(request.user.id)
+            return Response(status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"Bulk read error: {str(e)}")
+            logger.error(
+                f"Error marking all notifications as read for user {request.user.id}: {e}"
+            )
             return Response(
-                {"error": "Failed to update notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": "Failed to mark all notifications as read."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["get"])
-    def unread_count(self, request):
-        count = request.user.notifications.filter(is_read=False).count()
-        return Response({"unread_count": count})
 
-    @extend_schema(request=NotificationUpdateSerializer)
-    def partial_update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = NotificationUpdateSerializer(
-            instance, data=request.data, partial=True
-        )
+@extend_schema(
+    summary="Notification Preferences",
+    description="Retrieve and update notification preferences for the authenticated user.",
+)
+class NotificationPreferencesView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserPreferencesSerializer
+
+    def get_object(self):
+        return UserPreferences.objects.get_or_create(user=self.request.user)[0]
+
+
+@extend_schema(
+    summary="Notification Count",
+    description="Retrieve total count, unread count, and unread count by category for the user.",
+)
+class NotificationCountView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationCountSerializer
+
+    def get_object(self):
+        user = self.request.user
+        total = Notification.objects.filter(user=user).count()
+        unread = Notification.objects.filter(user=user, is_read=False).count()
+        unread_by_category = Notification.get_unread_count_by_category(user)
+        # Convert list of dicts into a dictionary
+        unread_by_category_dict = {
+            item["category"]: item["count"] for item in unread_by_category
+        }
+        return {
+            "total": total,
+            "unread": unread,
+            "unread_by_category": unread_by_category_dict,
+        }
+
+
+@extend_schema_view(
+    post=extend_schema(
+        summary="Bulk Notification Action",
+        description="Perform bulk actions like mark as read, delete, or archive on notifications.",
+    )
+)
+class NotificationBulkActionView(generics.GenericAPIView):
+    """
+    Perform bulk actions on notifications such as mark as read, delete, or archive.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationBulkActionSerializer
+
+    def post(self, request: Any) -> Response:
+        """
+        Handle POST requests to perform bulk actions on notifications.
+        """
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
 
-    @extend_schema(
-        description="Mark multiple notifications as read",
-        request={"application/json": {"ids": ["array", "integer"]}},
-        responses={200: {"marked_read": "integer"}},
+        ids: List[int] = serializer.validated_data["notification_ids"]
+        action: str = serializer.validated_data["action"]
+
+        try:
+            if action == "mark_read":
+                NotificationService.mark_as_read(ids, request.user)
+            elif action == "delete":
+                NotificationService.bulk_delete_notifications(ids, request.user)
+            elif action == "archive":
+                NotificationService.bulk_archive_notifications(ids, request.user)
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(
+                f"Bulk action '{action}' failed for user {request.user.id}: {e}"
+            )
+            return Response(
+                {"detail": "Bulk action failed."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notifications_list(request, category=None):
+    """
+    Retrieve a list of notifications for the authenticated user as JSON.
+    """
+    notifications = Notification.objects.filter(user=request.user)
+    if category:
+        notifications = notifications.filter(category=category)
+    notifications = notifications.order_by("-priority", "-created_at")
+    serializer = NotificationSerializer(notifications, many=True)
+    return Response(serializer.data)
+
+
+def send_notification_email(user, template_name, context):
+    send_templated_mail(
+        template_name=template_name,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        context=context,
     )
-    @action(detail=False, methods=["post"])
-    def mark_multiple_read(self, request):
-        try:
-            with transaction.atomic():
-                notification_ids = request.data.get("ids", [])
-                if not notification_ids:
-                    return Response(
-                        {"error": "No notification IDs provided"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
 
-                updated = Notification.objects.filter(
-                    id__in=notification_ids, user=request.user
-                ).update(is_read=True, read_at=timezone.now())
 
-                return Response({"marked_read": updated})
+def activate(request, uidb64, token):
+    try:
+        uid = urlsafe_base64_decode(uidb64).decode()
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
 
-        except Exception as e:
-            logger.error(f"Error marking notifications read: {str(e)}")
-            return Response(
-                {"error": "Failed to update notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+    if user is not None and default_token_generator.check_token(user, token):
+        user.is_active = True
+        user.save()
+        return redirect("login")
+    else:
+        # Invalid activation link
+        return render(request, "activation_invalid.html")
 
-    @extend_schema(
-        description="Delete all read notifications",
-        responses={200: {"deleted": "integer"}},
-    )
-    @action(detail=False, methods=["delete"])
-    def clear_all(self, request):
-        try:
-            with transaction.atomic():
-                deleted = request.user.notifications.filter(is_read=True).delete()[0]
-                return Response({"deleted": deleted})
-        except Exception as e:
-            logger.error(f"Error clearing notifications: {str(e)}")
-            return Response(
-                {"error": "Failed to clear notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
-    @extend_schema(
-        description="Get notification statistics",
-        responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "unread_count": {"type": "integer"},
-                    "total_count": {"type": "integer"},
-                    "newest_notification": {"type": "string", "format": "date-time"},
-                },
-            }
-        },
-    )
-    @action(detail=False, methods=["get"])
-    def stats(self, request):
-        try:
-            queryset = self.get_queryset()
-            stats = {
-                "unread_count": queryset.filter(is_read=False).count(),
-                "total_count": queryset.count(),
-                "newest_notification": queryset.values_list("created_at", flat=True).first(),
-            }
-            return Response(stats)
-        except Exception as e:
-            logger.error(f"Error getting notification stats: {str(e)}")
-            return Response(
-                {"error": "Failed to retrieve notification stats"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+class NotificationList(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
-    @action(detail=False, methods=["post"])
-    def send_test(self, request):
-        """Test notification creation (staff only)"""
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Staff access required"}, status=status.HTTP_403_FORBIDDEN
-            )
-        try:
-            notification = notification_service.create_notification(
-                user=request.user, message="Test notification", notification_type="test"
-            )
-            return Response({"status": "notification sent", "notification_id": notification.id})
-        except Exception as e:
-            logger.error(f"Error creating test notification: {str(e)}")
-            return Response(
-                {"error": "Failed to create test notification"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+

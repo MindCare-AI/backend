@@ -6,46 +6,63 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('notifications', '0001_initial'),
+        ("notifications", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='notification',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to=settings.AUTH_USER_MODEL),
+            model_name="notification",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="notifications",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['user', 'is_read'], name='notificatio_user_id_427e4b_idx'),
+            model_name="notification",
+            index=models.Index(
+                fields=["user", "is_read"], name="notificatio_user_id_427e4b_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['created_at'], name='notificatio_created_46ad24_idx'),
+            model_name="notification",
+            index=models.Index(
+                fields=["created_at"], name="notificatio_created_46ad24_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['notification_type'], name='notificatio_notific_f2898f_idx'),
+            model_name="notification",
+            index=models.Index(
+                fields=["notification_type"], name="notificatio_notific_f2898f_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['expires_at'], name='expiry_index'),
+            model_name="notification",
+            index=models.Index(fields=["expires_at"], name="expiry_index"),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['priority', 'created_at'], name='priority_index'),
+            model_name="notification",
+            index=models.Index(
+                fields=["priority", "created_at"], name="priority_index"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='notification',
-            constraint=models.CheckConstraint(condition=models.Q(('expires_at__gt', models.F('created_at'))), name='expiry_after_creation'),
+            model_name="notification",
+            constraint=models.CheckConstraint(
+                condition=models.Q(("expires_at__gt", models.F("created_at"))),
+                name="expiry_after_creation",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='notification',
-            constraint=models.UniqueConstraint(fields=('user', 'message', 'created_at'), name='unique_notification_per_user'),
+            model_name="notification",
+            constraint=models.UniqueConstraint(
+                fields=("user", "message", "created_at"),
+                name="unique_notification_per_user",
+            ),
         ),
     ]

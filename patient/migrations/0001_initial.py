@@ -7,67 +7,173 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='HealthMetric',
+            name="HealthMetric",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('metric_type', models.CharField(choices=[('blood_pressure', 'Blood Pressure'), ('weight', 'Weight'), ('heart_rate', 'Heart Rate')], max_length=20)),
-                ('value', models.CharField(max_length=20)),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "metric_type",
+                    models.CharField(
+                        choices=[
+                            ("blood_pressure", "Blood Pressure"),
+                            ("weight", "Weight"),
+                            ("heart_rate", "Heart Rate"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("value", models.CharField(max_length=20)),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
             ],
         ),
         migrations.CreateModel(
-            name='MedicalHistoryEntry',
+            name="MedicalHistoryEntry",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=200)),
-                ('description', models.TextField()),
-                ('date_occurred', models.DateField()),
-                ('is_chronic', models.BooleanField(default=False)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("title", models.CharField(max_length=200)),
+                ("description", models.TextField()),
+                ("date_occurred", models.DateField()),
+                ("is_chronic", models.BooleanField(default=False)),
             ],
         ),
         migrations.CreateModel(
-            name='MoodLog',
+            name="MoodLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('mood_rating', models.IntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(10)])),
-                ('notes', models.TextField(blank=True)),
-                ('logged_at', models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "mood_rating",
+                    models.IntegerField(
+                        validators=[
+                            django.core.validators.MinValueValidator(1),
+                            django.core.validators.MaxValueValidator(10),
+                        ]
+                    ),
+                ),
+                ("notes", models.TextField(blank=True)),
+                ("logged_at", models.DateTimeField(default=django.utils.timezone.now)),
             ],
             options={
-                'ordering': ['-logged_at'],
+                "ordering": ["-logged_at"],
             },
         ),
         migrations.CreateModel(
-            name='PatientProfile',
+            name="PatientProfile",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('bio', models.TextField(blank=True, null=True)),
-                ('unique_id', models.UUIDField(db_index=True, default=uuid.uuid4, editable=False, unique=True, verbose_name='Patient ID')),
-                ('emergency_contact', models.JSONField(blank=True, default=dict, null=True)),
-                ('medical_history', models.TextField(blank=True, null=True)),
-                ('current_medications', models.TextField(blank=True, null=True)),
-                ('blood_type', models.CharField(blank=True, choices=[('A+', 'A Positive'), ('A-', 'A Negative'), ('B+', 'B Positive'), ('B-', 'B Negative'), ('AB+', 'AB Positive'), ('AB-', 'AB Negative'), ('O+', 'O Positive'), ('O-', 'O Negative')], max_length=3, null=True)),
-                ('treatment_plan', models.TextField(blank=True, null=True)),
-                ('pain_level', models.IntegerField(blank=True, null=True, validators=[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(10)])),
-                ('gender', models.CharField(blank=True, choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other'), ('N', 'Prefer not to say')], help_text="Patient's gender identification", max_length=1, null=True)),
-                ('profile_pic', models.ImageField(blank=True, null=True, upload_to='patient_profile_pics/%Y/%m/')),
-                ('last_appointment', models.DateTimeField(blank=True, null=True)),
-                ('next_appointment', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(editable=False, null=True)),
-                ('updated_at', models.DateTimeField()),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("bio", models.TextField(blank=True, null=True)),
+                (
+                    "unique_id",
+                    models.UUIDField(
+                        db_index=True,
+                        default=uuid.uuid4,
+                        editable=False,
+                        unique=True,
+                        verbose_name="Patient ID",
+                    ),
+                ),
+                (
+                    "emergency_contact",
+                    models.JSONField(blank=True, default=dict, null=True),
+                ),
+                ("medical_history", models.TextField(blank=True, null=True)),
+                ("current_medications", models.TextField(blank=True, null=True)),
+                (
+                    "blood_type",
+                    models.CharField(
+                        blank=True,
+                        choices=[
+                            ("A+", "A Positive"),
+                            ("A-", "A Negative"),
+                            ("B+", "B Positive"),
+                            ("B-", "B Negative"),
+                            ("AB+", "AB Positive"),
+                            ("AB-", "AB Negative"),
+                            ("O+", "O Positive"),
+                            ("O-", "O Negative"),
+                        ],
+                        max_length=3,
+                        null=True,
+                    ),
+                ),
+                ("treatment_plan", models.TextField(blank=True, null=True)),
+                (
+                    "pain_level",
+                    models.IntegerField(
+                        blank=True,
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(0),
+                            django.core.validators.MaxValueValidator(10),
+                        ],
+                    ),
+                ),
+                (
+                    "gender",
+                    models.CharField(
+                        blank=True,
+                        choices=[
+                            ("M", "Male"),
+                            ("F", "Female"),
+                            ("O", "Other"),
+                            ("N", "Prefer not to say"),
+                        ],
+                        help_text="Patient's gender identification",
+                        max_length=1,
+                        null=True,
+                    ),
+                ),
+                (
+                    "profile_pic",
+                    models.ImageField(
+                        blank=True, null=True, upload_to="patient_profile_pics/%Y/%m/"
+                    ),
+                ),
+                ("last_appointment", models.DateTimeField(blank=True, null=True)),
+                ("next_appointment", models.DateTimeField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(editable=False, null=True)),
+                ("updated_at", models.DateTimeField()),
             ],
             options={
-                'verbose_name': 'Patient Profile',
-                'verbose_name_plural': 'Patient Profiles',
-                'ordering': ['-created_at'],
+                "verbose_name": "Patient Profile",
+                "verbose_name_plural": "Patient Profiles",
+                "ordering": ["-created_at"],
             },
         ),
     ]

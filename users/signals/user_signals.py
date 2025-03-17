@@ -35,6 +35,8 @@ def create_user_related_models(sender, instance, created, **kwargs):
                         "dark_mode": False,
                         "language": settings.LANGUAGE_CODE,
                         "notification_preferences": {},
+                        "email_notifications": True,  # changed code
+                        "in_app_notifications": True  # changed code
                     },
                 )
 

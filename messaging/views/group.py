@@ -29,8 +29,18 @@ notification_service = NotificationService()
 
 @shared_task
 def create_group_notifications(group_id, message, exclude_users=None):
+    from users.models.preferences import UserPreferences  # added import
+
     group = GroupConversation.objects.get(id=group_id)
-    notification_service.create_group_notification(group, message, exclude_users)
+    for user in group.participants.exclude(id__in=exclude_users or []):
+        # Check if user allows in-app notifications
+        preferences = UserPreferences.objects.get_or_create(user=user)[0]
+        if preferences.in_app_notifications:
+            notification_service.create_group_notification(
+                user=user,
+                message=message,
+                # ...other parameters...
+            )
 
 
 @extend_schema_view(

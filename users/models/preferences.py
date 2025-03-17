@@ -13,8 +13,14 @@ class UserPreferences(models.Model):
     dark_mode = models.BooleanField(default=False)
     language = models.CharField(max_length=10, default="en")
     # Structured notification preferences instead of a JSON field:
-    email_notifications = models.BooleanField(default=True)
-    in_app_notifications = models.BooleanField(default=True)
+    email_notifications = models.BooleanField(
+        default=True,  # changed code
+        help_text="Enable email notifications"
+    )
+    in_app_notifications = models.BooleanField(
+        default=True,  # changed code
+        help_text="Enable in-app notifications"
+    )
     disabled_notification_types = models.ManyToManyField(
         "notifications.NotificationType", blank=True
     )

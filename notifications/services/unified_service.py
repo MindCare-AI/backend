@@ -7,7 +7,8 @@ from django.db.models import QuerySet
 import logging
 from typing import List, Optional, Dict, Any
 
-from ..models import Notification, NotificationPreference, NotificationType, User
+from users.models.preferences import UserPreferences
+from ..models import Notification, NotificationType, User
 from templated_email import send_templated_mail
 from .websocket_service import WebSocketService
 from .cache_service import NotificationCacheService
@@ -147,23 +148,35 @@ class UnifiedNotificationService:
                     "is_active": True,
                 },
             )
-            if send_in_app:
-                notification = Notification.objects.create(
-                    user=user,
-                    notification_type=notification_type_obj,
-                    title=title,
-                    message=message,
-                    link=link,
-                    metadata=metadata or {},
-                    priority=priority,
-                    category=category,
-                )
-                from ..tasks import send_websocket_notification_task
 
-                send_websocket_notification_task.delay(user.id, notification.id)
+            # Use UserPreferences
+            preferences = UserPreferences.objects.get_or_create(user=user)[0]
+
+            # Check if notification type is disabled by the user
+            disabled_types = preferences.disabled_notification_types.all()
+            if notification_type in disabled_types:
+                logger.debug(f"Notification type {notification_type} disabled by user")
+                return None
+
+            if send_in_app:
+                # Check user preferences for in-app notifications
+                if preferences.in_app_notifications:
+                    notification = Notification.objects.create(
+                        user=user,
+                        notification_type=notification_type_obj,
+                        title=title,
+                        message=message,
+                        link=link,
+                        metadata=metadata or {},
+                        priority=priority,
+                        category=category,
+                    )
+                    from ..tasks import send_websocket_notification_task
+
+                    send_websocket_notification_task.delay(user.id, notification.id)
 
             if send_email:
-                preferences = NotificationPreference.objects.get_or_create(user=user)[0]
+                # Check user preferences for email notifications
                 if preferences.email_notifications:
                     email_context = {
                         "title": title,

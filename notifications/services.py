@@ -10,7 +10,6 @@ from asgiref.sync import async_to_sync
 
 logger = logging.getLogger(__name__)
 
-
 class NotificationService:
     """Service for handling notification creation and delivery"""
 
@@ -70,13 +69,17 @@ class NotificationService:
         """Bulk create notifications with significantly fewer queries"""
         try:
             notifications = [
-                Notification(user=user, message=message, **kwargs) for user in users
+                Notification(
+                    user=user,
+                    message=message,
+                    **kwargs
+                ) for user in users
             ]
-
+            
             created = Notification.objects.bulk_create(notifications, batch_size=500)
             self._send_bulk_ws_notifications(created)
             return created
-
+            
         except Exception as e:
             logger.error(f"Bulk notification error: {str(e)}")
             return []
@@ -132,22 +135,26 @@ class NotificationService:
         """Batch WebSocket notifications by grouping messages per user"""
         try:
             grouped = defaultdict(list)
-
+            
             for notification in notifications:
-                grouped[notification.user.id].append(
-                    {
-                        "id": notification.id,
-                        "message": notification.message,
-                        "type": notification.notification_type,
-                    }
-                )
-
+                grouped[notification.user.id].append({
+                    "id": notification.id,
+                    "message": notification.message,
+                    "type": notification.notification_type
+                })
+            
             channel_layer = get_channel_layer()
             for user_id, messages in grouped.items():
                 async_to_sync(channel_layer.group_send)(
                     f"notifications_{user_id}",
-                    {"type": "notification.message", "messages": messages},
+                    {
+                        "type": "notification.message",
+                        "messages": messages
+                    }
                 )
-
+                
         except Exception as e:
             logger.error(f"Bulk WS error: {str(e)}")
+
+# Create an instance of the service for easier access
+notification_service = NotificationService()

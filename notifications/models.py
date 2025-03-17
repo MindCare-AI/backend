@@ -1,4 +1,5 @@
 # notifications/models.py
+# notifications/models.py
 from django.db import models
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -8,7 +9,6 @@ from django.core.exceptions import ValidationError
 import logging
 
 logger = logging.getLogger(__name__)
-
 
 class Notification(models.Model):
     NOTIFICATION_TYPES = (
@@ -45,11 +45,11 @@ class Notification(models.Model):
         constraints = [
             models.CheckConstraint(
                 check=models.Q(expires_at__gt=models.F("created_at")),
-                name="expiry_after_creation",
+                name="expiry_after_creation"
             ),
             models.UniqueConstraint(
                 fields=["user", "message", "created_at"],
-                name="unique_notification_per_user",
+                name="unique_notification_per_user"
             ),
         ]
         indexes = [

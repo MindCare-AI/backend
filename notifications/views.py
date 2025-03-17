@@ -16,7 +16,6 @@ from .services import NotificationService
 notification_service = NotificationService()
 logger = logging.getLogger(__name__)
 
-
 @extend_schema_view(
     list=extend_schema(
         description="List notifications with filtering options",
@@ -51,7 +50,7 @@ class NotificationViewSet(
             OpenApiParameter(
                 name="priority",
                 description="Filter by priority level",
-                enum=["low", "normal", "high"],
+                enum=['low', 'normal', 'high']
             ),
             OpenApiParameter(
                 name="unread",
@@ -83,7 +82,7 @@ class NotificationViewSet(
                 queryset = queryset.filter(priority=priority)
 
             if (unread := request.query_params.get("unread")) is not None:
-                if str(unread).lower() in ["true", "1"]:
+                if str(unread).lower() in ['true', '1']:
                     queryset = queryset.filter(is_read=False)
 
             if notification_type := request.query_params.get("type"):
@@ -91,7 +90,7 @@ class NotificationViewSet(
 
             if since := request.query_params.get("since"):
                 try:
-                    since_date = timezone.parse_datetime(since)
+                    since_date = timezone.parse(since)
                     queryset = queryset.filter(created_at__gte=since_date)
                 except ValueError:
                     return Response(
@@ -125,15 +124,18 @@ class NotificationViewSet(
         """Optimized bulk read update"""
         try:
             with transaction.atomic():
-                updated = request.user.notifications.filter(is_read=False).update(
-                    is_read=True, read_at=timezone.now()
+                updated = request.user.notifications.filter(
+                    is_read=False
+                ).update(
+                    is_read=True,
+                    read_at=timezone.now()
                 )
             return Response({"marked_read": updated})
         except Exception as e:
             logger.error(f"Bulk read error: {str(e)}")
             return Response(
                 {"error": "Failed to update notifications"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(detail=False, methods=["get"])
@@ -217,9 +219,7 @@ class NotificationViewSet(
             stats = {
                 "unread_count": queryset.filter(is_read=False).count(),
                 "total_count": queryset.count(),
-                "newest_notification": queryset.values_list(
-                    "created_at", flat=True
-                ).first(),
+                "newest_notification": queryset.values_list("created_at", flat=True).first(),
             }
             return Response(stats)
         except Exception as e:
@@ -240,9 +240,7 @@ class NotificationViewSet(
             notification = notification_service.create_notification(
                 user=request.user, message="Test notification", notification_type="test"
             )
-            return Response(
-                {"status": "notification sent", "notification_id": notification.id}
-            )
+            return Response({"status": "notification sent", "notification_id": notification.id})
         except Exception as e:
             logger.error(f"Error creating test notification: {str(e)}")
             return Response(

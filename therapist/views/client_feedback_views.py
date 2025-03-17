@@ -4,6 +4,7 @@ from therapist.models.client_feedback import ClientFeedback
 from therapist.serializers.client_feedback import ClientFeedbackSerializer
 from notifications.services.unified_service import UnifiedNotificationService
 
+
 class ClientFeedbackViewSet(viewsets.ModelViewSet):
     queryset = ClientFeedback.objects.all()
     serializer_class = ClientFeedbackSerializer
@@ -14,7 +15,11 @@ class ClientFeedbackViewSet(viewsets.ModelViewSet):
 
         # Assuming the ClientFeedback model has a 'therapist' field with a related user,
         # send a notification to the therapist when new feedback is received.
-        if hasattr(instance, 'therapist') and instance.therapist and hasattr(instance.therapist, 'user'):
+        if (
+            hasattr(instance, "therapist")
+            and instance.therapist
+            and hasattr(instance.therapist, "user")
+        ):
             UnifiedNotificationService.send_notification(
                 user=instance.therapist.user,
                 notification_type="client_feedback",

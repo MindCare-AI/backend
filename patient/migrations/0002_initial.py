@@ -6,37 +6,54 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('patient', '0001_initial'),
+        ("patient", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='patientprofile',
-            name='user',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='patient_profile', to=settings.AUTH_USER_MODEL),
+            model_name="patientprofile",
+            name="user",
+            field=models.OneToOneField(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="patient_profile",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='moodlog',
-            name='patient',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mood_logs', to='patient.patientprofile'),
+            model_name="moodlog",
+            name="patient",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="mood_logs",
+                to="patient.patientprofile",
+            ),
         ),
         migrations.AddField(
-            model_name='medicalhistoryentry',
-            name='patient',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='medical_history_entries', to='patient.patientprofile'),
+            model_name="medicalhistoryentry",
+            name="patient",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="medical_history_entries",
+                to="patient.patientprofile",
+            ),
         ),
         migrations.AddField(
-            model_name='healthmetric',
-            name='patient',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='health_metrics', to='patient.patientprofile'),
+            model_name="healthmetric",
+            name="patient",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="health_metrics",
+                to="patient.patientprofile",
+            ),
         ),
         migrations.AddIndex(
-            model_name='moodlog',
-            index=models.Index(fields=['patient', 'logged_at'], name='patient_moo_patient_69f7ec_idx'),
+            model_name="moodlog",
+            index=models.Index(
+                fields=["patient", "logged_at"], name="patient_moo_patient_69f7ec_idx"
+            ),
         ),
     ]

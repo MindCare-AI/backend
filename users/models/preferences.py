@@ -15,11 +15,11 @@ class UserPreferences(models.Model):
     # Structured notification preferences instead of a JSON field:
     email_notifications = models.BooleanField(
         default=True,  # changed code
-        help_text="Enable email notifications"
+        help_text="Enable email notifications",
     )
     in_app_notifications = models.BooleanField(
         default=True,  # changed code
-        help_text="Enable in-app notifications"
+        help_text="Enable in-app notifications",
     )
     disabled_notification_types = models.ManyToManyField(
         "notifications.NotificationType", blank=True

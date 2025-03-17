@@ -313,7 +313,9 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
             conversation = instance.conversation
 
             # Identify the recipient (non-sender participant)
-            recipient = conversation.participants.exclude(id=self.request.user.id).first()
+            recipient = conversation.participants.exclude(
+                id=self.request.user.id
+            ).first()
             if recipient:
                 UnifiedNotificationService.send_notification(
                     user=recipient,

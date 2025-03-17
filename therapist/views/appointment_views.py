@@ -129,12 +129,16 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         # Notify the party that did not initiate the cancellation.
         if appointment.therapist.user == request.user:
             other_party = appointment.patient.user
-            cancel_message = (f"Your appointment has been cancelled by "
-                              f"{appointment.therapist.user.username}.")
+            cancel_message = (
+                f"Your appointment has been cancelled by "
+                f"{appointment.therapist.user.username}."
+            )
         else:
             other_party = appointment.therapist.user
-            cancel_message = (f"Your appointment has been cancelled by "
-                              f"{appointment.patient.user.username}.")
+            cancel_message = (
+                f"Your appointment has been cancelled by "
+                f"{appointment.patient.user.username}."
+            )
 
         UnifiedNotificationService.send_notification(
             user=other_party,

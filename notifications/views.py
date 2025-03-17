@@ -12,11 +12,10 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
-from .models import Notification, NotificationPreference
+from .models import Notification
 from users.models.preferences import UserPreferences
 from .serializers import (
     NotificationSerializer,
-    NotificationPreferenceSerializer,
     NotificationBulkActionSerializer,
     NotificationCountSerializer,
     MarkAllReadSerializer,
@@ -278,4 +277,3 @@ class NotificationList(generics.ListAPIView):
 
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
-

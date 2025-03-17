@@ -105,7 +105,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             instance = serializer.save()
             instance.participants.add(self.request.user)
             instance.moderators.add(self.request.user)
-            
+
             # Send unified notifications to all participants except the creator.
             for user in instance.participants.exclude(id=self.request.user.id):
                 UnifiedNotificationService.send_notification(
@@ -146,11 +146,13 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         user = get_object_or_404(get_user_model(), id=request.data.get("user_id"))
         if not group.participants.filter(id=user.id).exists():
             return Response(
-                {"detail": "User must be a participant before being promoted to moderator."},
+                {
+                    "detail": "User must be a participant before being promoted to moderator."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         group.moderators.add(user)
-        
+
         # Send unified notification to the promoted user for personal update.
         UnifiedNotificationService.send_notification(
             user=user,
@@ -164,7 +166,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             priority="medium",
             category="group",
         )
-        
+
         # Notify other group members (excluding the promoted user)
         for participant in group.participants.exclude(id=user.id):
             UnifiedNotificationService.send_notification(
@@ -179,7 +181,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 priority="medium",
                 category="group",
             )
-            
+
         return Response(
             {"detail": f"User {user.username} is now a moderator."},
             status=status.HTTP_200_OK,

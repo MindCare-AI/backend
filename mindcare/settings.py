@@ -422,6 +422,12 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_TASK_ROUTES = {
+    'messaging.tasks.process_chatbot_response': {'queue': 'chatbot'}
+}
+CELERY_TASK_DEFAULT_QUEUE = 'default'
 
 # Enhanced logging configuration
 LOGGING = {
@@ -546,7 +552,7 @@ VERIFICATION_SETTINGS = {
 
 # Group Conversation Settings
 GROUP_SETTINGS = {
-    "MAX_GROUPS_PER_USER": 20,
+    "MAX_GROUPS_PER_USER": 10,
     "MAX_PARTICIPANTS_PER_GROUP": 50,
     "MAX_MODERATORS_PER_GROUP": 5,
     "MESSAGE_EDIT_WINDOW": 3600,  # 1 hour in seconds
@@ -572,12 +578,14 @@ MESSAGE_SETTINGS = {
 }
 
 # Chatbot Settings
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_API_KEY = 'AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734'
+GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent'
 CHATBOT_SETTINGS = {
-    "MAX_HISTORY_MESSAGES": 10,
-    "RESPONSE_TIMEOUT": 60,
-    "MAX_RETRIES": 3,
+    'MAX_RETRIES': 3,
+    'RESPONSE_TIMEOUT': 30,
+    'MAX_HISTORY_MESSAGES': 5,
+    'MIN_MESSAGE_LENGTH': 2,
+    'MAX_MESSAGE_LENGTH': 1000,
 }
 
 # Throttling Configuration

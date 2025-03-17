@@ -74,10 +74,10 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         """Filter conversations and optimize queries"""
         return (
             self.queryset.filter(participants=self.request.user)
-            .select_related("created_by")
             .prefetch_related("participants", "moderators")
             .annotate(
-                participant_count=Count("participants"), message_count=Count("messages")
+                participant_count=Count("participants"), 
+                message_count=Count("messages")
             )
         )
 
@@ -85,18 +85,18 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create group with atomic transaction"""
         try:
+            max_groups = getattr(settings, "MAX_GROUPS_PER_USER", 10)
             # Validate group limits
             user_groups = GroupConversation.objects.filter(
                 participants=self.request.user
             ).count()
-
-            if user_groups >= settings.MAX_GROUPS_PER_USER:
+            if user_groups >= max_groups:
                 raise ValidationError(
-                    f"Maximum group limit ({settings.MAX_GROUPS_PER_USER}) reached"
+                    f"Maximum group limit ({max_groups}) reached"
                 )
 
-            # Create group and add creator
-            instance = serializer.save(created_by=self.request.user)
+            # Create group without the extra created_by field
+            instance = serializer.save()
             instance.participants.add(self.request.user)
             instance.moderators.add(self.request.user)
             notification_service.create_group_notification(

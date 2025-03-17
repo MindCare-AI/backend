@@ -17,6 +17,7 @@ from therapist.services.therapist_verification_service import (
 )
 from django.db import transaction
 from django.utils import timezone
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,10 @@ logger = logging.getLogger(__name__)
     ),
 )
 class TherapistProfileViewSet(viewsets.ModelViewSet):
+    lookup_field = "unique_id"  # Add this line
     serializer_class = TherapistProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
-    http_method_names = ["get", "put", "patch", "delete"]
+    http_method_names = ["get", "post", "put", "patch", "delete"]  # Added "post"
 
     def get_queryset(self):
         if self.request.user.is_superuser:
@@ -130,12 +132,16 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=["post"], permission_classes=[IsPatient])
-    def book_appointment(self, request, pk=None):
+    def book_appointment(self, request, unique_id=None, **kwargs):
         """
         Book an appointment with a therapist.
         """
         try:
-            therapist_profile = self.get_object()
+            # Only convert unique_id to UUID if it's a string
+            if not isinstance(unique_id, UUID):
+                unique_id = UUID(unique_id)
+
+            therapist_profile = TherapistProfile.objects.select_related("user").get(unique_id=unique_id)
 
             if not therapist_profile.is_verified:
                 return Response(
@@ -150,10 +156,10 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 )
 
             appointment_data = {
-                "therapist": therapist_profile.id,  # Use TherapistProfile ID
-                "patient": request.user.patient_profile.id,  # Use PatientProfile ID
+                "therapist": therapist_profile.id,
+                "patient": request.user.patient_profile.id,
                 "appointment_date": request.data.get("appointment_date"),
-                "duration": request.data.get("duration", 60),
+                "duration_minutes": request.data.get("duration_minutes", 60),
                 "notes": request.data.get("notes", ""),
                 "status": "scheduled",
             }
@@ -170,7 +176,6 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                     f"Time: {appointment.appointment_date}, "
                     f"Duration: {appointment.duration}min"
                 )
-
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except TherapistProfile.DoesNotExist:
@@ -197,16 +202,14 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=["get"])
-    def appointments(self, request, pk=None):
+    def appointments(self, request, unique_id=None, **kwargs):  # Added **kwargs
         try:
             therapist_profile = self.get_object()
             appointments = Appointment.objects.filter(
-                therapist=therapist_profile.user
-            ).order_by("date_time")
-
+                therapist=therapist_profile
+            ).order_by("appointment_date")
             serializer = AppointmentSerializer(appointments, many=True)
             return Response(serializer.data)
-
         except Exception as e:
             logger.error(f"Error fetching appointments: {str(e)}", exc_info=True)
             return Response(

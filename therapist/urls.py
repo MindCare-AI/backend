@@ -13,7 +13,7 @@ urlpatterns = [
         name="therapist-profiles",
     ),
     path(
-        "profiles/<int:pk>/",
+        "profiles/<uuid:unique_id>/",
         TherapistProfileViewSet.as_view({
             "get": "retrieve",
             "put": "update",
@@ -25,7 +25,7 @@ urlpatterns = [
     
     # Therapist Profile Actions
     path(
-        "profiles/<int:pk>/book-appointment/",
+        "profiles/<uuid:unique_id>/book-appointment/", 
         TherapistProfileViewSet.as_view({"post": "book_appointment"}),
         name="therapist-book-appointment",
     ),
@@ -43,7 +43,7 @@ urlpatterns = [
         name="therapist-verify",
     ),
     path(
-        "profiles/<int:pk>/appointments/",
+        "profiles/<uuid:unique_id>/appointments/",
         TherapistProfileViewSet.as_view({"get": "appointments"}),
         name="therapist-appointments",
     ),

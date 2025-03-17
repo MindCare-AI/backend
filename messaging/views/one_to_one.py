@@ -54,8 +54,8 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
         # Prefetch recent messages for each conversation to avoid N+1 queries.
         message_prefetch = Prefetch(
             "messages",
-            queryset=OneToOneMessage.objects.order_by("-timestamp")[:5],
-            to_attr="recent_messages",
+            queryset=OneToOneMessage.objects.order_by("-timestamp"),
+            to_attr="all_messages",
         )
 
         # Get all conversations with additional useful data.
@@ -120,15 +120,16 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
                 for participant in other_participants
             ]
 
-            # Get recent messages (limit to last 20)
-            messages = instance.messages.all().order_by("-timestamp")[:20]
+            # Get recent messages (limit to last 20) and convert to list
+            messages = list(instance.messages.all().order_by("-timestamp")[:20])
             message_serializer = OneToOneMessageSerializer(messages, many=True)
             response_data["messages"] = message_serializer.data
 
-            # Mark messages as read
-            unread_messages = messages.exclude(sender=request.user).exclude(
-                read_by=request.user
-            )
+            # Mark messages as read using Python filtering on the list
+            unread_messages = [
+                message for message in messages
+                if message.sender != request.user and request.user not in message.read_by.all()
+            ]
             for message in unread_messages:
                 message.read_by.add(request.user)
 
@@ -225,7 +226,8 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
                 }
                 for participant in other_participants
             ]
-            latest_messages = getattr(conversation, "recent_messages", [])
+            # Slice the prefetched messages in Python
+            latest_messages = getattr(conversation, "all_messages", [])[:5]
             if latest_messages:
                 latest_message = latest_messages[0]
                 conversation_data["latest_message"] = {

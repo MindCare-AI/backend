@@ -14,7 +14,7 @@ class GroupConversationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GroupConversation
-        fields = [
+        fields = [              
             "id",
             "name",
             "description",
@@ -124,7 +124,7 @@ class GroupMessageSerializer(serializers.ModelSerializer):
                     {"conversation": "This field is required"}
                 )
 
-            # Check if conversation exists and user is participant
+            # Ensure conversation exists and user is a participant
             try:
                 conversation = GroupConversation.objects.get(
                     id=conversation.id, participants=user
@@ -140,11 +140,12 @@ class GroupMessageSerializer(serializers.ModelSerializer):
                     "Cannot send messages to archived conversations"
                 )
 
-            # Check if user is blocked
-            if conversation.blocked_users.filter(id=user.id).exists():
-                raise serializers.ValidationError(
-                    "You have been blocked from this conversation"
-                )
+            # Only check blocked_users if the conversation has that attribute
+            if hasattr(conversation, "blocked_users"):
+                if conversation.blocked_users.filter(id=user.id).exists():
+                    raise serializers.ValidationError(
+                        "You have been blocked from this conversation"
+                    )
 
             # Validate content
             content = attrs.get("content", "").strip()
@@ -164,3 +165,18 @@ class GroupMessageSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.error(f"Message validation error: {str(e)}")
             raise serializers.ValidationError("Message validation failed")
+
+    def to_representation(self, instance):
+        """Override to convert non-serializable objects in reactions"""
+        representation = super().to_representation(instance)
+        reactions = representation.get("reactions")
+        if isinstance(reactions, dict):
+            safe_reactions = {}
+            for key, value in reactions.items():
+                # If value is a CustomUser instance, convert to its id
+                if hasattr(value, "id"):
+                    safe_reactions[key] = value.id
+                else:
+                    safe_reactions[key] = value
+            representation["reactions"] = safe_reactions
+        return representation

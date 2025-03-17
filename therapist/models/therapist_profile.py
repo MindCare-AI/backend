@@ -225,8 +225,8 @@ class TherapistProfile(models.Model):
 
             if slot_start <= time and end_time <= slot_end:
                 conflicting_appointments = Appointment.objects.filter(
-                    therapist=self,  # Updated to use TherapistProfile instance
-                    date_time__range=(
+                    therapist=self,
+                    appointment_date__range=(
                         date_time,
                         date_time + timedelta(minutes=duration),
                     ),

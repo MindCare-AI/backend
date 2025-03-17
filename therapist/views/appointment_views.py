@@ -35,12 +35,7 @@ logger = logging.getLogger(__name__)
 class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    http_method_names = [
-        "get",
-        "patch",
-        "put",
-        "delete",
-    ]
+    http_method_names = ["get", "post", "patch", "put", "delete"]
 
     def get_queryset(self):
         user = self.request.user
@@ -59,16 +54,18 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             403: {"description": "Only therapist can confirm appointments"},
         },
     )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["get", "post"])
     def confirm(self, request, pk=None):
+        # GET is provided only so that the DRF Browsable API renders a form.
+        if request.method == "GET":
+            return Response({"detail": "This endpoint confirms an appointment. Please use POST."})
+        
         appointment = self.get_object()
-
-        if appointment.therapist != request.user:
+        if appointment.therapist.user != request.user:
             return Response(
                 {"error": "Only the therapist can confirm appointments"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
         appointment.status = "confirmed"
         appointment.save()
         serializer = self.get_serializer(appointment)
@@ -83,19 +80,21 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             403: {"description": "Only therapist or patient can cancel appointments"},
         },
     )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["get", "post"])
     def cancel(self, request, pk=None):
+        # Provide GET method for the Browsable API.
+        if request.method == "GET":
+            return Response({"detail": "This endpoint cancels an appointment. Please use POST."})
+        
         appointment = self.get_object()
-
         if (
-            appointment.therapist != request.user
-            and appointment.patient != request.user
+            appointment.therapist.user != request.user
+            and appointment.patient.user != request.user
         ):
             return Response(
                 {"error": "Only the therapist or patient can cancel appointments"},
                 status=status.HTTP_403_FORBIDDEN,
             )
-
         appointment.status = "cancelled"
         appointment.save()
         serializer = self.get_serializer(appointment)

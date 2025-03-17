@@ -14,26 +14,10 @@ from ..serializers.chatbot import (
 from ..permissions import IsPatient
 from ..throttling import ChatbotRateThrottle
 from ..pagination import CustomMessagePagination
+from ..services.chatbot import chatbot_service
 import logging
-import requests
-from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
-
-
-def get_chatbot_response(message, history):
-    """
-    Get chatbot response with error handling and logging.
-    """
-    try:
-        logger.debug(f"Processing message: {message}")
-        logger.debug(f"History length: {len(history)}")
-
-        # Simple static response for now
-        return "I am the chatbot. Thank you for your message."
-    except Exception as e:
-        logger.error(f"Error getting chatbot response: {str(e)}")
-        return "I apologize, but I'm having trouble processing your message."
 
 
 @extend_schema_view(
@@ -72,12 +56,12 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
     @extend_schema(
         description="Send a message to the chatbot",
         request=ChatbotMessageSerializer,
-        responses={202: ChatbotMessageSerializer},
+        responses={201: ChatbotMessageSerializer},
     )
     @action(detail=True, methods=["post"])
     def send_message(self, request, pk=None):
         """
-        Send a message to the chatbot and get response.
+        Send a message to the chatbot and get response using ChatbotService.
         """
         conversation = self.get_object()
 
@@ -97,32 +81,40 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
             # Get conversation history
             history = list(
                 conversation.messages.order_by("-timestamp").values(
-                    "sender", "content"
+                    "sender", "content", "is_bot"
                 )[:5]
             )
             history.reverse()
 
-            # Get bot response
+            # Get bot response using ChatbotService
             try:
-                bot_response = get_chatbot_response(
-                    message=serializer.validated_data["content"], history=history
+                bot_response = chatbot_service.get_response(
+                    message=serializer.validated_data["content"],
+                    history=[{
+                        "content": msg["content"],
+                        "is_bot": msg["is_bot"]
+                    } for msg in history]
                 )
-                logger.debug(f"Got bot response: {bot_response[:50]}...")
-            except requests.RequestException as e:
-                logger.error(f"API request failed: {str(e)}")
-                return self._error_response("Service temporarily unavailable")
-            except ValidationError as e:
-                logger.error(f"Validation error: {str(e)}")
-                return self._error_response("Invalid input")
+                
+                if not bot_response["success"]:
+                    logger.error(f"Chatbot service error: {bot_response.get('error')}")
+                    return Response(
+                        {"error": bot_response["response"]},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+                
+                response_content = bot_response["response"]
+                logger.debug(f"Got bot response: {response_content[:50]}...")
+                
             except Exception as e:
                 logger.error(f"Error getting bot response: {str(e)}")
-                bot_response = (
-                    "I apologize, but I'm having trouble processing your request."
-                )
+                response_content = "I apologize, but I'm having trouble processing your request."
 
             # Save bot response
             bot_message = ChatbotMessage.objects.create(
-                conversation=conversation, content=bot_response, is_bot=True
+                conversation=conversation,
+                content=response_content,
+                is_bot=True
             )
             logger.debug(f"Saved bot message: {bot_message.id}")
 
@@ -137,10 +129,12 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
         except ChatbotConversation.DoesNotExist:
             logger.error(f"Conversation {pk} not found")
             return Response(
-                {"error": "Conversation not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": "Conversation not found"}, 
+                status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.exception(f"Unexpected error in send_message: {str(e)}")
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

@@ -3,81 +3,55 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
-from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
-from dj_rest_auth.registration.views import RegisterView, ResendEmailVerificationView
+from allauth.account.models import (
+    EmailConfirmation,
+    EmailConfirmationHMAC,
+    EmailAddress,
+)
+from dj_rest_auth.registration.views import ResendEmailVerificationView, RegisterView
 from django.core.exceptions import ObjectDoesNotExist
-from allauth.account.utils import complete_signup
-from allauth.account import app_settings
 from rest_framework_simplejwt.tokens import RefreshToken
-import smtplib
-import socket
 import logging
-from .serializers import CustomRegisterSerializer
-from django.db import transaction
-from users.models import UserProfile, UserPreferences, UserSettings
+from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
 
 
 class CustomRegisterView(RegisterView):
-    serializer_class = CustomRegisterSerializer
-
-    @transaction.atomic
-    def perform_create(self, serializer):
-        try:
-            user = serializer.save(self.request)
-
-            # Create related profiles using get_or_create
-            UserProfile.objects.get_or_create(user=user)
-            UserPreferences.objects.get_or_create(user=user)
-            UserSettings.objects.get_or_create(user=user)
-
-            return user
-        except Exception as e:
-            logger.error(f"Error in perform_create: {str(e)}", exc_info=True)
-            raise
+    """
+    Enhanced registration view that inherits from dj-rest-auth's RegisterView
+    to properly handle email verification and user creation.
+    """
 
     def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            user = self.perform_create(serializer)
+        # Let the parent class handle user creation and email verification
+        response = super().create(request, *args, **kwargs)
 
-            email_status = self._send_verification_email(request, user)
+        # Only add custom logic if the registration was successful
+        if response.status_code == status.HTTP_201_CREATED:
+            try:
+                # Get the created user
+                user = response.data.get("user", {})
+                user_id = user.get("pk") if isinstance(user, dict) else None
 
-            return Response(
-                {
-                    "status": "success",
-                    "message": "User registered successfully",
-                    "user": serializer.data,
-                    "email_verification": email_status,
-                },
-                status=status.HTTP_201_CREATED,
-            )
+                # Enhance response with more user-friendly message
+                response.data.update(
+                    {
+                        "detail": "Registration successful. Please check your email to verify your account.",
+                        "user": {
+                            "id": user_id,
+                            "email": response.data.get("email", ""),
+                            "user_type": response.data.get("user_type", None),
+                        },
+                    }
+                )
 
-        except Exception as e:
-            logger.error(f"Registration error: {str(e)}", exc_info=True)
-            return Response(
-                {"status": "error", "message": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            except Exception as e:
+                logger.error(
+                    f"Error enhancing registration response: {str(e)}", exc_info=True
+                )
 
-    def _send_verification_email(self, request, user):
-        try:
-            complete_signup(request, user, app_settings.EMAIL_VERIFICATION, None)
-            return {
-                "success": True,
-                "message": "Verification email sent successfully, check your email",
-                "status_code": status.HTTP_200_OK,
-            }
-        except (smtplib.SMTPException, socket.error, ConnectionRefusedError) as e:
-            logger.error(f"Email sending error: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "message": f"Failed to send verification email: {str(e)}",
-                "error_type": e.__class__.__name__,
-                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-            }
+        return response
 
 
 class CustomConfirmEmailView(APIView):
@@ -130,29 +104,53 @@ class CustomConfirmEmailView(APIView):
 
 
 class CustomResendEmailVerificationView(ResendEmailVerificationView):
+    """
+    Custom view for resending email verification.
+    Inherits from dj-rest-auth's ResendEmailVerificationView.
+    """
+
     permission_classes = [AllowAny]
-
-    def get_serializer_class(self):
-        from dj_rest_auth.registration.serializers import (
-            ResendEmailVerificationSerializer,
-        )
-
-        return ResendEmailVerificationSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         try:
-            serializer.save()
+            email = serializer.validated_data["email"]
+            User = get_user_model()
+
+            try:
+                user = User.objects.get(email__iexact=email)
+            except User.DoesNotExist:
+                return Response(
+                    {"detail": "No user found with this email address."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Check if already verified
+            if user.emailaddress_set.filter(email=email, verified=True).exists():
+                return Response(
+                    {"detail": "Email is already verified."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get or create EmailAddress
+            email_address, created = EmailAddress.objects.get_or_create(
+                user=user, email=email, defaults={"verified": False, "primary": True}
+            )
+
+            # Send confirmation
+            email_address.send_confirmation(request)
+            logger.info(f"Verification email resent to {email}")
+
             return Response(
-                {
-                    "message": "Verification email resent successfully",
-                    "email": serializer.validated_data.get("email"),
-                },
+                {"detail": "Verification email has been sent."},
                 status=status.HTTP_200_OK,
             )
+
         except Exception as e:
+            logger.error(f"Failed to resend verification email: {str(e)}")
             return Response(
-                {"message": "Failed to resend verification email", "error": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": "Failed to resend verification email."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

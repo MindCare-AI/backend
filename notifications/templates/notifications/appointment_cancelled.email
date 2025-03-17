@@ -1,0 +1,9 @@
+Subject: Appointment Cancelled
+
+Hi {{ recipient_name }},
+
+We regret to inform you that your appointment has been cancelled.
+For further details, please check your appointment details here: {{ link }}
+
+Regards,
+The Team

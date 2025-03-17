@@ -4,28 +4,40 @@ from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 import smtplib
 import socket
 from rest_framework.response import Response
+from patient.models.patient_profile import PatientProfile  # Updated import
+from therapist.models.therapist_profile import TherapistProfile  # Updated import
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-class AccountAdapter(DefaultAccountAdapter):
+class CustomAccountAdapter(DefaultAccountAdapter):
     """
     Custom account adapter for saving additional user fields during registration.
     """
 
     def save_user(self, request, user, form, commit=True):
-        # Use cleaned_data if available
+        # Let the parent class handle basic user setup
+        user = super().save_user(request, user, form, commit=False)
+
+        # Get data from form (either cleaned_data or form directly)
         data = getattr(form, "cleaned_data", form)
-        user.username = data.get("username", user.username)
-        user.email = data.get("email", user.email)
-        user.first_name = data.get("first_name", user.first_name or "")
-        user.last_name = data.get("last_name", user.last_name or "")
-        # Removed country, region, and phone_number for Mindcare
-        password = data.get("password1", None)
-        if password:
-            user.set_password(password)
-        else:
-            user.set_unusable_password()
+
+        # Add custom fields - user_type isn't handled by parent class
+        user.user_type = data.get("user_type", None)
+
         if commit:
             user.save()
+
+            # Create profile based on user_type
+            try:
+                if user.user_type == "patient":
+                    PatientProfile.objects.create(user=user, profile_type="patient")
+                elif user.user_type == "therapist":
+                    TherapistProfile.objects.create(user=user, profile_type="therapist")
+            except Exception as e:
+                logger.error(f"Error creating profile during registration: {str(e)}")
+
         return user
 
     def send_mail(self, template_prefix, email, context):

@@ -1,63 +1,42 @@
 # users\urls.py
 from django.urls import path
-from .views import (
-    UserProfileViewSet,
-    UserPreferencesViewSet,
-    UserSettingsViewSet,
-    UserListView,  # Added import
-)
+from users.views.preferences_views import UserPreferencesViewSet
+from users.views.settings_views import UserSettingsViewSet
+from users.views.user_views import CustomUserViewSet, SetUserTypeView
 
 urlpatterns = [
+    path("", CustomUserViewSet.as_view({"get": "list"}), name="user-list"),
     path(
-        "profiles/",
-        UserProfileViewSet.as_view({"get": "list", "post": "create"}),
-        name="profile-list",
+        "<int:pk>/", CustomUserViewSet.as_view({"get": "retrieve"}), name="user-detail"
     ),
     path(
-        "profiles/<int:pk>/",
-        UserProfileViewSet.as_view(
-            {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }
-        ),
-        name="profile-detail",
+        "<int:pk>/update_preferences/",
+        CustomUserViewSet.as_view({"patch": "update_preferences"}),
+        name="user-update-preferences",
     ),
     path(
         "preferences/",
-        UserPreferencesViewSet.as_view({"get": "list", "post": "create"}),
+        UserPreferencesViewSet.as_view({"get": "list"}),
         name="preferences-list",
     ),
     path(
         "preferences/<int:pk>/",
-        UserPreferencesViewSet.as_view(
-            {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }
-        ),
+        UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="preferences-detail",
     ),
     path(
         "settings/",
-        UserSettingsViewSet.as_view({"get": "list", "post": "create"}),
+        UserSettingsViewSet.as_view({"get": "list"}),
         name="settings-list",
     ),
     path(
         "settings/<int:pk>/",
-        UserSettingsViewSet.as_view(
-            {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }
-        ),
+        UserSettingsViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="settings-detail",
     ),
-    path("users/", UserListView.as_view(), name="user-list"),  # Added UserListView
+    path(
+        "set-user-type/",
+        SetUserTypeView.as_view({"post": "create", "get": "list"}),
+        name="set-user-type",
+    ),
 ]

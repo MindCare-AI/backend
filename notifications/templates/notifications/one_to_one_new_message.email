@@ -1,0 +1,11 @@
+Subject: New Message from {{ recipient_name }}
+
+Hi {{ recipient_name }},
+
+You have received a new message from {{ sender_name }}:
+"{{ message }}"
+
+Click here to view the conversation: {{ link }}
+
+Thanks,
+The Team

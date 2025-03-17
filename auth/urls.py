@@ -16,8 +16,6 @@ from auth.views import (
     CustomPasswordResetConfirmView,
     GoogleLogin,
     GoogleAuthRedirect,
-    GitHubLogin,  # <-- add this import
-    GoogleCallback,
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -31,10 +29,10 @@ urlpatterns = [
     path("token/verify/", TokenVerifyView.as_view(), name="token_verify"),
     path("login/", LoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
-    path("register/", CustomRegisterView.as_view(), name="register"),
+    path("register/", CustomRegisterView.as_view(), name="rest_register"),
     path("password/reset/", PasswordResetView.as_view(), name="password_reset"),
-    re_path(
-        r"^password/reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
+    path(
+        "password/reset/confirm/<uidb64>/<token>/",
         CustomPasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
@@ -54,6 +52,4 @@ urlpatterns = [
     path(
         "login/google/start/", GoogleAuthRedirect.as_view(), name="google_auth_redirect"
     ),
-    path("login/github/", GitHubLogin.as_view(), name="github_login"),
-    path("login/google/callback/", GoogleCallback.as_view(), name="google_callback"),
 ]

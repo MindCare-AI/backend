@@ -1,7 +1,15 @@
+# media_handler/models.py
 from django.db import models
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 import os
+import magic
+import logging
+from django.core.exceptions import ValidationError
+import uuid
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 class MediaFile(models.Model):
@@ -20,25 +28,90 @@ class MediaFile(models.Model):
     file_size = models.BigIntegerField(editable=False)
     mime_type = models.CharField(max_length=100, editable=False)
 
-    # Generic relation fields
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
+    # Add user relationship
+    uploaded_by = models.ForeignKey(
+        "users.CustomUser",
+        on_delete=models.CASCADE,
+        related_name="uploaded_media",
+        null=True,
+        blank=True,
+    )
+
+    # Generic relation fields with proper UUID handling
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="media_files",
+    )
+    object_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="UUID of the related object (e.g., profile unique_id)",
+    )
     content_object = GenericForeignKey("content_type", "object_id")
 
+    def clean(self):
+        """Validate file size and media type before saving."""
+        if self.file and self.file.size > settings.MAX_UPLOAD_SIZE:
+            raise ValidationError(
+                f"File size cannot exceed {settings.MAX_UPLOAD_SIZE / (1024 * 1024)}MB"
+            )
+
+        if self.media_type and self.mime_type:
+            allowed_mime_types = settings.ALLOWED_MEDIA_TYPES.get(self.media_type, [])
+            if self.mime_type not in allowed_mime_types:
+                raise ValidationError(
+                    f"Invalid MIME type {self.mime_type} for {self.media_type}. "
+                    f"Allowed types: {', '.join(allowed_mime_types)}"
+                )
+
     def save(self, *args, **kwargs):
+        """Save the file and validate its properties."""
         if self.file:
             self.file_size = self.file.size
             self.mime_type = self._get_mime_type()
+        self.full_clean()  # Run validation before saving
         super().save(*args, **kwargs)
 
     def _get_mime_type(self):
-        import magic
+        """Determine MIME type of uploaded file with enhanced error handling."""
+        if not self.file:
+            return None
 
-        return magic.from_buffer(self.file.read(1024), mime=True)
+        try:
+            self.file.seek(0)
+            mime = magic.from_buffer(self.file.read(2048), mime=True)
+            self.file.seek(0)
+            return mime
+        except magic.MagicException as e:
+            logger.error(f"Magic library error: {str(e)}")
+            return "application/octet-stream"
+        except Exception as e:
+            logger.error(f"Unexpected error determining MIME type: {str(e)}")
+            return "application/octet-stream"
 
     @property
     def filename(self):
         return os.path.basename(self.file.name)
 
+    def link_to_profile(self, profile):
+        """Link media to a profile using UUID."""
+        if not hasattr(profile, "unique_id"):
+            raise ValidationError("Profile must have a unique_id field")
+
+        if not isinstance(profile.unique_id, uuid.UUID):
+            raise ValidationError("Profile unique_id must be a UUID")
+
+        self.content_type = ContentType.objects.get_for_model(profile.__class__)
+        self.object_id = profile.unique_id
+        self.save()
+
     class Meta:
         ordering = ["-uploaded_at"]
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+            models.Index(fields=["-uploaded_at"]),
+        ]

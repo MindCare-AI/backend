@@ -1,16 +1,16 @@
 # messaging/models/chatbot.py
 from django.db import models
 from django.conf import settings
-from .base import BaseMessage
+from .base import BaseConversation, BaseMessage
 
 
-class ChatbotConversation(models.Model):
+class ChatbotConversation(BaseConversation):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="chatbot_conversation",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    # ... other fields as needed ...
 
 
 class ChatbotMessage(BaseMessage):

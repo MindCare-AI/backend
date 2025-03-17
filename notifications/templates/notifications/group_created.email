@@ -1,0 +1,10 @@
+Subject: New Group Created – {{ title }}
+
+Hi {{ recipient_name }},
+
+The group "{{ message }}" has been created successfully.
+
+Click here for details: {{ link }}
+
+Best regards,
+Your Team

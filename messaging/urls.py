@@ -32,11 +32,7 @@ group_message_detail = GroupMessageViewSet.as_view(
 
 # Chatbot
 chatbot_conversation_create = ChatbotConversationViewSet.as_view({"post": "create"})
-chatbot_conversation_detail = ChatbotConversationViewSet.as_view(
-    {
-        "get": "retrieve",
-    }
-)
+chatbot_conversation_detail = ChatbotConversationViewSet.as_view({"get": "retrieve"})
 chatbot_send_message = ChatbotConversationViewSet.as_view({"post": "send_message"})
 
 urlpatterns = [
@@ -57,6 +53,17 @@ urlpatterns = [
         one_to_one_message_detail,
         name="one-to-one-message-detail",
     ),
+    # New endpoints for One-to-One Messaging
+    path(
+        "one_to_one/<int:pk>/typing/",
+        OneToOneConversationViewSet.as_view({"post": "typing"}),
+        name="typing",
+    ),
+    path(
+        "one_to_one/<int:pk>/search/",
+        OneToOneConversationViewSet.as_view({"get": "search"}),
+        name="search",
+    ),
     # Group Messaging
     path("groups/", group_conversation_list, name="group-conversation-list"),
     path(
@@ -65,6 +72,11 @@ urlpatterns = [
     path("groups/messages/", group_message_list, name="group-message-list"),
     path(
         "groups/messages/<int:pk>/", group_message_detail, name="group-message-detail"
+    ),
+    path(
+        "groups/anonymous/",
+        GroupConversationViewSet.as_view({"post": "create_anonymous"}),
+        name="create-anonymous-group",
     ),
     # Chatbot
     path("chatbot/", chatbot_conversation_create, name="chatbot-conversation-create"),

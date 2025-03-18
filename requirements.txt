@@ -152,3 +152,4 @@ django-model-utils==5.0.0
 pytesseract==0.3.13
 channels-redis==4.2.1
 django-filter==25.1
+django-notifications-hq==1.8.3

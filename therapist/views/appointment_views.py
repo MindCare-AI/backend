@@ -8,9 +8,6 @@ from therapist.models.appointment import Appointment
 from therapist.serializers.appointment import AppointmentSerializer
 import logging
 
-# Import UnifiedNotificationService for sending notifications.
-from notifications.services.unified_service import UnifiedNotificationService
-
 logger = logging.getLogger(__name__)
 
 
@@ -79,20 +76,6 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         appointment.save()
         serializer = self.get_serializer(appointment)
 
-        # Send notification to the patient that the appointment is confirmed.
-        UnifiedNotificationService.send_notification(
-            user=appointment.patient.user,
-            notification_type="appointment_update",
-            title="Appointment Confirmed",
-            message=f"Your appointment has been confirmed by {appointment.therapist.user.username}.",
-            send_email=True,
-            send_in_app=True,
-            email_template="notifications/appointment_confirmed.email",
-            link=f"/appointments/{appointment.id}/",
-            priority="high",
-            category="appointment",
-        )
-
         return Response(serializer.data)
 
     @extend_schema(
@@ -125,32 +108,5 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         appointment.status = "cancelled"
         appointment.save()
         serializer = self.get_serializer(appointment)
-
-        # Notify the party that did not initiate the cancellation.
-        if appointment.therapist.user == request.user:
-            other_party = appointment.patient.user
-            cancel_message = (
-                f"Your appointment has been cancelled by "
-                f"{appointment.therapist.user.username}."
-            )
-        else:
-            other_party = appointment.therapist.user
-            cancel_message = (
-                f"Your appointment has been cancelled by "
-                f"{appointment.patient.user.username}."
-            )
-
-        UnifiedNotificationService.send_notification(
-            user=other_party,
-            notification_type="appointment_update",
-            title="Appointment Cancelled",
-            message=cancel_message,
-            send_email=True,
-            send_in_app=True,
-            email_template="notifications/appointment_cancelled.email",
-            link=f"/appointments/{appointment.id}/",
-            priority="medium",
-            category="appointment",
-        )
 
         return Response(serializer.data)

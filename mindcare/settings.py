@@ -89,7 +89,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "notifications.middleware.NotificationSecurityMiddleware",  # <-- Added notifications security middleware
 ]
 
 ROOT_URLCONF = "mindcare.urls"
@@ -485,32 +484,17 @@ LOGGING = {
 }
 
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
         },
     },
-    "handlers": {
-        "file": {
-            "level": "DEBUG",
-            "class": "logging.FileHandler",
-            "filename": "logs/debug.log",
-            "formatter": "verbose",
-        },
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
-        },
-    },
-    "loggers": {
-        "auth.registration": {
-            "handlers": ["console", "file"],
-            "level": "DEBUG",
-            "propagate": True,
+    'loggers': {
+        'notifications': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
         },
     },
 }

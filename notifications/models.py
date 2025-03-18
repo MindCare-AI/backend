@@ -1,93 +1,64 @@
 # notifications/models.py
 from django.db import models
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
-from django.db.models import Count
-from django.contrib.auth import get_user_model
-from django.conf import settings
-from django.contrib.auth.models import Group  # Import Group from auth
+from users.models import CustomUser
+import logging
 
-User = get_user_model()
-
+logger = logging.getLogger(__name__)
 
 class NotificationType(models.Model):
-    """Core notification types for the platform"""
-
-    name = models.CharField(max_length=50, unique=True)
-    description = models.TextField()
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
     default_enabled = models.BooleanField(default=True)
     is_global = models.BooleanField(default=False)
-    groups = models.ManyToManyField(
-        Group,
-        blank=True,
-        help_text="User groups that can receive this notification type",
-    )
-
-    def __str__(self):
-        return self.name
-
-
-class Notification(models.Model):
-    """User notifications"""
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    notification_type = models.ForeignKey(NotificationType, on_delete=models.CASCADE)
-    title = models.CharField(max_length=255)
-    message = models.TextField()
-    link = models.URLField(blank=True, null=True)
-    priority = models.CharField(max_length=50)
-    category = models.CharField(max_length=50, default="general")
-    is_read = models.BooleanField(default=False)
-    read_at = models.DateTimeField(null=True, blank=True)
-    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    metadata = models.JSONField(default=dict, blank=True)
-    email_sent = models.BooleanField(default=False)
-    websocket_sent = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["user", "is_read", "created_at"]),
-            models.Index(fields=["notification_type"]),
-            models.Index(fields=["category"]),
-            models.Index(fields=["priority"]),
-            models.Index(fields=["user", "category", "is_read"]),
-            models.Index(fields=["notification_type", "created_at"]),
+            models.Index(fields=['name']),
+            models.Index(fields=['is_global']),
         ]
 
-    def mark_as_read(self):
-        self.is_read = True
-        self.read_at = timezone.now()
+    def __str__(self):
+        return f"{self.name} ({'global' if self.is_global else 'user'})"
+
+class Notification(models.Model):
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.ForeignKey(NotificationType, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    read = models.BooleanField(default=False)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    # Generic foreign key for linking to various content types
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, null=True, blank=True)
+    object_id = models.UUIDField(null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['read']),
+            models.Index(fields=['priority']),
+        ]
+
+    def __str__(self):
+        return f"{self.user}: {self.title}"
+
+    def mark_read(self):
+        self.read = True
         self.save()
 
-    @classmethod
-    def get_unread_count_by_category(cls, user):
-        return (
-            cls.objects.filter(user=user, is_read=False)
-            .values("category")
-            .annotate(count=Count("id"))
-        )
-
-    @classmethod
-    def get_notifications_by_category(cls, user, category):
-        return cls.objects.filter(
-            user=user, category=category, is_archived=False
-        ).order_by("-created_at")
-
-    def __str__(self):
-        return self.title
-
-
-class NotificationPreference(models.Model):
-    """User notification delivery preferences"""
-
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    email_notifications = models.BooleanField(default=True)
-    in_app_notifications = models.BooleanField(default=True)
-    disabled_notification_types = models.ManyToManyField(
-        NotificationType,
-        blank=True,
-    )
-
-    def __str__(self):
-        return f"Preferences for {self.user.username}"

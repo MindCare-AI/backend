@@ -46,6 +46,7 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
             "email_notifications",
             "in_app_notifications",
             "disabled_notification_types",
+            "notification_preferences",  # add this line
         ]
         read_only_fields = ["user"]
 

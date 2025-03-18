@@ -1,9 +1,0 @@
-Subject: Your Appointment is Confirmed
-
-Hi {{ recipient_name }},
-
-Your appointment has been confirmed by {{ sender_name }}.
-You can view the appointment details here: {{ link }}
-
-Thank you,
-The Team

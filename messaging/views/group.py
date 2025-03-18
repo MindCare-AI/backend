@@ -5,7 +5,6 @@ from django.db.models import Prefetch, Count
 from django.contrib.auth import get_user_model
 from django.conf import settings
 import logging
-from notifications.models import NotificationType
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
@@ -17,12 +16,10 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models.group import GroupConversation, GroupMessage
 from ..serializers.group import GroupConversationSerializer, GroupMessageSerializer
 from ..pagination import CustomMessagePagination
-from celery import shared_task
 from messaging.permissions import IsParticipantOrModerator
-from messaging.throttling import GroupMessageThrottle  
+from messaging.throttling import GroupMessageThrottle
 
 logger = logging.getLogger(__name__)
-
 
 
 @extend_schema_view(
@@ -262,7 +259,9 @@ class GroupMessageViewSet(viewsets.ModelViewSet):
             if not conversation.participants.filter(id=self.request.user.id).exists():
                 raise ValidationError("You are not a participant in this conversation.")
 
-            message = serializer.save(sender=self.request.user, conversation=conversation)
+            message = serializer.save(
+                sender=self.request.user, conversation=conversation
+            )
             return message
 
         except GroupConversation.DoesNotExist:

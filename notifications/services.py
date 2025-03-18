@@ -1,14 +1,12 @@
 # notifications/services.py
-from django.db import transaction
-from django.core.cache import cache
 from .models import Notification, NotificationType
 from users.models import UserPreferences
 import logging
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-import json
 
 logger = logging.getLogger(__name__)
+
 
 class UnifiedNotificationService:
     def __init__(self):
@@ -24,7 +22,7 @@ class UnifiedNotificationService:
                 name=type_name,
                 description=f"Notification type for {type_name}",
                 default_enabled=True,
-                is_global=True
+                is_global=True,
             )
             logger.info(f"Created new notification type: {type_name}")
         return notification_type
@@ -32,12 +30,16 @@ class UnifiedNotificationService:
     def send_notification(self, user, notification_type_name, title, message, **kwargs):
         try:
             # Ensure notification type exists
-            notification_type = self.get_or_create_notification_type(notification_type_name)
-            
+            notification_type = self.get_or_create_notification_type(
+                notification_type_name
+            )
+
             # Check user preferences
             preferences = UserPreferences.objects.get_or_create(user=user)[0]
             if not self._check_notification_allowed(preferences, notification_type):
-                logger.debug(f"Notification {notification_type_name} not allowed for {user}")
+                logger.debug(
+                    f"Notification {notification_type_name} not allowed for {user}"
+                )
                 return None
 
             # Create notification
@@ -46,23 +48,23 @@ class UnifiedNotificationService:
                 notification_type=notification_type,
                 title=title,
                 message=message,
-                priority=kwargs.get('priority', 'medium'),
-                metadata=kwargs.get('metadata', {}),
-                content_object=kwargs.get('content_object')
+                priority=kwargs.get("priority", "medium"),
+                metadata=kwargs.get("metadata", {}),
+                content_object=kwargs.get("content_object"),
             )
 
             # Handle different channels
-            if kwargs.get('send_email', False):
+            if kwargs.get("send_email", False):
                 self._send_email_notification(user, notification, preferences)
-            
-            if kwargs.get('send_in_app', True):
+
+            if kwargs.get("send_in_app", True):
                 self._send_in_app_notification(user, notification)
 
             return notification
 
         except Exception as e:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
-            if kwargs.get('send_in_app', True):
+            if kwargs.get("send_in_app", True):
                 self._send_in_app_notification(user, notification)
 
             return notification
@@ -78,8 +80,12 @@ class UnifiedNotificationService:
 
         # Check type-specific settings
         if notification_type.is_global:
-            return notification_type.default_enabled and \
-                   not preferences.disabled_notification_types.filter(id=notification_type.id).exists()
+            return (
+                notification_type.default_enabled
+                and not preferences.disabled_notification_types.filter(
+                    id=notification_type.id
+                ).exists()
+            )
         else:
             return notification_type.default_enabled
 
@@ -92,24 +98,21 @@ class UnifiedNotificationService:
         try:
             channel_layer = get_channel_layer()
             notification_data = {
-                'id': notification.id,
-                'type': notification.notification_type.name,
-                'title': notification.title,
-                'message': notification.message,
-                'timestamp': notification.created_at.isoformat(),
-                'priority': notification.priority,
+                "id": notification.id,
+                "type": notification.notification_type.name,
+                "title": notification.title,
+                "message": notification.message,
+                "timestamp": notification.created_at.isoformat(),
+                "priority": notification.priority,
             }
-            
+
             async_to_sync(channel_layer.group_send)(
                 f"user_{user.id}_notifications",
-                {
-                    "type": "notification.message",
-                    "message": notification_data
-                }
+                {"type": "notification.message", "message": notification_data},
             )
             logger.info(f"Sent WebSocket notification to user {user.username}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error sending WebSocket notification: {str(e)}")
             return False

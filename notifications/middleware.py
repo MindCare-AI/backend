@@ -1,11 +1,11 @@
-#notifications/middleware.py
+# notifications/middleware.py
 from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
-from django.contrib.sessions.models import Session
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class WebSocketAuthMiddleware(BaseMiddleware):
     async def __call__(self, scope, receive, send):
@@ -27,6 +27,7 @@ class WebSocketAuthMiddleware(BaseMiddleware):
                 return AnonymousUser()
 
             from django.contrib.auth import get_user_model
+
             User = get_user_model()
             user = User.objects.get(id=session_key)
             logger.debug(f"Successfully authenticated WebSocket user: {user.username}")

@@ -7,143 +7,166 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('notifications', '0003_alter_notification_priority'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("notifications", "0003_alter_notification_priority"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='notificationpreference',
-            name='disabled_notification_types',
+            model_name="notificationpreference",
+            name="disabled_notification_types",
         ),
         migrations.RemoveField(
-            model_name='notificationpreference',
-            name='user',
+            model_name="notificationpreference",
+            name="user",
         ),
         migrations.RemoveIndex(
-            model_name='notification',
-            name='notificatio_user_id_8a7c6b_idx',
+            model_name="notification",
+            name="notificatio_user_id_8a7c6b_idx",
         ),
         migrations.RemoveIndex(
-            model_name='notification',
-            name='notificatio_notific_d6e074_idx',
+            model_name="notification",
+            name="notificatio_notific_d6e074_idx",
         ),
         migrations.RemoveIndex(
-            model_name='notification',
-            name='notificatio_categor_fd561f_idx',
+            model_name="notification",
+            name="notificatio_categor_fd561f_idx",
         ),
         migrations.RemoveIndex(
-            model_name='notification',
-            name='notificatio_user_id_5fc26e_idx',
+            model_name="notification",
+            name="notificatio_user_id_5fc26e_idx",
         ),
         migrations.RemoveIndex(
-            model_name='notification',
-            name='notificatio_notific_5e6e57_idx',
+            model_name="notification",
+            name="notificatio_notific_5e6e57_idx",
         ),
         migrations.RenameField(
-            model_name='notification',
-            old_name='email_sent',
-            new_name='read',
+            model_name="notification",
+            old_name="email_sent",
+            new_name="read",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='category',
+            model_name="notification",
+            name="category",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='is_archived',
+            model_name="notification",
+            name="is_archived",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='is_read',
+            model_name="notification",
+            name="is_read",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='link',
+            model_name="notification",
+            name="link",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='read_at',
+            model_name="notification",
+            name="read_at",
         ),
         migrations.RemoveField(
-            model_name='notification',
-            name='websocket_sent',
+            model_name="notification",
+            name="websocket_sent",
         ),
         migrations.RemoveField(
-            model_name='notificationtype',
-            name='groups',
+            model_name="notificationtype",
+            name="groups",
         ),
         migrations.AddField(
-            model_name='notification',
-            name='content_type',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype'),
+            model_name="notification",
+            name="content_type",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                to="contenttypes.contenttype",
+            ),
         ),
         migrations.AddField(
-            model_name='notification',
-            name='object_id',
+            model_name="notification",
+            name="object_id",
             field=models.UUIDField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='notificationtype',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now),
+            model_name="notificationtype",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, default=django.utils.timezone.now
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='notificationtype',
-            name='updated_at',
+            model_name="notificationtype",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True),
         ),
         migrations.AlterField(
-            model_name='notification',
-            name='created_at',
+            model_name="notification",
+            name="created_at",
             field=models.DateTimeField(default=django.utils.timezone.now),
         ),
         migrations.AlterField(
-            model_name='notification',
-            name='priority',
-            field=models.CharField(choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High'), ('critical', 'Critical')], default='medium', max_length=20),
+            model_name="notification",
+            name="priority",
+            field=models.CharField(
+                choices=[
+                    ("low", "Low"),
+                    ("medium", "Medium"),
+                    ("high", "High"),
+                    ("critical", "Critical"),
+                ],
+                default="medium",
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='notification',
-            name='title',
+            model_name="notification",
+            name="title",
             field=models.CharField(max_length=200),
         ),
         migrations.AlterField(
-            model_name='notification',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to=settings.AUTH_USER_MODEL),
+            model_name="notification",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="notifications",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AlterField(
-            model_name='notificationtype',
-            name='description',
+            model_name="notificationtype",
+            name="description",
             field=models.TextField(blank=True),
         ),
         migrations.AlterField(
-            model_name='notificationtype',
-            name='name',
+            model_name="notificationtype",
+            name="name",
             field=models.CharField(max_length=100, unique=True),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['-created_at'], name='notificatio_created_ae6ed6_idx'),
+            model_name="notification",
+            index=models.Index(
+                fields=["-created_at"], name="notificatio_created_ae6ed6_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='notification',
-            index=models.Index(fields=['read'], name='notificatio_read_df532f_idx'),
+            model_name="notification",
+            index=models.Index(fields=["read"], name="notificatio_read_df532f_idx"),
         ),
         migrations.AddIndex(
-            model_name='notificationtype',
-            index=models.Index(fields=['name'], name='notificatio_name_0f5032_idx'),
+            model_name="notificationtype",
+            index=models.Index(fields=["name"], name="notificatio_name_0f5032_idx"),
         ),
         migrations.AddIndex(
-            model_name='notificationtype',
-            index=models.Index(fields=['is_global'], name='notificatio_is_glob_4729ec_idx'),
+            model_name="notificationtype",
+            index=models.Index(
+                fields=["is_global"], name="notificatio_is_glob_4729ec_idx"
+            ),
         ),
         migrations.DeleteModel(
-            name='NotificationPreference',
+            name="NotificationPreference",
         ),
     ]

@@ -1,27 +1,17 @@
 # notifications/urls.py
 from django.urls import path
-from .views import (
-    NotificationListView,
-    MarkNotificationReadView,
-    NotificationBulkActionView,
-    NotificationPreferencesView,
-    NotificationCountView,
-    MarkAllNotificationsReadView,
-    notifications_list,
-    activate,
-)
-
-app_name = "notifications"
+from .views import NotificationViewSet
 
 urlpatterns = [
-    path("", NotificationListView.as_view(), name="list"),
-    path("count/", NotificationCountView.as_view(), name="count"),
-    path("bulk-action/", NotificationBulkActionView.as_view(), name="bulk-action"),
-    path("preferences/", NotificationPreferencesView.as_view(), name="preferences"),
-    path("category/<str:category>/", notifications_list, name="category-list"),
-    path("<int:pk>/mark-read/", MarkNotificationReadView.as_view(), name="mark-read"),
+    path("", NotificationViewSet.as_view({"get": "list"}), name="notification-list"),
     path(
-        "mark-all-read/", MarkAllNotificationsReadView.as_view(), name="mark-all-read"
+        "<uuid:pk>/",
+        NotificationViewSet.as_view({"get": "retrieve", "patch": "partial_update"}),
+        name="notification-detail",
     ),
-    path("activate/<uidb64>/<token>/", activate, name="activate"),
+    path(
+        "mark-all-read/",
+        NotificationViewSet.as_view({"post": "mark_all_read"}),
+        name="mark-all-read",
+    ),
 ]

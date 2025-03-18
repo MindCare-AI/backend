@@ -1,4 +1,5 @@
 # messaging/views/one_to_one.py
+# messaging/views/one_to_one.py
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -19,8 +20,12 @@ from ..serializers.one_to_one import (
     OneToOneConversationSerializer,
     OneToOneMessageSerializer,
 )
-from notifications.services.unified_service import UnifiedNotificationService
+
 # New corrected import
+from notifications.services import UnifiedNotificationService
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @extend_schema_view(
@@ -308,7 +313,7 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
         the other participant via unified notification.
         """
         try:
-            # Save the message with the current user as sender.
+            # Save the message with the current user as sender
             instance = serializer.save(sender=self.request.user)
             conversation = instance.conversation
 
@@ -316,23 +321,62 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
             recipient = conversation.participants.exclude(
                 id=self.request.user.id
             ).first()
+
             if recipient:
-                UnifiedNotificationService.send_notification(
-                    user=recipient,
-                    notification_type="one_to_one_message",
-                    title="New Message Received",
-                    message=f"You have a new message from {self.request.user.username}.",
-                    send_email=False,
-                    send_in_app=True,
-                    email_template="notifications/one_to_one_new_message.email",
-                    link=f"/conversations/{conversation.id}/",
-                    priority="normal",
-                    category="message",
-                )
+                try:
+                    notification_service = UnifiedNotificationService()
+
+                    # Add debug logging
+                    logger.debug(
+                        f"Attempting to send notification to recipient: {recipient.id}"
+                    )
+
+                    notification = notification_service.send_notification(
+                        user=recipient,
+                        metadata={
+                            "conversation_id": str(conversation.id),
+                            "message_id": str(instance.id),
+                            "sender_id": str(self.request.user.id),
+                            "message_preview": instance.content[:100]
+                            + ("..." if len(instance.content) > 100 else ""),
+                            "category": "message",
+                            "link": f"/conversations/{conversation.id}/",
+                            "sender_name": self.request.user.get_full_name()
+                            or self.request.user.username,
+                        },
+                        send_email=True,  # Changed to True
+                        send_in_app=True,
+                        priority="high",  # Changed to high
+                        content_object=instance,
+                    )
+
+                    if notification:
+                        logger.info(
+                            f"Sent notification for message {instance.id} to user {recipient.id}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Notification not sent for message {instance.id} - possibly disabled by user preferences"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to send notification for message {instance.id}: {str(e)}",
+                        exc_info=True,
+                    )
+                    # Don't raise the error - message was still created successfully
+
+            return instance
+
         except IntegrityError as e:
+            logger.error(f"Message creation failed: {str(e)}")
             raise ValidationError(f"Failed to create message: {str(e)}")
         except DjangoValidationError as e:
+            logger.error(f"Message validation failed: {str(e)}")
             raise ValidationError(f"Validation error: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error creating message: {str(e)}")
+            raise ValidationError(f"An unexpected error occurred: {str(e)}")
 
     def update(self, request, *args, **kwargs):
         """

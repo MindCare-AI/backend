@@ -1,13 +1,16 @@
 # notifications/serializers.py
 from rest_framework import serializers
+from .models import Notification, NotificationType
 
-from .models import Notification, NotificationPreference
+
+class NotificationTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationType
+        fields = ["id", "name", "description", "default_enabled", "is_global"]
 
 
 class NotificationSerializer(serializers.ModelSerializer):
-    """Serializer for Notification model"""
-
-    unread_count = serializers.SerializerMethodField()
+    notification_type = NotificationTypeSerializer(read_only=True)
 
     class Meta:
         model = Notification
@@ -15,50 +18,15 @@ class NotificationSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "message",
-            "notification_type",
-            "is_read",
-            "created_at",
+            "read",
             "priority",
-            "link",
-            "category",
+            "created_at",
+            "notification_type",
+            "metadata",
         ]
 
-    def get_unread_count(self, obj):
-        return Notification.objects.filter(user=obj.user, is_read=False).count()
 
-
-class NotificationPreferenceSerializer(serializers.ModelSerializer):
-    """Serializer for NotificationPreference model"""
-
+class NotificationUpdateSerializer(serializers.ModelSerializer):
     class Meta:
-        model = NotificationPreference
-        fields = [
-            "email_notifications",
-            "in_app_notifications",
-            "disabled_notification_types",
-        ]
-
-
-class NotificationBulkActionSerializer(serializers.Serializer):
-    """Serializer for bulk actions on notifications"""
-
-    notification_ids = serializers.ListField(
-        child=serializers.IntegerField(), write_only=True
-    )
-    action = serializers.ChoiceField(
-        choices=["mark_read", "delete", "archive"]
-    )  # Added 'archive'
-
-
-class NotificationCountSerializer(serializers.Serializer):
-    """Serializer for notification counts"""
-
-    total = serializers.IntegerField()
-    unread = serializers.IntegerField()
-    unread_by_category = serializers.DictField(child=serializers.IntegerField())
-
-
-class MarkAllReadSerializer(serializers.Serializer):
-    """Serializer for marking all notifications as read"""
-
-    pass
+        model = Notification
+        fields = ["read"]

@@ -6,12 +6,11 @@ import os
 import json
 from datetime import timedelta
 
-
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Only load .env once, at the beginning, with explicit path
+load_dotenv(dotenv_path=os.path.join(BASE_DIR, "..", ".env"), override=True)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -114,7 +113,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "mindcare.wsgi.application"
 
 
-# Database
+print("DEBUG LOG: DB_HOST from .env =>", os.getenv("DB_HOST"))
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 DATABASES = {
     "default": {
@@ -124,12 +125,9 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
-        "OPTIONS": json.loads(
-            os.getenv("OPTIONS", "{}")
-        ),  # Convert string to dictionary
+        "OPTIONS": json.loads(os.getenv("OPTIONS", "{}").replace("'", '"')),
     }
 }
-
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 

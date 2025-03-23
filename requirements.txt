@@ -83,7 +83,7 @@ platformdirs==4.2.2
 pluggy==1.5.0
 prompt_toolkit==3.0.47
 proto-plus==1.25.0
-protobuf==5.29.0
+protobuf>=5.29.1
 psycopg2-binary==2.9.9
 pyasn1==0.6.0
 pyasn1_modules==0.4.0
@@ -100,6 +100,7 @@ python-decouple==3.8
 python-dotenv==1.0.1
 python-http-client==3.3.7
 python-magic==0.4.27
+python-magic-bin==0.4.14
 python3-openid==3.2.0
 PyYAML==6.0.1
 redis==5.0.8
@@ -125,7 +126,7 @@ tokenizers==0.20.3
 tomli==2.0.1
 tomlkit==0.12.5
 tqdm==4.67.1
-transformers==4.46.0
+transformers>=4.46.1
 Twisted==24.3.0
 txaio==23.1.1
 types-psycopg2==2.9.21.20240417

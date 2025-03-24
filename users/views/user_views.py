@@ -24,6 +24,9 @@ from ..serializers.user import (
 from rest_framework.decorators import api_view, permission_classes, renderer_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
+from django.db.models import Q
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 import logging
 
@@ -168,6 +171,65 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"message": "User type updated successfully"}, status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        summary="Search Users",
+        description="Search for users by username, email, first name, or last name",
+        parameters=[
+            OpenApiParameter(
+                name="q", 
+                description="Search query (username, email, first/last name)", 
+                required=True, 
+                type=OpenApiTypes.STR
+            ),
+            OpenApiParameter(
+                name="user_type", 
+                description="Filter by user type (patient, therapist)", 
+                required=False, 
+                type=OpenApiTypes.STR,
+                enum=["patient", "therapist"]
+            ),
+        ],
+        responses={200: CustomUserSerializer(many=True)}  # Change to simpler serializer
+    )
+    @action(detail=False, methods=["get"])
+    def search(self, request):
+        """
+        Search for users by name, email, or username.
+        """
+        try:
+            query = request.query_params.get("q", "")
+            user_type = request.query_params.get("user_type", None)
+            
+            if not query:
+                return Response(
+                    {"error": "Search query is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            queryset = CustomUser.objects.filter(
+                Q(username__icontains=query) | 
+                Q(email__icontains=query) |
+                Q(first_name__icontains=query) |
+                Q(last_name__icontains=query)
+            )
+            
+            if user_type:
+                queryset = queryset.filter(user_type=user_type)
+            
+            # Limit results for performance
+            queryset = queryset[:20]
+            
+            # Use a simpler serializer to avoid potential relation issues
+            serializer = CustomUserSerializer(queryset, many=True)
+            return Response(serializer.data)
+        
+        except Exception as e:
+            logger.error(f"Error in user search: {str(e)}", exc_info=True)
+            return Response(
+                {"error": f"An error occurred during search: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class SetUserTypeView(viewsets.ViewSet):

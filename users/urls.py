@@ -2,7 +2,7 @@
 from django.urls import path
 from users.views.preferences_views import UserPreferencesViewSet
 from users.views.settings_views import UserSettingsViewSet
-from users.views.user_views import CustomUserViewSet, SetUserTypeView
+from users.views.user_views import CustomUserViewSet, SetUserTypeView, me
 
 urlpatterns = [
     path("", CustomUserViewSet.as_view({"get": "list"}), name="user-list"),
@@ -39,4 +39,5 @@ urlpatterns = [
         SetUserTypeView.as_view({"post": "create", "get": "list"}),
         name="set-user-type",
     ),
+    path("me/", me, name="user-me"),
 ]

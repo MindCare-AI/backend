@@ -235,3 +235,22 @@ def register_user(request, format=None):
             status=status.HTTP_201_CREATED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    summary="Get Current User Profile",
+    description=(
+        "Retrieve the full profile of the currently authenticated user. "
+        "This includes details such as the user's type, preferences, settings, "
+        "and associated profiles (patient/therapist)."
+    ),
+    responses={200: UserSerializer},
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """
+    Retrieve current user's full information including user type.
+    """
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)

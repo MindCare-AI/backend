@@ -2,11 +2,11 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .profile import PatientProfileSerializer
-import logging
-from .profile import TherapistProfileSerializer
+from .profile import PatientProfileSerializer, TherapistProfileSerializer
 from .preferences import UserPreferencesSerializer
 from .settings import UserSettingsSerializer
+
+import logging
 
 logger = logging.getLogger(__name__)
 CustomUser = get_user_model()
@@ -71,9 +71,7 @@ class UserTypeSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     patient_profile = PatientProfileSerializer(source="patientprofile", read_only=True)
-    therapist_profile = TherapistProfileSerializer(
-        source="therapistprofile", read_only=True
-    )
+    therapist_profile = TherapistProfileSerializer(source="therapistprofile", read_only=True)
     preferences = UserPreferencesSerializer(read_only=True)
     settings = UserSettingsSerializer(read_only=True)
 
@@ -88,6 +86,8 @@ class UserSerializer(serializers.ModelSerializer):
             "date_of_birth",
             "preferences",
             "settings",
+            "patient_profile",
+            "therapist_profile",
         ]
         read_only_fields = ["id", "date_joined", "last_login"]
         extra_kwargs = {"password": {"write_only": True}}

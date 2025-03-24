@@ -71,7 +71,6 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             "license_number",
             "years_of_experience",
             "treatment_approaches",
-            "consultation_fee",
             "available_days",
             "license_expiry",
             "video_session_link",

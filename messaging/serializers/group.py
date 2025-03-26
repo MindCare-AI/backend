@@ -180,3 +180,9 @@ class GroupMessageSerializer(serializers.ModelSerializer):
                     safe_reactions[key] = value
             representation["reactions"] = safe_reactions
         return representation
+
+    def validate_message_type(self, value):
+        allowed = ['text', 'system']
+        if value not in allowed:
+            raise serializers.ValidationError("Invalid message type for group.")
+        return value

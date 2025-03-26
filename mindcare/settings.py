@@ -6,6 +6,7 @@ import os
 import json
 from datetime import timedelta
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -185,6 +186,8 @@ ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "MindCare - "
 
+# Generate a key once and copy it here. For example:
+MESSAGE_ENCRYPTION_KEY = os.environ.get("MESSAGE_ENCRYPTION_KEY", "nQrchvGhEZoM462cbnZ5gZ4WpsP_M3yjD5jrW6aQ3OA=")
 # Remove duplicate settings and keep only this adapter
 ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
 
@@ -307,8 +310,8 @@ REST_FRAMEWORK = {
         "user": "1000/day",
         "chatbot": "30/minute",
     },
-    "DEFAULT_PAGINATION_CLASS": "messaging.pagination.CustomMessagePagination",
-    "PAGE_SIZE": 20,
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",

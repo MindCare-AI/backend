@@ -18,6 +18,7 @@ from ..serializers.group import GroupConversationSerializer, GroupMessageSeriali
 from ..pagination import CustomMessagePagination
 from messaging.permissions import IsParticipantOrModerator
 from messaging.throttling import GroupMessageThrottle
+from ..services.firebase import push_message  # Add this import
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
 
 class GroupMessageViewSet(viewsets.ModelViewSet):
     serializer_class = GroupMessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsParticipantOrModerator]
     pagination_class = CustomMessagePagination
 
     def get_queryset(self):
@@ -246,29 +247,91 @@ class GroupMessageViewSet(viewsets.ModelViewSet):
             GroupMessage.objects.filter(conversation__participants=self.request.user)
             .select_related("sender", "conversation")
             .prefetch_related(
-                Prefetch("conversation__participants"), Prefetch("read_by")
+                Prefetch("conversation__participants"), 
+                Prefetch("read_by")
             )
             .order_by("-timestamp")
         )
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         try:
-            conversation_id = serializer.validated_data.get("conversation")
-            conversation = GroupConversation.objects.get(id=conversation_id.id)
+            # Log the incoming request data
+            logger.debug(f"Creating group message with data: {request.data}")
+            
+            # Validate the request data
+            serializer = self.get_serializer(data=request.data)
+            if not serializer.is_valid():
+                logger.error(f"Validation error: {serializer.errors}")
+                return Response(
+                    {"error": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get and verify conversation exists
+            conversation_id = request.data.get('conversation')
+            if not conversation_id:
+                return Response(
+                    {"error": "Conversation ID is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            if not conversation.participants.filter(id=self.request.user.id).exists():
-                raise ValidationError("You are not a participant in this conversation.")
+            try:
+                # Check if conversation exists and user is participant
+                conversation = GroupConversation.objects.select_related().get(
+                    id=conversation_id
+                )
+                if not conversation.participants.filter(id=request.user.id).exists():
+                    return Response(
+                        {"error": "You are not a participant in this conversation"},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                
+                # Create the message
+                message = serializer.save(
+                    sender=request.user,
+                    conversation=conversation
+                )
+                logger.info(f"Created group message {message.id} in conversation {conversation.id}")
 
-            message = serializer.save(
-                sender=self.request.user, conversation=conversation
+                # Prepare and push Firebase notification
+                try:
+                    message_data = {
+                        'id': str(message.id),
+                        'content': message.content,
+                        'sender': message.sender.id,
+                        'timestamp': message.timestamp.isoformat(),
+                        'conversation_id': message.conversation.id,
+                        'message_type': getattr(message, "message_type", "text"),
+                    }
+                    push_message(conversation.id, message_data)
+                except Exception as e:
+                    logger.error(f"Failed to push Firebase notification: {str(e)}")
+                    # Continue execution even if push notification fails
+                
+                return Response(
+                    serializer.data,
+                    status=status.HTTP_201_CREATED
+                )
+
+            except GroupConversation.DoesNotExist:
+                logger.error(f"Group conversation {conversation_id} not found")
+                return Response(
+                    {"error": f"Group conversation {conversation_id} not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        except ValidationError as e:
+            logger.error(f"Validation error creating message: {str(e)}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            return message
-
-        except GroupConversation.DoesNotExist:
-            raise ValidationError(f"Conversation {conversation_id} does not exist.")
         except Exception as e:
-            logger.error(f"Error creating message: {str(e)}")
-            raise ValidationError(str(e))
+            logger.error(f"Unexpected error creating message: {str(e)}")
+            return Response(
+                {"error": "An unexpected error occurred", "detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()

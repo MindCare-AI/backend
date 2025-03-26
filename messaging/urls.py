@@ -53,16 +53,26 @@ urlpatterns = [
         one_to_one_message_detail,
         name="one-to-one-message-detail",
     ),
-    # New endpoints for One-to-One Messaging
+    # One-to-One Message Actions
+    path(
+        "one_to_one/messages/<int:pk>/reactions/",
+        OneToOneMessageViewSet.as_view({"post": "add_reaction", "delete": "remove_reaction"}),
+        name="one-to-one-message-reactions",
+    ),
+    path(
+        "one_to_one/messages/<int:pk>/edit_history/",
+        OneToOneMessageViewSet.as_view({"get": "edit_history"}),
+        name="one-to-one-message-edit-history",
+    ),
     path(
         "one_to_one/<int:pk>/typing/",
         OneToOneConversationViewSet.as_view({"post": "typing"}),
-        name="typing",
+        name="one-to-one-typing",
     ),
     path(
         "one_to_one/<int:pk>/search/",
         OneToOneConversationViewSet.as_view({"get": "search"}),
-        name="search",
+        name="one-to-one-search",
     ),
     # Group Messaging
     path("groups/", group_conversation_list, name="group-conversation-list"),
@@ -72,6 +82,17 @@ urlpatterns = [
     path("groups/messages/", group_message_list, name="group-message-list"),
     path(
         "groups/messages/<int:pk>/", group_message_detail, name="group-message-detail"
+    ),
+    # Group Message Actions
+    path(
+        "groups/messages/<int:pk>/reactions/",
+        GroupMessageViewSet.as_view({"post": "add_reaction", "delete": "remove_reaction"}),
+        name="group-message-reactions",
+    ),
+    path(
+        "groups/messages/<int:pk>/edit_history/",
+        GroupMessageViewSet.as_view({"get": "edit_history"}),
+        name="group-message-edit-history",
     ),
     path(
         "groups/anonymous/",

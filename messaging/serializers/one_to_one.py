@@ -1,6 +1,7 @@
 # messaging/serializers/one_to_one.py
 from rest_framework import serializers
 from ..models.one_to_one import OneToOneConversation, OneToOneMessage
+from django.utils import timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,6 +11,7 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
     unread_count = serializers.IntegerField(read_only=True)
     last_message = serializers.SerializerMethodField()
     other_participant = serializers.SerializerMethodField()
+    other_user_name = serializers.SerializerMethodField()  # New field
 
     class Meta:
         model = OneToOneConversation
@@ -20,6 +22,7 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
             "unread_count",
             "last_message",
             "other_participant",
+            "other_user_name",  # Include it in the serializer output
         ]
         read_only_fields = ["created_at", "unread_count"]
 
@@ -103,10 +106,20 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
             logger.error(f"Error getting other participant: {str(e)}")
             return None
 
+    def get_other_user_name(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return None
+        other_user = obj.participants.exclude(id=request.user.id).first()
+        if other_user:
+            return other_user.get_full_name() or other_user.username
+        return None
+
 
 class OneToOneMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.username", read_only=True)
     is_edited = serializers.BooleanField(read_only=True)
+    message_type = serializers.CharField(required=False, default="text")  # New field
     read_by = serializers.SerializerMethodField()
     reactions = serializers.JSONField(required=False, allow_null=False, default=dict)
 
@@ -119,6 +132,7 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
             "sender_name",
             "timestamp",
             "conversation",
+            "message_type",  # Include message_type in the output
             "reactions",
             "is_edited",
             "read_by",
@@ -152,6 +166,52 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
                 )
 
         return value
+
+    def validate_reaction(self, value):
+        """Validate a single reaction"""
+        valid_reactions = {'like', 'heart', 'smile', 'thumbsup'}
+        
+        if not isinstance(value, str):
+            raise serializers.ValidationError("Reaction must be a string")
+            
+        if value not in valid_reactions:
+            raise serializers.ValidationError(
+                f"Invalid reaction. Must be one of: {', '.join(valid_reactions)}"
+            )
+            
+        return value
+    
+    def add_reaction(self, user, reaction_type):
+        """Add or update a reaction"""
+        # Validate reaction
+        self.validate_reaction(reaction_type)
+        
+        # Get current reactions or initialize empty dict
+        reactions = self.validated_data.get('reactions', {})
+        
+        # Add/update user's reaction
+        reactions[str(user.id)] = {
+            'type': reaction_type,
+            'timestamp': timezone.now().isoformat(),
+            'user': {
+                'id': user.id,
+                'name': user.get_full_name() or user.username
+            }
+        }
+        
+        self.validated_data['reactions'] = reactions
+        return reactions
+    
+    def remove_reaction(self, user):
+        """Remove a user's reaction"""
+        reactions = self.validated_data.get('reactions', {})
+        user_id = str(user.id)
+        
+        if user_id in reactions:
+            del reactions[user_id]
+            self.validated_data['reactions'] = reactions
+            
+        return reactions
 
     def validate_conversation(self, value):
         """Validate conversation access"""

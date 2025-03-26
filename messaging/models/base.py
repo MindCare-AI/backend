@@ -69,7 +69,8 @@ class BaseMessage(models.Model):
         null=True,
         related_name="%(class)s_edited_messages",
     )
-    edit_history = models.JSONField(default=list)  # Store previous versions
+    # -- Removed redundant edit_history JSONField --
+    # edit_history = models.JSONField(default=list)  
 
     # Soft deletion fields
     deleted = models.BooleanField(default=False)
@@ -122,22 +123,17 @@ class BaseMessage(models.Model):
     def edit_message(self, new_content: str, edited_by_user):
         """Edit message content with version tracking"""
         try:
-            # Create edit history entry
             MessageEditHistory.objects.create(
                 content_type=ContentType.objects.get_for_model(self),
                 object_id=self.id,
                 previous_content=self.content,
                 edited_by=edited_by_user,
             )
-
-            # Update message
             self.content = new_content
             self.edited = True
             self.edited_at = timezone.now()
             self.edited_by = edited_by_user
             self.save()
-
-            logger.info(f"Message {self.id} edited by user {edited_by_user.id}")
             return True
         except Exception as e:
             logger.error(f"Error editing message {self.id}: {str(e)}")

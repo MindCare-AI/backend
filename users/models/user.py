@@ -27,7 +27,6 @@ class CustomUser(AbstractUser):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     date_of_birth = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
-    last_mood_checkin = models.DateTimeField(blank=True, null=True)
     crisis_alert_enabled = models.BooleanField(default=True)
     passcode_enabled = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)

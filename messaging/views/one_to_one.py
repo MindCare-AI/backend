@@ -9,6 +9,8 @@ from rest_framework.exceptions import ValidationError
 from django.db.models import Count, Max, Q, Prefetch
 from django.utils import timezone
 from django.conf import settings
+from ..mixins.edit_history import EditHistoryMixin
+from ..mixins.reactions import ReactionMixin
 
 # Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
 # • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
@@ -22,10 +24,14 @@ from ..serializers.one_to_one import (
 )
 
 # New corrected import
-from notifications.services import UnifiedNotificationService
+from notifications.services import UnifiedNotificationService  # Adjust the path if necessary
+from ..services.firebase import push_message  # <-- Added import
 import logging
+from django.contrib.auth import get_user_model
+from rest_framework import status
 
 logger = logging.getLogger(__name__)
+
 
 
 @extend_schema_view(
@@ -256,6 +262,38 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
         validated_participants.append(user)
         serializer.save(participants=validated_participants)
 
+    def create(self, request, *args, **kwargs):
+        """
+        Create a one-to-one conversation.
+        Expects a payload with 'participant_id' for the second user.
+        """
+        other_participant_id = request.data.get("participant_id")
+        if not other_participant_id:
+            return Response(
+                {"error": "Participant ID is required for one-to-one conversations."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            User = get_user_model()
+            other_participant = User.objects.get(id=other_participant_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "The specified participant does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Check if a conversation already exists between these two users.
+        conversation = (
+            self.queryset.filter(participants=request.user)
+            .filter(participants=other_participant)
+            .first()
+        )
+        if conversation is None:
+            conversation = OneToOneConversation.objects.create()
+            conversation.participants.add(request.user, other_participant)
+        serializer = self.get_serializer(conversation)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -269,7 +307,9 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
         tags=["One-to-One Message"],
     ),
 )
-class OneToOneMessageViewSet(viewsets.ModelViewSet):
+
+
+class OneToOneMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet):
     queryset = OneToOneMessage.objects.all()
     serializer_class = OneToOneMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -281,30 +321,41 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            conversation_id = serializer.validated_data.get("conversation")
-            if conversation_id:
-                try:
-                    conversation = OneToOneConversation.objects.get(
-                        id=conversation_id.id, participants=request.user
-                    )
-                except OneToOneConversation.DoesNotExist:
-                    return Response(
-                        {
-                            "detail": "Conversation not found or you are not a participant."
-                        },
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response(
-                serializer.data, status=status.HTTP_201_CREATED, headers=headers
+            
+            # Get and verify conversation exists
+            conversation_id = request.data.get('conversation')
+            try:
+                conversation = OneToOneConversation.objects.get(
+                    id=conversation_id,
+                    participants=request.user
+                )
+            except OneToOneConversation.DoesNotExist:
+                return Response(
+                    {"error": f"Conversation {conversation_id} not found or you are not a participant."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Create message
+            message = serializer.save(
+                sender=request.user,
+                conversation=conversation
             )
-        except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+
             return Response(
-                {"detail": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+
+        except ValidationError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error creating message: {str(e)}")
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def perform_create(self, serializer):
@@ -333,20 +384,21 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
 
                     notification = notification_service.send_notification(
                         user=recipient,
+                        notification_type_name="new_message",
+                        title="New Message",
+                        message=f"You have a new message: {instance.content[:100]}{'...' if len(instance.content) > 100 else ''}",
                         metadata={
                             "conversation_id": str(conversation.id),
                             "message_id": str(instance.id),
                             "sender_id": str(self.request.user.id),
-                            "message_preview": instance.content[:100]
-                            + ("..." if len(instance.content) > 100 else ""),
+                            "message_preview": instance.content[:100] + ("..." if len(instance.content) > 100 else ""),
                             "category": "message",
                             "link": f"/conversations/{conversation.id}/",
-                            "sender_name": self.request.user.get_full_name()
-                            or self.request.user.username,
+                            "sender_name": self.request.user.get_full_name() or self.request.user.username,
                         },
-                        send_email=True,  # Changed to True
+                        send_email=True,
                         send_in_app=True,
-                        priority="high",  # Changed to high
+                        priority="high",
                         content_object=instance,
                     )
 
@@ -366,6 +418,17 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
                     )
                     # Don't raise the error - message was still created successfully
 
+            # Prepare message data and push via Firebase.
+            message_data = {
+                'id': str(instance.id),
+                'content': instance.content,
+                'sender': instance.sender.id,
+                'timestamp': instance.timestamp.isoformat(),
+                'conversation_id': instance.conversation.id,
+                'message_type': getattr(instance, "message_type", "text"),
+            }
+            push_message(conversation.id, message_data)
+
             return instance
 
         except IntegrityError as e:
@@ -379,9 +442,7 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
             raise ValidationError(f"An unexpected error occurred: {str(e)}")
 
     def update(self, request, *args, **kwargs):
-        """
-        Update message with validation and tracking
-        """
+        """Update message with validation and tracking"""
         try:
             instance = self.get_object()
 
@@ -400,43 +461,43 @@ class OneToOneMessageViewSet(viewsets.ModelViewSet):
                 )
 
             # Check edit time window
-            edit_window = getattr(
-                settings, "MESSAGE_EDIT_WINDOW", 3600
-            )  # 1 hour default
+            edit_window = getattr(settings, "MESSAGE_EDIT_WINDOW", 3600)  # 1 hour default
             if (timezone.now() - instance.timestamp).seconds > edit_window:
                 return Response(
-                    {
-                        "error": f"Messages can only be edited within {edit_window//60} minutes"
-                    },
+                    {"error": f"Messages can only be edited within {edit_window//60} minutes"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Store previous version
-            if not instance.edit_history:
+            # Initialize edit_history if None
+            if instance.edit_history is None:
                 instance.edit_history = []
 
-            instance.edit_history.append(
-                {
-                    "content": instance.content,
-                    "edited_at": instance.edited_at.isoformat()
-                    if instance.edited_at
-                    else None,
-                    "edited_by": instance.edited_by.id if instance.edited_by else None,
-                }
-            )
+            # Store previous version
+            edit_record = {
+                "content": instance.content,
+                "edited_at": instance.edited_at.isoformat() if instance.edited_at else None,
+                "edited_by": instance.edited_by.id if instance.edited_by else None,
+            }
+            
+            current_history = instance.edit_history or []
+            current_history.append(edit_record)
+            instance.edit_history = current_history
 
             # Update message
-            response = super().update(request, *args, **kwargs)
+            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
 
-            if response.status_code == status.HTTP_200_OK:
-                instance.edited = True
-                instance.edited_at = timezone.now()
-                instance.edited_by = request.user
-                instance.save()
+            # Update edit metadata
+            instance.edited = True
+            instance.edited_at = timezone.now()
+            instance.edited_by = request.user
+            instance.save()
 
-            return response
+            return Response(serializer.data)
 
         except Exception as e:
+            logger.error(f"Failed to update message: {str(e)}", exc_info=True)
             return Response(
                 {"error": f"Failed to update message: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

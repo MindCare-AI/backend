@@ -3,7 +3,7 @@ from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters import rest_framework as django_filters
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiResponse
 from patient.models.patient_profile import PatientProfile
 from patient.serializers.patient_profile import PatientProfileSerializer
 from patient.filters.patient_profile_filters import PatientProfileFilter
@@ -16,21 +16,23 @@ logger = logging.getLogger(__name__)
 
 @extend_schema_view(
     list=extend_schema(
-        description="Get patient profile information",
-        summary="Get Patient Profile",
+        description="Retrieve list of patient profiles.",
+        summary="List Patient Profiles",
         tags=["Patient Profile"],
     ),
     retrieve=extend_schema(
-        description="Get detailed patient profile", tags=["Patient Profiles"]
+        description="Retrieve detailed patient profile information.",
+        summary="Retrieve Patient Profile",
+        tags=["Patient Profile"],
     ),
     update=extend_schema(
-        description="Update patient profile information",
+        description="Update patient profile information.",
         summary="Update Patient Profile",
         tags=["Patient Profile"],
     ),
     partial_update=extend_schema(
-        description="Partially update profile information",
-        summary="Patch Profile",
+        description="Partially update patient profile fields.",
+        summary="Patch Patient Profile",
         tags=["Patient Profile"],
     ),
 )
@@ -55,6 +57,12 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
             user=self.request.user
         )
 
+    @extend_schema(
+        description="Retrieve appointment details from a patient profile.",
+        summary="Get Appointments",
+        responses=OpenApiResponse(response=PatientProfileSerializer),
+        tags=["Patient Profile"],
+    )
     @action(detail=True, methods=["get"])
     def appointments(self, request, unique_id=None):
         profile = self.get_object()
@@ -66,11 +74,25 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @extend_schema(
+        description="Upload a file associated with the patient profile.",
+        summary="Upload File",
+        request=OpenApiParameter(name="file", location="form", type="file", required=True),
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string"},
+                    "file_id": {"type": "integer"}
+                }
+            }
+        },
+        tags=["Patient Profile"],
+    )
     @action(detail=True, methods=["post"])
     def upload_file(self, request, unique_id=None):
         patient_profile = request.user.patientprofile
         uploaded_file = request.FILES.get("file")
-
         media_file = MediaFile.objects.create(
             file=uploaded_file,
             media_type="document",

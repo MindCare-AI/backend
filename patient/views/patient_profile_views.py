@@ -93,6 +93,8 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
     def upload_file(self, request, unique_id=None):
         patient_profile = request.user.patientprofile
         uploaded_file = request.FILES.get("file")
+        if not uploaded_file:  # validate file presence
+            return Response({"error": "No file uploaded"}, status=400)
         media_file = MediaFile.objects.create(
             file=uploaded_file,
             media_type="document",

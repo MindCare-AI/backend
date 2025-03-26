@@ -358,3 +358,84 @@ class GroupMessageViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)
+
+    @extend_schema(exclude=True)
+    @action(detail=True, methods=["get"])
+    def edit_history(self, request, pk=None):
+        # Placeholder implementation for edit history.
+        return Response(
+            {"detail": "Edit history not implemented."},
+            status=status.HTTP_501_NOT_IMPLEMENTED
+        )
+
+    @extend_schema(
+        description="Add a reaction to a group message.",
+        summary="Add Reaction",
+        tags=["Group Message"],
+    )
+    @action(detail=True, methods=["post"])
+    def add_reaction(self, request, pk=None):
+        """Add a reaction to a message."""
+        try:
+            message = self.get_object()
+            reaction = request.data.get("reaction")
+
+            if not reaction:
+                return Response(
+                    {"error": "Reaction is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Assuming a `reactions` field exists on the message model
+            message.reactions.create(user=request.user, reaction=reaction)
+            return Response(
+                {"message": "Reaction added successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.error(f"Error adding reaction: {str(e)}")
+            return Response(
+                {"error": "Failed to add reaction."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        description="Remove a reaction from a group message.",
+        summary="Remove Reaction",
+        tags=["Group Message"],
+    )
+    @action(detail=True, methods=["post"])
+    def remove_reaction(self, request, pk=None):
+        """Remove a reaction from a message."""
+        try:
+            message = self.get_object()
+            reaction = request.data.get("reaction")
+
+            if not reaction:
+                return Response(
+                    {"error": "Reaction is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Assuming a `reactions` field exists on the message model
+            reaction_instance = message.reactions.filter(
+                user=request.user, reaction=reaction
+            ).first()
+
+            if not reaction_instance:
+                return Response(
+                    {"error": "Reaction not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            reaction_instance.delete()
+            return Response(
+                {"message": "Reaction removed successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.error(f"Error removing reaction: {str(e)}")
+            return Response(
+                {"error": "Failed to remove reaction."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -1,5 +1,4 @@
 # messaging/views/one_to_one.py
-# messaging/views/one_to_one.py
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action

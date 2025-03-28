@@ -1,27 +1,42 @@
+#messaging/mixins/edit_history.py
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from django.contrib.contenttypes.models import ContentType
+from drf_spectacular.utils import extend_schema
+from ..models import MessageEditHistory
 import logging
 
 logger = logging.getLogger(__name__)
 
 class EditHistoryMixin:
-    """Mixin to add edit history functionality to message viewsets"""
+    """Mixin to add ArrayField-based edit history functionality to message viewsets"""
     
+    @extend_schema(
+        summary="Get Edit History",
+        description="Retrieves the edit history of a message including current content and an array of previous edit entries.",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "current": {"type": "string"},
+                    "history": {
+                        "type": "array",
+                        "items": {"type": "object"}
+                    }
+                }
+            }
+        }
+    )
     @action(detail=True, methods=['get'])
     def edit_history(self, request, pk=None):
-        """Get the edit history of a message"""
+        """Get the edit history of a message using its ArrayField"""
         try:
             message = self.get_object()
             return Response({
                 "current": message.content,
-                "history": message.edit_history or [],
-                "edited_at": message.edited_at,
-                "edited_by": {
-                    "id": message.edited_by.id,
-                    "name": message.edited_by.get_full_name()
-                } if message.edited_by else None
+                "history": message.edit_history  # Assuming this is an ArrayField containing edit history objects
             })
         except Exception as e:
             logger.error(f"Error fetching edit history: {str(e)}", exc_info=True)
@@ -31,29 +46,27 @@ class EditHistoryMixin:
             )
 
     def perform_update(self, serializer):
-        """Override perform_update to track edit history"""
         instance = serializer.instance
-        
-        # Store current version in edit history
-        if instance.content != serializer.validated_data.get('content'):
-            history_entry = {
-                "content": instance.content,
-                "edited_at": instance.edited_at.isoformat() if instance.edited_at else None,
-                "edited_by": {
-                    "id": instance.edited_by.id,
-                    "name": instance.edited_by.get_full_name()
-                } if instance.edited_by else None
+        new_content = serializer.validated_data.get('content', instance.content)
+
+        if instance.content != new_content:
+            # Initialize edit_history if needed
+            if instance.edit_history is None:
+                instance.edit_history = []
+
+            # Add detailed edit record
+            edit_entry = {
+                'previous_content': instance.content,
+                'edited_at': timezone.now().isoformat(),
+                'edited_by': {
+                    'id': str(self.request.user.id),
+                    'username': self.request.user.username
+                }
             }
             
-            # Initialize edit_history if None
-            if not instance.edit_history:
-                instance.edit_history = []
-            
-            instance.edit_history.append(history_entry)
-            
-            # Update edit metadata
+            instance.edit_history.append(edit_entry)
             instance.edited = True
             instance.edited_at = timezone.now()
             instance.edited_by = self.request.user
-            
+
         serializer.save()

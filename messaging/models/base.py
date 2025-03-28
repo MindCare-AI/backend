@@ -60,7 +60,7 @@ class BaseMessage(models.Model):
     )
     reactions = models.JSONField(default=dict)
 
-    # New fields for message tracking
+    # Edit tracking fields
     edited = models.BooleanField(default=False)
     edited_at = models.DateTimeField(null=True, blank=True)
     edited_by = models.ForeignKey(
@@ -69,8 +69,6 @@ class BaseMessage(models.Model):
         null=True,
         related_name="%(class)s_edited_messages",
     )
-    # -- Removed redundant edit_history JSONField --
-    # edit_history = models.JSONField(default=list)  
 
     # Soft deletion fields
     deleted = models.BooleanField(default=False)
@@ -141,12 +139,28 @@ class BaseMessage(models.Model):
 
     def add_reaction(self, user, reaction_type: str):
         """Add a reaction to the message"""
+        if not self.reactions:
+            self.reactions = {}
+        
         if reaction_type not in self.reactions:
             self.reactions[reaction_type] = []
 
         if user.id not in self.reactions[reaction_type]:
             self.reactions[reaction_type].append(user.id)
             self.save()
+
+    def remove_reaction(self, user):
+        """Remove all reactions by a user"""
+        if not self.reactions:
+            return
+
+        for reaction_type, users in list(self.reactions.items()):
+            if user.id in users:
+                users.remove(user.id)
+                if not users:  # Remove empty reaction types
+                    del self.reactions[reaction_type]
+        
+        self.save()
 
 
 class MessageEditHistory(models.Model):

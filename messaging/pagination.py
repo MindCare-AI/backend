@@ -68,8 +68,19 @@ class CustomMessagePagination(CursorPagination):
             'next': self.get_next_link(),
             'previous': self.get_previous_link(),
             'count': self.page.paginator.count,
-            'results': data
+            'results': data,
+            'next_cursor': self.get_next_cursor()
         })
+
+    def get_next_cursor(self):
+        try:
+            if self.page and self.page.has_next:
+                last_item = self.page[-1]
+                return str(last_item.id)
+            return None
+        except Exception as e:
+            logger.error(f"Error getting next cursor: {str(e)}")
+            return None
 
     def get_paginated_response_schema(self, schema):
         return {

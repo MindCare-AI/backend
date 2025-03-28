@@ -62,12 +62,15 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     throttle_classes = [GroupMessageThrottle]
 
     def get_queryset(self):
-        """Filter conversations and optimize queries"""
+        user = self.request.user
+        if not user.is_authenticated:
+            return self.queryset.none()
         return (
-            self.queryset.filter(participants=self.request.user)
+            self.queryset.filter(participants=user)
             .prefetch_related("participants", "moderators")
             .annotate(
-                participant_count=Count("participants"), message_count=Count("messages")
+                participant_count=Count("participants"),
+                message_count=Count("messages")
             )
         )
 
@@ -233,8 +236,24 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     @extend_schema(exclude=True)
     @action(detail=False, methods=["post"])
     def create_anonymous(self, request):
-        # ... your logic here ...
-        return Response({"status": "success"})
+        """
+        Create an anonymous group conversation. If a name is not provided, a default
+        anonymous name is set and the conversation is marked as private.
+        """
+        data = request.data.copy()
+        # Set default name if not provided
+        if not data.get("name", "").strip():
+            data["name"] = "Anonymous Conversation"
+        # Force conversation to be private
+        data["is_private"] = True
+        # If participants list is not provided, set it as empty (perform_create will add request.user)
+        if "participants" not in data:
+            data["participants"] = []
+            
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        conversation = self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class GroupMessageViewSet(viewsets.ModelViewSet):

@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 import logging
 
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -18,7 +18,8 @@ from ..serializers.group import GroupConversationSerializer, GroupMessageSeriali
 from ..pagination import CustomMessagePagination
 from messaging.permissions import IsParticipantOrModerator
 from messaging.throttling import GroupMessageThrottle
-from ..services.firebase import push_message  # Add this import
+from ..mixins.edit_history import EditHistoryMixin
+from ..mixins.reactions import ReactionMixin  # Add this import
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +70,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             self.queryset.filter(participants=user)
             .prefetch_related("participants", "moderators")
             .annotate(
-                participant_count=Count("participants"),
-                message_count=Count("messages")
+                participant_count=Count("participants"), message_count=Count("messages")
             )
         )
 
@@ -147,7 +147,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def add_participant(self, request, pk=None):
-        """Add participant to group (notifications removed)"""
+        """Add participant to group"""
         try:
             group = self.get_object()
 
@@ -161,10 +161,21 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             user_id = request.data.get("user_id")
             user = get_object_or_404(get_user_model(), id=user_id)
 
-            if group.participants.count() >= settings.MAX_PARTICIPANTS_PER_GROUP:
+            # Fix: Use the correct settings reference
+            if (
+                group.participants.count()
+                >= settings.GROUP_SETTINGS["MAX_PARTICIPANTS_PER_GROUP"]
+            ):
                 return Response(
                     {"error": "Maximum participant limit reached"},
                     status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check if user is already a participant
+            if group.participants.filter(id=user_id).exists():
+                return Response(
+                    {"message": f"{user.username} is already a member of this group"},
+                    status=status.HTTP_200_OK,
                 )
 
             group.participants.add(user)
@@ -249,212 +260,134 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         # If participants list is not provided, set it as empty (perform_create will add request.user)
         if "participants" not in data:
             data["participants"] = []
-            
+
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         conversation = self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class GroupMessageViewSet(viewsets.ModelViewSet):
+class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet for managing group messages
+    """
+
+    queryset = GroupMessage.objects.all()
     serializer_class = GroupMessageSerializer
     permission_classes = [IsParticipantOrModerator]
     pagination_class = CustomMessagePagination
 
     def get_queryset(self):
-        return (
-            GroupMessage.objects.filter(conversation__participants=self.request.user)
+        user = self.request.user
+
+        # Get conversation filter from query params for list view
+        conversation_id = self.request.query_params.get("conversation")
+
+        queryset = (
+            GroupMessage.objects.filter(conversation__participants=user)
             .select_related("sender", "conversation")
             .prefetch_related(
-                Prefetch("conversation__participants"), 
-                Prefetch("read_by")
+                Prefetch("conversation__participants"), Prefetch("read_by")
             )
-            .order_by("-timestamp")
         )
+
+        # Filter by conversation ID if provided in query params
+        if conversation_id:
+            queryset = queryset.filter(conversation_id=conversation_id)
+
+        return queryset.order_by("-timestamp")
 
     def create(self, request, *args, **kwargs):
+        """Create a new group message"""
         try:
-            # Log the incoming request data
-            logger.debug(f"Creating group message with data: {request.data}")
-            
-            # Validate the request data
-            serializer = self.get_serializer(data=request.data)
-            if not serializer.is_valid():
-                logger.error(f"Validation error: {serializer.errors}")
-                return Response(
-                    {"error": serializer.errors},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Get and verify conversation exists
-            conversation_id = request.data.get('conversation')
-            if not conversation_id:
-                return Response(
-                    {"error": "Conversation ID is required"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # Add sender to request data
+            request.data.update({"sender": request.user.id})
 
-            try:
-                # Check if conversation exists and user is participant
-                conversation = GroupConversation.objects.select_related().get(
-                    id=conversation_id
-                )
-                if not conversation.participants.filter(id=request.user.id).exists():
-                    return Response(
-                        {"error": "You are not a participant in this conversation"},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-                
-                # Create the message
-                message = serializer.save(
-                    sender=request.user,
-                    conversation=conversation
-                )
-                logger.info(f"Created group message {message.id} in conversation {conversation.id}")
+            # Create message using regular create flow
+            return super().create(request, *args, **kwargs)
 
-                # Prepare and push Firebase notification
-                try:
-                    message_data = {
-                        'id': str(message.id),
-                        'content': message.content,
-                        'sender': message.sender.id,
-                        'timestamp': message.timestamp.isoformat(),
-                        'conversation_id': message.conversation.id,
-                        'message_type': getattr(message, "message_type", "text"),
-                    }
-                    push_message(conversation.id, message_data)
-                except Exception as e:
-                    logger.error(f"Failed to push Firebase notification: {str(e)}")
-                    # Continue execution even if push notification fails
-                
-                return Response(
-                    serializer.data,
-                    status=status.HTTP_201_CREATED
-                )
-
-            except GroupConversation.DoesNotExist:
-                logger.error(f"Group conversation {conversation_id} not found")
-                return Response(
-                    {"error": f"Group conversation {conversation_id} not found"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-        except ValidationError as e:
-            logger.error(f"Validation error creating message: {str(e)}")
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         except Exception as e:
-            logger.error(f"Unexpected error creating message: {str(e)}")
+            logger.error(f"Error creating group message: {str(e)}", exc_info=True)
             return Response(
-                {"error": "An unexpected error occurred", "detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if (
-            instance.sender != request.user
-            and not instance.conversation.moderators.filter(id=request.user.id).exists()
-        ):
-            return Response(
-                {"detail": "You do not have permission to edit this message."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        response = super().update(request, *args, **kwargs)
-        return response
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if (
-            instance.sender != request.user
-            and not instance.conversation.moderators.filter(id=request.user.id).exists()
-        ):
-            return Response(
-                {"detail": "You do not have permission to delete this message."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        return super().destroy(request, *args, **kwargs)
-
-    @extend_schema(exclude=True)
-    @action(detail=True, methods=["get"])
-    def edit_history(self, request, pk=None):
-        # Placeholder implementation for edit history.
-        return Response(
-            {"detail": "Edit history not implemented."},
-            status=status.HTTP_501_NOT_IMPLEMENTED
-        )
-
-    @extend_schema(
-        description="Add a reaction to a group message.",
-        summary="Add Reaction",
-        tags=["Group Message"],
-    )
-    @action(detail=True, methods=["post"])
-    def add_reaction(self, request, pk=None):
-        """Add a reaction to a message."""
-        try:
-            message = self.get_object()
-            reaction = request.data.get("reaction")
-
-            if not reaction:
-                return Response(
-                    {"error": "Reaction is required."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Assuming a `reactions` field exists on the message model
-            message.reactions.create(user=request.user, reaction=reaction)
-            return Response(
-                {"message": "Reaction added successfully."},
-                status=status.HTTP_200_OK,
-            )
-        except Exception as e:
-            logger.error(f"Error adding reaction: {str(e)}")
-            return Response(
-                {"error": "Failed to add reaction."},
+                {"error": f"Failed to create message: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @extend_schema(
-        description="Remove a reaction from a group message.",
-        summary="Remove Reaction",
-        tags=["Group Message"],
-    )
-    @action(detail=True, methods=["post"])
-    def remove_reaction(self, request, pk=None):
-        """Remove a reaction from a message."""
+    def perform_create(self, serializer):
+        """Set sender when creating a message"""
+        serializer.save(sender=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        """Update an existing group message"""
         try:
-            message = self.get_object()
-            reaction = request.data.get("reaction")
+            instance = self.get_object()
 
-            if not reaction:
+            # Check if user is message owner
+            if instance.sender != request.user:
                 return Response(
-                    {"error": "Reaction is required."},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"error": "You can only edit your own messages"},
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
-            # Assuming a `reactions` field exists on the message model
-            reaction_instance = message.reactions.filter(
-                user=request.user, reaction=reaction
-            ).first()
+            return super().update(request, *args, **kwargs)
 
-            if not reaction_instance:
-                return Response(
-                    {"error": "Reaction not found."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            reaction_instance.delete()
-            return Response(
-                {"message": "Reaction removed successfully."},
-                status=status.HTTP_200_OK,
-            )
         except Exception as e:
-            logger.error(f"Error removing reaction: {str(e)}")
+            logger.error(f"Error updating group message: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Failed to remove reaction."},
+                {"error": f"Failed to update message: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete a group message"""
+        try:
+            instance = self.get_object()
+
+            # Check if user has permission to delete
+            if (
+                instance.sender != request.user
+                and not instance.conversation.moderators.filter(
+                    id=request.user.id
+                ).exists()
+            ):
+                return Response(
+                    {"error": "You do not have permission to delete this message."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            return super().destroy(request, *args, **kwargs)
+
+        except Exception as e:
+            logger.error(f"Error deleting group message: {str(e)}", exc_info=True)
+            return Response(
+                {"error": f"Failed to delete message: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def list(self, request, *args, **kwargs):
+        """List group messages with proper pagination"""
+        try:
+            # Get conversation filter from query params
+            conversation_id = request.query_params.get("conversation")
+
+            # Filter queryset by conversation if provided
+            queryset = self.filter_queryset(self.get_queryset())
+            if conversation_id:
+                queryset = queryset.filter(conversation_id=conversation_id)
+
+            # Apply pagination
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            # Fall back to non-paginated response
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+
+        except Exception as e:
+            logger.error(f"Error listing group messages: {str(e)}", exc_info=True)
+            return Response(
+                {"error": f"Failed to list messages: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

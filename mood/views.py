@@ -1,10 +1,10 @@
-#mood/views.py
+# mood/views.py
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from mood.models import MoodLog
 from mood.serializers import MoodLogSerializer
-from rest_framework.exceptions import ValidationError
+
 
 @extend_schema_view(
     list=extend_schema(

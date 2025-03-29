@@ -118,19 +118,38 @@ print("DEBUG LOG: DB_HOST from .env =>", os.getenv("DB_HOST"))
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT"),
-        "OPTIONS": json.loads(os.getenv("OPTIONS", "{}").replace("'", '"')),
+# Database Configuration with Local/Cloud Toggle
+USE_CLOUD = os.getenv("USE_CLOUD", "True").lower() in ("true", "yes", "1", "t")
+
+if USE_CLOUD:
+    # Cloud Database (Neon)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST"),
+            "PORT": os.getenv("DB_PORT"),
+            "OPTIONS": json.loads(os.getenv("OPTIONS", "{}").replace("'", '"')),
+        }
     }
-}
-# Password validation
-# https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
+    print("Using CLOUD database on Neon")
+else:
+    # Local Database
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("LOCAL_DB_NAME", "mindcare_local"),
+            "USER": os.getenv("LOCAL_DB_USER", "postgres"),
+            "PASSWORD": os.getenv("LOCAL_DB_PASSWORD", "postgres"),
+            "HOST": os.getenv("LOCAL_DB_HOST", "localhost"),
+            "PORT": os.getenv("LOCAL_DB_PORT", "5432"),
+            "OPTIONS": {},
+        }
+    }
+    print("Using LOCAL database")
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -187,7 +206,9 @@ ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 3
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "MindCare - "
 
 # Generate a key once and copy it here. For example:
-MESSAGE_ENCRYPTION_KEY = os.environ.get("MESSAGE_ENCRYPTION_KEY", "nQrchvGhEZoM462cbnZ5gZ4WpsP_M3yjD5jrW6aQ3OA=")
+MESSAGE_ENCRYPTION_KEY = os.environ.get(
+    "MESSAGE_ENCRYPTION_KEY", "nQrchvGhEZoM462cbnZ5gZ4WpsP_M3yjD5jrW6aQ3OA="
+)
 # Remove duplicate settings and keep only this adapter
 ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
 
@@ -306,9 +327,9 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/day",
-        "user": "1000/day",
-        "chatbot": "30/minute",
+        "anon": "1000/day",
+        "user": "2000/day",  # Increased from 1000/day
+        "chatbot": "60/minute",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
@@ -500,26 +521,6 @@ LOGGING = {
     },
 }
 
-# Firebase configuration for hybrid SQL/NoSQL messaging
-try:
-    # Update the path if needed—here we assume the file is in messaging/firebase_credentials.json
-    FIREBASE_CONFIG_PATH = os.getenv(
-        "FIREBASE_CONFIG_PATH",
-        str(BASE_DIR / "messaging" / "firebase_credentials.json"),
-    )
-    with open(FIREBASE_CONFIG_PATH, "r") as f:
-        FIREBASE_CONFIG = json.load(f)
-except Exception as e:
-    print("Error loading FIREBASE_CONFIG from file:", e)
-    FIREBASE_CONFIG = {}
-
-FIREBASE_CERT_PATH = os.getenv(
-    "FIREBASE_CERT_PATH", str(BASE_DIR / "firebase-cert.json")
-)
-FIREBASE_DATABASE_URL = os.getenv(
-    "FIREBASE_DATABASE_URL", "https://your-firebase-database.firebaseio.com"
-)
-
 # Gemini API Configuration
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -623,3 +624,7 @@ USER_SETTINGS = {
     "DEFAULT_THEME": {"mode": "system", "color_scheme": "default"},
     "DEFAULT_PRIVACY": {"profile_visibility": "public", "show_online_status": True},
 }
+
+# WebSocket URL config
+WEBSOCKET_URL = "/ws/"
+WEBSOCKET_CONNECT_TIMEOUT = 10

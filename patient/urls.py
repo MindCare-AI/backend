@@ -1,5 +1,5 @@
 # patient/urls.py
-from django.urls import path, include
+from django.urls import path
 from patient.views.health_metric_views import HealthMetricViewSet
 from patient.views.medical_history_views import MedicalHistoryViewSet
 from patient.views.patient_profile_views import PatientProfileViewSet
@@ -27,7 +27,6 @@ urlpatterns = [
         PatientProfileViewSet.as_view({"get": "appointments"}),
         name="patient-appointments",
     ),
-   
     path(
         "health-metrics/",
         HealthMetricViewSet.as_view({"get": "list", "post": "create"}),

@@ -33,14 +33,18 @@ class OneToOneConversation(BaseConversation):
     def clean(self):
         super().clean()
         if self.pk and self.participants.count() != 2:
-            raise ValidationError("One-to-one conversations must have exactly 2 participants.")
+            raise ValidationError(
+                "One-to-one conversations must have exactly 2 participants."
+            )
 
 
 @receiver(m2m_changed, sender=OneToOneConversation.participants.through)
 def validate_one_to_one_participants(sender, instance, action, **kwargs):
-    if action in ['post_add', 'post_remove', 'post_clear']:
+    if action in ["post_add", "post_remove", "post_clear"]:
         if instance.pk and instance.participants.count() != 2:
-            raise ValidationError("One-to-one conversations must have exactly 2 participants.")
+            raise ValidationError(
+                "One-to-one conversations must have exactly 2 participants."
+            )
 
 
 class OneToOneMessage(BaseMessage):
@@ -51,5 +55,5 @@ class OneToOneMessage(BaseMessage):
         models.JSONField(),
         default=list,
         blank=True,
-        help_text="History of message edits"
+        help_text="History of message edits",
     )

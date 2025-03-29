@@ -6,10 +6,20 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import logging
 from django.core.cache import cache
-from datetime import datetime
-import json
+from django.utils import timezone
+from channels.middleware import BaseMiddleware
+from channels.db import database_sync_to_async
+from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import (
+    TokenError,
+    InvalidToken,
+)  # Add this import
+from urllib.parse import parse_qs
 
 logger = logging.getLogger(__name__)
+
 
 class MessageEncryptionMiddleware:
     def __init__(self, get_response):
@@ -29,128 +39,142 @@ class MessageEncryptionMiddleware:
         message["content"] = self.cipher.encrypt(message["content"].encode()).decode()
         return message
 
+
 class RealTimeMiddleware:
     """Middleware to handle real-time updates for messaging actions"""
-    
+
     def __init__(self, get_response):
         self.get_response = get_response
         self.channel_layer = get_channel_layer()
 
     def __call__(self, request):
         response = self.get_response(request)
-        
+
         try:
+            # Skip if channel layer is not available
+            if not self.channel_layer:
+                return response
+
             # Check if this is a messaging action that needs real-time updates
             if self._should_send_update(request, response):
                 self._send_websocket_update(request, response)
         except Exception as e:
             logger.error(f"Error in RealTimeMiddleware: {str(e)}", exc_info=True)
-            
+
         return response
 
     def _should_send_update(self, request, response):
         """Determine if the request should trigger a real-time update"""
-        is_messaging_path = 'messages' in request.path
-        is_modifying_method = request.method in ['POST', 'PATCH', 'DELETE']
-        is_successful = response.status_code in [200, 201]
-        
+        # Only for messaging endpoints, certain methods, and successful responses
+        is_messaging_path = request.path.startswith("/api/messaging/")
+        is_modifying_method = request.method in ["POST", "PUT", "PATCH", "DELETE"]
+        is_successful = 200 <= response.status_code < 300
+
         return is_messaging_path and is_modifying_method and is_successful
+
+    def _extract_conversation_id(self, path):
+        """Extract conversation ID from request path"""
+        try:
+            # Example paths:
+            # /api/messaging/one_to_one/123/
+            # /api/messaging/groups/123/
+            # /api/messaging/chatbot/123/
+            parts = path.split("/")
+            conversation_types = ["one_to_one", "groups", "chatbot"]
+            for i, part in enumerate(parts):
+                if part in conversation_types and i + 1 < len(parts):
+                    potential_id = parts[i + 1]
+                    # Check if the ID part is a valid numeric ID
+                    if potential_id and potential_id.isdigit():
+                        return potential_id
+            return None
+        except Exception as e:
+            logger.error(f"Error extracting conversation ID: {str(e)}")
+            return None
 
     def _send_websocket_update(self, request, response):
         """Send WebSocket update for real-time messaging"""
         try:
             conversation_id = self._extract_conversation_id(request.path)
             if not conversation_id:
-                logger.warning(f"Could not extract conversation ID from path: {request.path}")
                 return
 
-            # Rate limiting check
+            # Cache key for rate limiting
             cache_key = f"ws_update_{conversation_id}_{request.user.id}"
-            if not self._check_rate_limit(cache_key):
-                logger.warning(f"Rate limit exceeded for conversation {conversation_id}")
-                return
+            cache.add(cache_key, 1, timeout=1)  # Simple rate limiting
 
-            # Determine action type
-            action_type = self._get_action_type(request.method)
-            
-            # Prepare update data with additional context
+            # Determine action type based on method and endpoint
+            if "message" in request.path.lower():
+                if request.method == "POST":
+                    action = "message_created"
+                elif request.method in ["PUT", "PATCH"]:
+                    action = "message_updated"
+                elif request.method == "DELETE":
+                    action = "message_deleted"
+                else:
+                    action = "message_action"
+            else:
+                action = "conversation_updated"
+
+            # Prepare update data
             update_data = {
-                'type': 'message.update',
-                'action': action_type,
-                'conversation_id': conversation_id,
-                'data': self._sanitize_response_data(response.data),
-                'metadata': {
-                    'timestamp': datetime.now().isoformat(),
-                    'user_id': str(request.user.id),
-                    'username': str(request.user),
-                }
+                "type": "conversation.message",
+                "message": {
+                    "event_type": action,
+                    "user_id": str(request.user.id),
+                    "username": request.user.username,
+                    "data": response.data if hasattr(response, "data") else {},
+                    "timestamp": timezone.now().isoformat(),
+                    "conversation_id": conversation_id,
+                },
             }
-
-            # Validate update data
-            if not self._validate_update_data(update_data):
-                logger.error("Invalid update data structure")
-                return
 
             # Send to appropriate group
             group_name = f"conversation_{conversation_id}"
-            async_to_sync(self.channel_layer.group_send)(
-                group_name,
-                update_data
-            )
-            
-            logger.debug(f"Successfully sent WebSocket update for conversation {conversation_id}")
-            
+            async_to_sync(self.channel_layer.group_send)(group_name, update_data)
+
         except Exception as e:
             logger.error(f"Failed to send WebSocket update: {str(e)}", exc_info=True)
-            
-    def _get_action_type(self, method):
-        """Map HTTP methods to WebSocket action types"""
-        action_map = {
-            'POST': 'message_created',
-            'PATCH': 'message_updated',
-            'DELETE': 'message_deleted',
-        }
-        return action_map.get(method, 'message_unknown')
 
-    def _check_rate_limit(self, cache_key, limit=10, window=60):
-        """Implement rate limiting for WebSocket updates"""
+
+class WebSocketAuthMiddleware(BaseMiddleware):
+    async def __call__(self, scope, receive, send):
         try:
-            current = cache.get(cache_key, 0)
-            if current >= limit:
-                return False
-            cache.incr(cache_key, 1)
-            cache.expire(cache_key, window)
-            return True
+            query_string = scope.get("query_string", b"").decode()
+            query_params = parse_qs(query_string)
+            token = query_params.get("token", [None])[0]
+
+            if not token:
+                logger.warning("No token provided in WebSocket connection")
+                scope["user"] = AnonymousUser()
+                return await super().__call__(scope, receive, send)
+
+            user = await self.get_user_from_token(token)
+            if not user:
+                logger.warning("Invalid token or user not found")
+                scope["user"] = AnonymousUser()
+                return await super().__call__(scope, receive, send)
+
+            scope["user"] = user
+            return await super().__call__(scope, receive, send)
+
         except Exception as e:
-            logger.error(f"Rate limiting error: {str(e)}")
-            return True  # Allow on error
+            logger.error(f"WebSocket auth error: {str(e)}", exc_info=True)
+            scope["user"] = AnonymousUser()
+            return await super().__call__(scope, receive, send)
 
-    def _validate_update_data(self, data):
-        """Validate the structure of update data"""
-        required_fields = ['type', 'action', 'conversation_id', 'data']
-        return all(field in data for field in required_fields)
-
-    def _sanitize_response_data(self, data):
-        """Sanitize response data for WebSocket transmission"""
+    @database_sync_to_async
+    def get_user_from_token(self, token):
         try:
-            # Test JSON serialization
-            json.dumps(data)
-            return data
-        except (TypeError, ValueError):
-            # If serialization fails, return basic data structure
-            return {
-                'error': 'Data sanitization required',
-                'timestamp': datetime.now().isoformat()
-            }
-
-    def _extract_conversation_id(self, path):
-        """Extract conversation ID from request path"""
-        try:
-            # Example path: /api/v1/messaging/one_to_one/1/messages/
-            parts = path.split('/')
-            for i, part in enumerate(parts):
-                if part in ['one_to_one', 'groups', 'chatbot'] and i + 1 < len(parts):
-                    return parts[i + 1]
+            access_token = AccessToken(token)
+            user_id = access_token["user_id"]
+            User = get_user_model()
+            return User.objects.get(id=user_id)
+        except (TokenError, InvalidToken, User.DoesNotExist) as e:
+            logger.warning(f"Token validation failed: {str(e)}")
             return None
-        except Exception:
+        except Exception as e:
+            logger.error(
+                f"Unexpected error in token validation: {str(e)}", exc_info=True
+            )
             return None

@@ -1,6 +1,7 @@
-#mood/serializers.py
+# mood/serializers.py
 from rest_framework import serializers
 from mood.models import MoodLog
+
 
 class MoodLogSerializer(serializers.ModelSerializer):
     user_username = serializers.SerializerMethodField()

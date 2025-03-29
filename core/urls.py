@@ -21,7 +21,7 @@ urlpatterns = [
     path("media/", include("media_handler.urls")),
     path("messaging/", include("messaging.urls")),
     path("therapist/", include("therapist.urls")),
-    path("patient/", include("patient.urls")),  # Changed from patients to patient
+    path("patient/", include("patient.urls")),  
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -56,7 +56,9 @@ urlpatterns = [
     # One-to-One Message Actions
     path(
         "one_to_one/messages/<int:pk>/reactions/",
-        OneToOneMessageViewSet.as_view({"post": "add_reaction", "delete": "remove_reaction"}),
+        OneToOneMessageViewSet.as_view(
+            {"post": "add_reaction", "delete": "remove_reaction"}
+        ),
         name="one-to-one-message-reactions",
     ),
     path(
@@ -83,10 +85,38 @@ urlpatterns = [
     path(
         "groups/messages/<int:pk>/", group_message_detail, name="group-message-detail"
     ),
+    # Group Participant Management (ADD THESE ENDPOINTS)
+    path(
+        "groups/<int:pk>/add_participant/",
+        GroupConversationViewSet.as_view({"post": "add_participant"}),
+        name="group-add-participant",
+    ),
+    path(
+        "groups/<int:pk>/remove_participant/",
+        GroupConversationViewSet.as_view({"post": "remove_participant"}),
+        name="group-remove-participant",
+    ),
+    path(
+        "groups/<int:pk>/add_moderator/",
+        GroupConversationViewSet.as_view({"post": "add_moderator"}),
+        name="group-add-moderator",
+    ),
+    path(
+        "groups/<int:pk>/moderators/",
+        GroupConversationViewSet.as_view({"get": "moderators"}),
+        name="group-moderators",
+    ),
+    path(
+        "groups/<int:pk>/pin_message/",
+        GroupConversationViewSet.as_view({"post": "pin_message"}),
+        name="group-pin-message",
+    ),
     # Group Message Actions
     path(
         "groups/messages/<int:pk>/reactions/",
-        GroupMessageViewSet.as_view({"post": "add_reaction", "delete": "remove_reaction"}),
+        GroupMessageViewSet.as_view(
+            {"post": "add_reaction", "delete": "remove_reaction"}
+        ),
         name="group-message-reactions",
     ),
     path(

@@ -8,5 +8,4 @@ __all__ = [
     "PatientProfile",
     "HealthMetric",
     "MedicalHistoryEntry",
-    
 ]

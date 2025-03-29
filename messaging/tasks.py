@@ -73,7 +73,4 @@ def process_chatbot_response(self, conversation_id, message_id):
         # Retry with exponential backoff
         raise self.retry(exc=e)
 
-
-def exponential_backoff(retries):
-    """Calculate exponential backoff delay in seconds"""
-    return 2**retries * 60  # 1min, 2min, 4min, etc.
+# Removed redundant exponential_backoff function definition

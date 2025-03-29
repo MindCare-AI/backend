@@ -141,7 +141,7 @@ class BaseMessage(models.Model):
         """Add a reaction to the message"""
         if not self.reactions:
             self.reactions = {}
-        
+
         if reaction_type not in self.reactions:
             self.reactions[reaction_type] = []
 
@@ -159,8 +159,28 @@ class BaseMessage(models.Model):
                 users.remove(user.id)
                 if not users:  # Remove empty reaction types
                     del self.reactions[reaction_type]
-        
+
         self.save()
+
+    @property
+    def reactions_changed(self):
+        """Check if reactions have changed since load"""
+        return hasattr(self, '_reactions_changed') and self._reactions_changed
+        
+    @property
+    def last_reactor(self):
+        """Get the last user who reacted"""
+        return getattr(self, '_last_reactor', None)
+        
+    @property 
+    def last_reaction_type(self):
+        """Get the type of the last reaction"""
+        return getattr(self, '_last_reaction_type', None)
+        
+    @last_reaction_type.setter
+    def last_reaction_type(self, value):
+        """Set the type of the last reaction"""
+        self._last_reaction_type = value
 
 
 class MessageEditHistory(models.Model):
@@ -197,9 +217,11 @@ class MessageEditHistory(models.Model):
     def edit_summary(self):
         """Returns a human-readable summary of the edit"""
         return {
-            "editor": self.edited_by.get_full_name() or self.edited_by.username,
+            "editor": self.edited_by.get_full_name() or self.edited_by.username if self.edited_by else "Unknown",
             "timestamp": self.edited_at,
-            "previous_content": self.previous_content[:100] + "..."
-            if len(self.previous_content) > 100
-            else self.previous_content,
+            "previous_content": (
+                self.previous_content[:100] + "..." 
+                if len(self.previous_content) > 100 
+                else self.previous_content
+            ),
         }

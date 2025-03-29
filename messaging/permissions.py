@@ -101,18 +101,56 @@ class CanSendMessage(BasePermission):
             return False
 
 
-class IsParticipantOrModerator(BasePermission):
+from rest_framework import permissions
+
+class IsParticipantOrModerator(permissions.BasePermission):
     """
-    Custom permission to allow access if the user is either
-    a participant or a moderator of the conversation.
+    Custom permission to only allow participants or moderators of a conversation.
     """
 
+    def has_permission(self, request, view):
+        # Always allow GET, HEAD, OPTIONS requests
+        if request.method in permissions.SAFE_METHODS:
+            # For detail views (retrieve, update, delete)
+            if getattr(view, 'detail', False) and view.kwargs.get('pk'):
+                return True  # We'll do the check in has_object_permission
+            # For list views
+            return request.user.is_authenticated
+        # For unsafe methods like POST, PUT, PATCH
+        return request.user.is_authenticated
+
     def has_object_permission(self, request, view, obj):
+        # Get the conversation object directly or via the message
+        if hasattr(obj, 'conversation'):
+            conversation = obj.conversation
+        else:
+            conversation = obj
+            
+        # Check if user is a participant
         try:
-            return (
-                request.user in obj.participants.all()
-                or request.user in obj.moderators.all()
-            )
+            user_is_participant = conversation.participants.filter(id=request.user.id).exists()
         except Exception as e:
-            logger.error(f"Error checking IsParticipantOrModerator: {str(e)}")
-            return False
+            logger.error(f"Error checking participant status: {str(e)}")
+            user_is_participant = False
+            
+        # Check if user is a moderator (for group conversations)
+        try:
+            user_is_moderator = hasattr(conversation, 'moderators') and conversation.moderators.filter(id=request.user.id).exists()
+        except Exception as e:
+            logger.error(f"Error checking moderator status: {str(e)}")
+            user_is_moderator = False
+            
+        # For GET requests, allow if user is a participant
+        if request.method in permissions.SAFE_METHODS:
+            return user_is_participant
+            
+        # For PUT/PATCH/DELETE, check if it's the message owner or a moderator
+        if hasattr(obj, 'sender') and request.method in ['PUT', 'PATCH', 'DELETE']:
+            return obj.sender == request.user or user_is_moderator
+            
+        # For conversation-level actions, check moderator status
+        if hasattr(view, 'action') and view.action in ['add_participant', 'remove_participant', 'add_moderator', 'pin_message']:
+            return user_is_moderator
+            
+        # Default: allow if participant
+        return user_is_participant

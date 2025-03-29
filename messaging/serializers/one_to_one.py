@@ -3,6 +3,7 @@ from rest_framework import serializers
 from ..models.one_to_one import OneToOneConversation, OneToOneMessage
 from django.utils import timezone
 import logging
+from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +120,14 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
 class OneToOneMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.username", read_only=True)
     is_edited = serializers.BooleanField(read_only=True)
-    message_type = serializers.CharField(required=False, default="text")  # New field
-    read_by = serializers.SerializerMethodField()
-    reactions = serializers.JSONField(required=False, allow_null=False, default=dict)
+    message_type = serializers.CharField(required=False, default="text")
+    read_by = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=get_user_model().objects.all(),
+        required=False
+    )
+    reactions = serializers.JSONField(required=False, allow_null=True, default=dict)
+    formatted_reactions = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = OneToOneMessage
@@ -132,12 +138,13 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
             "sender_name",
             "timestamp",
             "conversation",
-            "message_type",  # Include message_type in the output
+            "message_type",
             "reactions",
+            "formatted_reactions",
             "is_edited",
             "read_by",
         ]
-        read_only_fields = ["sender", "timestamp", "sender_name", "is_edited"]
+        read_only_fields = ["sender", "timestamp", "sender_name", "is_edited", "formatted_reactions"]
 
     def validate_content(self, value):
         """Validate message content"""
@@ -157,61 +164,126 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Reactions must be a dictionary")
 
-        # Validate reaction types
+        # Validate reaction types and values
         valid_reactions = {"like", "heart", "smile", "thumbsup"}
-        for reaction_type in value.keys():
+        
+        for reaction_type, user_ids in value.items():
+            # Check reaction type
             if reaction_type not in valid_reactions:
                 raise serializers.ValidationError(
                     f"Invalid reaction type: {reaction_type}"
                 )
+                
+            # Check user IDs list format
+            if not isinstance(user_ids, list):
+                raise serializers.ValidationError(
+                    f"Reaction '{reaction_type}' must contain a list of user IDs"
+                )
+                
+            # Validate each user ID is a string
+            for user_id in user_ids:
+                if not isinstance(user_id, str):
+                    raise serializers.ValidationError(
+                        f"User ID must be a string, got {type(user_id).__name__}"
+                    )
 
         return value
 
     def validate_reaction(self, value):
         """Validate a single reaction"""
-        valid_reactions = {'like', 'heart', 'smile', 'thumbsup'}
-        
+        valid_reactions = {"like", "heart", "smile", "thumbsup"}
+
         if not isinstance(value, str):
             raise serializers.ValidationError("Reaction must be a string")
-            
+
         if value not in valid_reactions:
             raise serializers.ValidationError(
                 f"Invalid reaction. Must be one of: {', '.join(valid_reactions)}"
             )
-            
+
         return value
-    
+
     def add_reaction(self, user, reaction_type):
-        """Add or update a reaction"""
+        """Add a reaction from a user"""
         # Validate reaction
         self.validate_reaction(reaction_type)
         
-        # Get current reactions or initialize empty dict
-        reactions = self.validated_data.get('reactions', {})
+        # Get instance and its current reactions
+        instance = self.instance
+        reactions = instance.reactions or {}
         
-        # Add/update user's reaction
-        reactions[str(user.id)] = {
-            'type': reaction_type,
-            'timestamp': timezone.now().isoformat(),
-            'user': {
-                'id': user.id,
-                'name': user.get_full_name() or user.username
-            }
-        }
+        # Initialize the reaction type list if it doesn't exist
+        if reaction_type not in reactions:
+            reactions[reaction_type] = []
+            
+        # Add user ID if not already present
+        user_id = str(user.id)
+        if user_id not in reactions[reaction_type]:
+            reactions[reaction_type].append(user_id)
+            
+        # Update instance
+        instance.reactions = reactions
+        instance.save(update_fields=['reactions'])
         
-        self.validated_data['reactions'] = reactions
         return reactions
-    
-    def remove_reaction(self, user):
+
+    def remove_reaction(self, user, reaction_type=None):
         """Remove a user's reaction"""
-        reactions = self.validated_data.get('reactions', {})
+        instance = self.instance
+        reactions = instance.reactions or {}
         user_id = str(user.id)
         
-        if user_id in reactions:
-            del reactions[user_id]
-            self.validated_data['reactions'] = reactions
-            
+        # If reaction type specified, remove from just that type
+        if reaction_type:
+            if reaction_type in reactions and user_id in reactions[reaction_type]:
+                reactions[reaction_type].remove(user_id)
+                # Remove empty lists
+                if not reactions[reaction_type]:
+                    del reactions[reaction_type]
+        else:
+            # Remove from all reaction types
+            for r_type in list(reactions.keys()):
+                if user_id in reactions[r_type]:
+                    reactions[r_type].remove(user_id)
+                    # Remove empty lists
+                    if not reactions[r_type]:
+                        del reactions[r_type]
+        
+        # Update instance
+        instance.reactions = reactions
+        instance.save(update_fields=['reactions'])
+        
         return reactions
+
+    def get_formatted_reactions(self, obj):
+        """Format reactions for display with user details"""
+        try:
+            reactions = obj.reactions or {}
+            formatted = {}
+            
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            
+            # Process each reaction type
+            for reaction_type, user_ids in reactions.items():
+                # Get user details for each ID
+                user_objects = User.objects.filter(id__in=user_ids)
+                user_map = {str(user.id): user for user in user_objects}
+                
+                formatted[reaction_type] = [
+                    {
+                        "user_id": user_id,
+                        "username": user_map.get(user_id).username if user_id in user_map else "Unknown",
+                        "name": (user_map.get(user_id).get_full_name() or user_map.get(user_id).username) if user_id in user_map else "Unknown",
+                    }
+                    for user_id in user_ids
+                ]
+                
+            return formatted
+            
+        except Exception as e:
+            logger.error(f"Error formatting reactions: {str(e)}")
+            return {}
 
     def validate_conversation(self, value):
         """Validate conversation access"""

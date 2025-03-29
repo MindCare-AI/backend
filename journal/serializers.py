@@ -1,6 +1,7 @@
-#journal/serializers.py
+# journal/serializers.py
 from rest_framework import serializers
 from journal.models import JournalEntry
+
 
 class JournalEntrySerializer(serializers.ModelSerializer):
     class Meta:

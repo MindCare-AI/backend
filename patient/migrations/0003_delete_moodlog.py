@@ -4,13 +4,12 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patient', '0002_initial'),
+        ("patient", "0002_initial"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='MoodLog',
+            name="MoodLog",
         ),
     ]

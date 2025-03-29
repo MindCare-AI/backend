@@ -3,7 +3,12 @@ from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters import rest_framework as django_filters
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiResponse
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiParameter,
+    OpenApiResponse,
+)
 from patient.models.patient_profile import PatientProfile
 from patient.serializers.patient_profile import PatientProfileSerializer
 from patient.filters.patient_profile_filters import PatientProfileFilter
@@ -77,14 +82,16 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
     @extend_schema(
         description="Upload a file associated with the patient profile.",
         summary="Upload File",
-        request=OpenApiParameter(name="file", location="form", type="file", required=True),
+        request=OpenApiParameter(
+            name="file", location="form", type="file", required=True
+        ),
         responses={
             200: {
                 "type": "object",
                 "properties": {
                     "status": {"type": "string"},
-                    "file_id": {"type": "integer"}
-                }
+                    "file_id": {"type": "integer"},
+                },
             }
         },
         tags=["Patient Profile"],

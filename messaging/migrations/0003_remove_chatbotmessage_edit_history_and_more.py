@@ -4,22 +4,21 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('messaging', '0002_initial'),
+        ("messaging", "0002_initial"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='chatbotmessage',
-            name='edit_history',
+            model_name="chatbotmessage",
+            name="edit_history",
         ),
         migrations.RemoveField(
-            model_name='groupmessage',
-            name='edit_history',
+            model_name="groupmessage",
+            name="edit_history",
         ),
         migrations.RemoveField(
-            model_name='onetoonemessage',
-            name='edit_history',
+            model_name="onetoonemessage",
+            name="edit_history",
         ),
     ]

@@ -182,7 +182,7 @@ class GroupMessageSerializer(serializers.ModelSerializer):
         return representation
 
     def validate_message_type(self, value):
-        allowed = ['text', 'system']
+        allowed = ["text", "system"]
         if value not in allowed:
             raise serializers.ValidationError("Invalid message type for group.")
         return value

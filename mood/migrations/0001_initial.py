@@ -8,7 +8,6 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -17,17 +16,45 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='MoodLog',
+            name="MoodLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('mood_rating', models.IntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(10)])),
-                ('notes', models.TextField(blank=True)),
-                ('logged_at', models.DateTimeField(default=django.utils.timezone.now)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='mood_logs', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "mood_rating",
+                    models.IntegerField(
+                        validators=[
+                            django.core.validators.MinValueValidator(1),
+                            django.core.validators.MaxValueValidator(10),
+                        ]
+                    ),
+                ),
+                ("notes", models.TextField(blank=True)),
+                ("logged_at", models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="mood_logs",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-logged_at'],
-                'indexes': [models.Index(fields=['user', 'logged_at'], name='mood_moodlo_user_id_1afc91_idx')],
+                "ordering": ["-logged_at"],
+                "indexes": [
+                    models.Index(
+                        fields=["user", "logged_at"],
+                        name="mood_moodlo_user_id_1afc91_idx",
+                    )
+                ],
             },
         ),
     ]

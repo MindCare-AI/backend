@@ -270,42 +270,39 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
                 {"error": "Participant ID is required for one-to-one conversations."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         try:
             User = get_user_model()
             other_participant = User.objects.get(id=other_participant_id)
-            
+
             # First check if conversation already exists to avoid duplicates
-            existing_conversation = OneToOneConversation.objects.filter(
-                participants=request.user
-            ).filter(
-                participants=other_participant
-            ).first()
-            
+            existing_conversation = (
+                OneToOneConversation.objects.filter(participants=request.user)
+                .filter(participants=other_participant)
+                .first()
+            )
+
             if existing_conversation:
                 # Return existing conversation instead of creating a new one
                 serializer = self.get_serializer(existing_conversation)
-                return Response(
-                    serializer.data, 
-                    status=status.HTTP_200_OK
-                )
-                
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
             # Validate user types if needed
             user_types = {request.user.user_type, other_participant.user_type}
             if user_types != {"patient", "therapist"}:
                 return Response(
                     {"error": "Conversation must have one patient and one therapist."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-            
+
             # Create new conversation with atomic transaction
             with transaction.atomic():
                 conversation = OneToOneConversation.objects.create()
                 conversation.participants.add(request.user, other_participant)
-                
+
             serializer = self.get_serializer(conversation)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
+
         except User.DoesNotExist:
             return Response(
                 {"error": "The specified participant does not exist."},

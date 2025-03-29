@@ -12,7 +12,10 @@ from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
-from rest_framework_simplejwt.exceptions import TokenError, InvalidToken  # Add this import
+from rest_framework_simplejwt.exceptions import (
+    TokenError,
+    InvalidToken,
+)  # Add this import
 from urllib.parse import parse_qs
 
 logger = logging.getLogger(__name__)
@@ -76,8 +79,8 @@ class RealTimeMiddleware:
             # /api/messaging/one_to_one/123/
             # /api/messaging/groups/123/
             # /api/messaging/chatbot/123/
-            parts = path.split('/')
-            conversation_types = ['one_to_one', 'groups', 'chatbot']
+            parts = path.split("/")
+            conversation_types = ["one_to_one", "groups", "chatbot"]
             for i, part in enumerate(parts):
                 if part in conversation_types and i + 1 < len(parts):
                     potential_id = parts[i + 1]
@@ -139,37 +142,39 @@ class WebSocketAuthMiddleware(BaseMiddleware):
         try:
             query_string = scope.get("query_string", b"").decode()
             query_params = parse_qs(query_string)
-            token = query_params.get('token', [None])[0]
-            
+            token = query_params.get("token", [None])[0]
+
             if not token:
                 logger.warning("No token provided in WebSocket connection")
-                scope['user'] = AnonymousUser()
+                scope["user"] = AnonymousUser()
                 return await super().__call__(scope, receive, send)
-            
+
             user = await self.get_user_from_token(token)
             if not user:
                 logger.warning("Invalid token or user not found")
-                scope['user'] = AnonymousUser()
+                scope["user"] = AnonymousUser()
                 return await super().__call__(scope, receive, send)
-                
-            scope['user'] = user
+
+            scope["user"] = user
             return await super().__call__(scope, receive, send)
-            
+
         except Exception as e:
             logger.error(f"WebSocket auth error: {str(e)}", exc_info=True)
-            scope['user'] = AnonymousUser()
+            scope["user"] = AnonymousUser()
             return await super().__call__(scope, receive, send)
 
     @database_sync_to_async
     def get_user_from_token(self, token):
         try:
             access_token = AccessToken(token)
-            user_id = access_token['user_id']
+            user_id = access_token["user_id"]
             User = get_user_model()
             return User.objects.get(id=user_id)
         except (TokenError, InvalidToken, User.DoesNotExist) as e:
             logger.warning(f"Token validation failed: {str(e)}")
             return None
         except Exception as e:
-            logger.error(f"Unexpected error in token validation: {str(e)}", exc_info=True)
+            logger.error(
+                f"Unexpected error in token validation: {str(e)}", exc_info=True
+            )
             return None

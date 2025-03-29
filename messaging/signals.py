@@ -6,8 +6,6 @@ from django.core.cache import cache
 import logging
 
 # Add new imports for WebSocket updates
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 
 from .models.one_to_one import OneToOneMessage
 from .models.group import GroupMessage

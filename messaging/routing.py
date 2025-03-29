@@ -5,6 +5,6 @@ from . import consumers
 websocket_urlpatterns = [
     re_path(
         r"^ws/messaging/(?P<conversation_id>\w+)/$",
-        consumers.ConversationConsumer.as_asgi()
+        consumers.ConversationConsumer.as_asgi(),
     ),
 ]

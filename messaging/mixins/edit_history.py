@@ -28,7 +28,9 @@ class EditHistoryMixin:
             if not (
                 instance.sender == request.user
                 or request.user.is_staff
-                or instance.conversation.participants.filter(id=request.user.id).exists()
+                or instance.conversation.participants.filter(
+                    id=request.user.id
+                ).exists()
             ):
                 return Response(
                     {"error": "You don't have permission to view edit history"},
@@ -36,24 +38,29 @@ class EditHistoryMixin:
                 )
 
             # For models using Array field for history
-            if hasattr(instance, 'edit_history') and isinstance(instance.edit_history, list):
+            if hasattr(instance, "edit_history") and isinstance(
+                instance.edit_history, list
+            ):
                 history = instance.edit_history
             # For models using ContentType and GenericForeignKey
             else:
                 from ..models.base import MessageEditHistory
+
                 history_records = MessageEditHistory.objects.filter(
                     content_type=ContentType.objects.get_for_model(instance),
                     object_id=instance.id,
-                ).order_by('-edited_at')
-                
+                ).order_by("-edited_at")
+
                 history = [
                     {
                         "previous_content": record.previous_content,
                         "edited_at": record.edited_at.isoformat(),
                         "edited_by": {
                             "id": record.edited_by.id if record.edited_by else None,
-                            "username": record.edited_by.username if record.edited_by else "Unknown",
-                        }
+                            "username": record.edited_by.username
+                            if record.edited_by
+                            else "Unknown",
+                        },
                     }
                     for record in history_records
                 ]
@@ -62,8 +69,12 @@ class EditHistoryMixin:
                 {
                     "current": {
                         "content": instance.content,
-                        "edited_at": instance.edited_at.isoformat() if instance.edited_at else None,
-                        "edited_by": instance.edited_by.id if instance.edited_by else None,
+                        "edited_at": instance.edited_at.isoformat()
+                        if instance.edited_at
+                        else None,
+                        "edited_by": instance.edited_by.id
+                        if instance.edited_by
+                        else None,
                     },
                     "history": history,
                 }
@@ -83,7 +94,7 @@ class EditHistoryMixin:
 
         if instance.content != new_content:
             # For models using Array field for history
-            if hasattr(instance, 'edit_history') and hasattr(instance, 'edit_history'):
+            if hasattr(instance, "edit_history") and hasattr(instance, "edit_history"):
                 # Initialize edit_history if needed
                 if instance.edit_history is None:
                     instance.edit_history = []
@@ -103,6 +114,7 @@ class EditHistoryMixin:
             else:
                 try:
                     from ..models.base import MessageEditHistory
+
                     MessageEditHistory.objects.create(
                         content_type=ContentType.objects.get_for_model(instance),
                         object_id=instance.id,
@@ -110,7 +122,9 @@ class EditHistoryMixin:
                         edited_by=self.request.user,
                     )
                 except Exception as e:
-                    logger.error(f"Error creating edit history: {str(e)}", exc_info=True)
+                    logger.error(
+                        f"Error creating edit history: {str(e)}", exc_info=True
+                    )
 
             # Update edit metadata
             instance.edited = True

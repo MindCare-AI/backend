@@ -70,12 +70,12 @@ class CustomMessagePagination(CursorPagination):
     def get_paginated_response(self, data):
         count = 0
         # Handle case where self.page is a list without paginator
-        if hasattr(self, 'page'):
-            if hasattr(self.page, 'paginator'):
+        if hasattr(self, "page"):
+            if hasattr(self.page, "paginator"):
                 count = self.page.paginator.count
             elif isinstance(self.page, list):
                 count = len(self.page)
-                
+
         return Response(
             {
                 "next": self.get_next_link(),
@@ -88,10 +88,18 @@ class CustomMessagePagination(CursorPagination):
 
     def get_next_cursor(self):
         try:
-            if hasattr(self, 'page') and self.page and hasattr(self.page, 'has_next') and self.page.has_next:
+            if (
+                hasattr(self, "page")
+                and self.page
+                and hasattr(self.page, "has_next")
+                and self.page.has_next
+            ):
                 last_item = self.page[-1]
                 return str(last_item.id)
-            elif isinstance(getattr(self, 'page', None), list) and len(self.page) >= self.page_size:
+            elif (
+                isinstance(getattr(self, "page", None), list)
+                and len(self.page) >= self.page_size
+            ):
                 # If we have exactly page_size items, there might be more
                 last_item = self.page[-1]
                 return str(last_item.id)

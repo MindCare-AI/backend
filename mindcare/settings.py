@@ -119,7 +119,7 @@ print("DEBUG LOG: DB_HOST from .env =>", os.getenv("DB_HOST"))
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Database Configuration with Local/Cloud Toggle
-USE_CLOUD = os.getenv('USE_CLOUD', 'True').lower() in ('true', 'yes', '1', 't')
+USE_CLOUD = os.getenv("USE_CLOUD", "True").lower() in ("true", "yes", "1", "t")
 
 if USE_CLOUD:
     # Cloud Database (Neon)
@@ -149,7 +149,6 @@ else:
         }
     }
     print("Using LOCAL database")
-
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -627,5 +626,5 @@ USER_SETTINGS = {
 }
 
 # WebSocket URL config
-WEBSOCKET_URL = '/ws/'
+WEBSOCKET_URL = "/ws/"
 WEBSOCKET_CONNECT_TIMEOUT = 10

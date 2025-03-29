@@ -2,7 +2,6 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from django.shortcuts import get_object_or_404
 from django.http import Http404
 from drf_spectacular.utils import extend_schema
 import logging
@@ -46,7 +45,7 @@ class ReactionMixin:
                     {"error": f"Message with ID {pk} not found"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-                
+
             reaction_type = request.data.get("reaction")
 
             if not reaction_type:
@@ -77,7 +76,7 @@ class ReactionMixin:
                 # Store reference to last reactor for signal notification
                 message._last_reactor = request.user
                 message.last_reaction_type = reaction_type
-                
+
                 # Add user to reaction list
                 message.reactions[reaction_type].append(user_id)
                 message.save()
@@ -130,7 +129,7 @@ class ReactionMixin:
                     {"error": f"Message with ID {pk} not found"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-                
+
             reaction_type = request.data.get("reaction")
 
             if not reaction_type:
@@ -192,7 +191,7 @@ class ReactionMixin:
                     {"error": f"Message with ID {pk} not found"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-                
+
             return Response(message.reactions or {})
 
         except Exception as e:

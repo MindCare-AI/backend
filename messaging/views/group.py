@@ -162,7 +162,10 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             user = get_object_or_404(get_user_model(), id=user_id)
 
             # Fix: Use the correct settings reference
-            if group.participants.count() >= settings.GROUP_SETTINGS["MAX_PARTICIPANTS_PER_GROUP"]:
+            if (
+                group.participants.count()
+                >= settings.GROUP_SETTINGS["MAX_PARTICIPANTS_PER_GROUP"]
+            ):
                 return Response(
                     {"error": "Maximum participant limit reached"},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -268,30 +271,30 @@ class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet
     """
     ViewSet for managing group messages
     """
+
     queryset = GroupMessage.objects.all()
     serializer_class = GroupMessageSerializer
     permission_classes = [IsParticipantOrModerator]
     pagination_class = CustomMessagePagination
-    
+
     def get_queryset(self):
         user = self.request.user
-        
+
         # Get conversation filter from query params for list view
-        conversation_id = self.request.query_params.get('conversation')
-        
+        conversation_id = self.request.query_params.get("conversation")
+
         queryset = (
             GroupMessage.objects.filter(conversation__participants=user)
             .select_related("sender", "conversation")
             .prefetch_related(
-                Prefetch("conversation__participants"), 
-                Prefetch("read_by")
+                Prefetch("conversation__participants"), Prefetch("read_by")
             )
         )
-        
+
         # Filter by conversation ID if provided in query params
         if conversation_id:
             queryset = queryset.filter(conversation_id=conversation_id)
-        
+
         return queryset.order_by("-timestamp")
 
     def create(self, request, *args, **kwargs):
@@ -299,15 +302,15 @@ class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet
         try:
             # Add sender to request data
             request.data.update({"sender": request.user.id})
-            
+
             # Create message using regular create flow
             return super().create(request, *args, **kwargs)
-            
+
         except Exception as e:
             logger.error(f"Error creating group message: {str(e)}", exc_info=True)
             return Response(
                 {"error": f"Failed to create message: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def perform_create(self, serializer):
@@ -318,71 +321,73 @@ class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet
         """Update an existing group message"""
         try:
             instance = self.get_object()
-            
+
             # Check if user is message owner
             if instance.sender != request.user:
                 return Response(
                     {"error": "You can only edit your own messages"},
-                    status=status.HTTP_403_FORBIDDEN
+                    status=status.HTTP_403_FORBIDDEN,
                 )
-            
+
             return super().update(request, *args, **kwargs)
-            
+
         except Exception as e:
             logger.error(f"Error updating group message: {str(e)}", exc_info=True)
             return Response(
                 {"error": f"Failed to update message: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def destroy(self, request, *args, **kwargs):
         """Delete a group message"""
         try:
             instance = self.get_object()
-            
+
             # Check if user has permission to delete
             if (
                 instance.sender != request.user
-                and not instance.conversation.moderators.filter(id=request.user.id).exists()
+                and not instance.conversation.moderators.filter(
+                    id=request.user.id
+                ).exists()
             ):
                 return Response(
                     {"error": "You do not have permission to delete this message."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-                
+
             return super().destroy(request, *args, **kwargs)
-            
+
         except Exception as e:
             logger.error(f"Error deleting group message: {str(e)}", exc_info=True)
             return Response(
                 {"error": f"Failed to delete message: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def list(self, request, *args, **kwargs):
         """List group messages with proper pagination"""
         try:
             # Get conversation filter from query params
-            conversation_id = request.query_params.get('conversation')
-            
+            conversation_id = request.query_params.get("conversation")
+
             # Filter queryset by conversation if provided
             queryset = self.filter_queryset(self.get_queryset())
             if conversation_id:
                 queryset = queryset.filter(conversation_id=conversation_id)
-                
+
             # Apply pagination
             page = self.paginate_queryset(queryset)
             if page is not None:
                 serializer = self.get_serializer(page, many=True)
                 return self.get_paginated_response(serializer.data)
-                
+
             # Fall back to non-paginated response
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
-            
+
         except Exception as e:
             logger.error(f"Error listing group messages: {str(e)}", exc_info=True)
             return Response(
                 {"error": f"Failed to list messages: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

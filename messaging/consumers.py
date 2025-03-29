@@ -1,10 +1,8 @@
-#messaging/consumers.py
+# messaging/consumers.py
 import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
-from django.utils import timezone
 from channels.db import database_sync_to_async
-from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
@@ -19,13 +17,13 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             # Get conversation ID from URL route
             self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
             self.group_name = f"conversation_{self.conversation_id}"
-            
+
             # Handle authentication
             if self.scope["user"].is_anonymous:
                 logger.warning("Anonymous user attempted to connect")
                 await self.close(code=4003)
                 return
-                
+
             # Check conversation participant
             is_participant = await self.is_conversation_participant()
             if not is_participant:
@@ -36,13 +34,17 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             # Join the group
             await self.channel_layer.group_add(self.group_name, self.channel_name)
             await self.accept()
-            
+
             # Send success message
-            await self.send(json.dumps({
-                "type": "connection_established",
-                "message": "Connected successfully"
-            }))
-            
+            await self.send(
+                json.dumps(
+                    {
+                        "type": "connection_established",
+                        "message": "Connected successfully",
+                    }
+                )
+            )
+
         except Exception as e:
             logger.error(f"WebSocket connection error: {str(e)}")
             await self.close(code=4000)
@@ -50,16 +52,22 @@ class ConversationConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         try:
             # Log disconnect with reason
-            if hasattr(self, 'scope') and 'user' in self.scope and hasattr(self, 'conversation_id'):
+            if (
+                hasattr(self, "scope")
+                and "user" in self.scope
+                and hasattr(self, "conversation_id")
+            ):
                 logger.info(
                     f"User {self.scope['user'].username} disconnected from conversation {self.conversation_id} "
                     f"with code {close_code}"
                 )
-            
+
             # Leave conversation group
-            if hasattr(self, 'group_name') and hasattr(self, 'channel_name'):
-                await self.channel_layer.group_discard(self.group_name, self.channel_name)
-                
+            if hasattr(self, "group_name") and hasattr(self, "channel_name"):
+                await self.channel_layer.group_discard(
+                    self.group_name, self.channel_name
+                )
+
         except Exception as e:
             logger.error(f"Error in WebSocket disconnect: {str(e)}", exc_info=True)
 
@@ -86,7 +94,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
                     )
 
         except json.JSONDecodeError:
-            logger.warning(f"Invalid JSON received in WebSocket message")
+            logger.warning("Invalid JSON received in WebSocket message")
         except Exception as e:
             logger.error(f"Error processing WebSocket message: {str(e)}", exc_info=True)
 
@@ -94,22 +102,26 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Send message to WebSocket"""
         try:
             message_data = event.get("message", {})
-            
+
             # Ensure we're sending the correct event structure
-            await self.send(text_data=json.dumps({
-                "type": "new_message",
-                "message": {
-                    "id": message_data.get("id"),
-                    "content": message_data.get("content"),
-                    "sender_id": message_data.get("sender_id"),
-                    "sender_name": message_data.get("sender_name"),
-                    "conversation_id": message_data.get("conversation_id"),
-                    "timestamp": message_data.get("timestamp"),
-                    "event_type": message_data.get("event_type", "new_message"),
-                    "message_type": message_data.get("message_type", "text")
-                }
-            }))
-            
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "new_message",
+                        "message": {
+                            "id": message_data.get("id"),
+                            "content": message_data.get("content"),
+                            "sender_id": message_data.get("sender_id"),
+                            "sender_name": message_data.get("sender_name"),
+                            "conversation_id": message_data.get("conversation_id"),
+                            "timestamp": message_data.get("timestamp"),
+                            "event_type": message_data.get("event_type", "new_message"),
+                            "message_type": message_data.get("message_type", "text"),
+                        },
+                    }
+                )
+            )
+
             logger.debug(f"Sent message to client: {message_data.get('id')}")
         except Exception as e:
             logger.error(f"Error sending conversation message: {str(e)}", exc_info=True)
@@ -118,12 +130,14 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Send read receipt to WebSocket"""
         try:
             await self.send(
-                text_data=json.dumps({
-                    "type": "read_receipt",
-                    "user_id": event["user_id"],
-                    "username": event["username"],
-                    "message_id": event["message_id"],
-                })
+                text_data=json.dumps(
+                    {
+                        "type": "read_receipt",
+                        "user_id": event["user_id"],
+                        "username": event["username"],
+                        "message_id": event["message_id"],
+                    }
+                )
             )
         except Exception as e:
             logger.error(f"Error sending read receipt: {str(e)}", exc_info=True)
@@ -134,7 +148,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         try:
             # Validate token and get user
             access_token = AccessToken(token)
-            user_id = access_token['user_id']
+            user_id = access_token["user_id"]
             return User.objects.get(id=user_id)
         except (TokenError, InvalidToken, User.DoesNotExist) as e:
             logger.warning(f"Invalid token: {str(e)}")
@@ -150,6 +164,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         try:
             # Try one-to-one conversation first
             from messaging.models.one_to_one import OneToOneConversation
+
             if OneToOneConversation.objects.filter(
                 id=self.conversation_id, participants=user
             ).exists():
@@ -157,6 +172,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
 
             # Try group conversation
             from messaging.models.group import GroupConversation
+
             if GroupConversation.objects.filter(
                 id=self.conversation_id, participants=user
             ).exists():
@@ -164,6 +180,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
 
             # Try chatbot conversation
             from messaging.models.chatbot import ChatbotConversation
+
             if ChatbotConversation.objects.filter(
                 id=self.conversation_id, user=user
             ).exists():
@@ -175,7 +192,9 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             )
             return False
         except Exception as e:
-            logger.error(f"Error checking conversation participant: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error checking conversation participant: {str(e)}", exc_info=True
+            )
             return False
 
     @database_sync_to_async
@@ -183,34 +202,42 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Mark a message as read by the current user"""
         try:
             user = self.scope["user"]
-            
+
             # Try to find the message in different message types
             from messaging.models.one_to_one import OneToOneMessage
             from messaging.models.group import GroupMessage
-            
+
             # Check OneToOneMessage
             try:
-                message = OneToOneMessage.objects.get(id=message_id, conversation__participants=user)
-                if hasattr(message, 'read_by') and user not in message.read_by.all():
+                message = OneToOneMessage.objects.get(
+                    id=message_id, conversation__participants=user
+                )
+                if hasattr(message, "read_by") and user not in message.read_by.all():
                     message.read_by.add(user)
-                    logger.debug(f"Marked one-to-one message {message_id} as read by {user.username}")
+                    logger.debug(
+                        f"Marked one-to-one message {message_id} as read by {user.username}"
+                    )
                 return True
             except OneToOneMessage.DoesNotExist:
                 pass
-                
+
             # Check GroupMessage
             try:
-                message = GroupMessage.objects.get(id=message_id, conversation__participants=user)
-                if hasattr(message, 'read_by') and user not in message.read_by.all():
+                message = GroupMessage.objects.get(
+                    id=message_id, conversation__participants=user
+                )
+                if hasattr(message, "read_by") and user not in message.read_by.all():
                     message.read_by.add(user)
-                    logger.debug(f"Marked group message {message_id} as read by {user.username}")
+                    logger.debug(
+                        f"Marked group message {message_id} as read by {user.username}"
+                    )
                 return True
             except GroupMessage.DoesNotExist:
                 pass
-                
+
             logger.warning(f"Message {message_id} not found for user {user.username}")
             return False
-            
+
         except Exception as e:
             logger.error(f"Error marking message as read: {str(e)}", exc_info=True)
             return False

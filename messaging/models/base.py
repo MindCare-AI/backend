@@ -165,18 +165,18 @@ class BaseMessage(models.Model):
     @property
     def reactions_changed(self):
         """Check if reactions have changed since load"""
-        return hasattr(self, '_reactions_changed') and self._reactions_changed
-        
+        return hasattr(self, "_reactions_changed") and self._reactions_changed
+
     @property
     def last_reactor(self):
         """Get the last user who reacted"""
-        return getattr(self, '_last_reactor', None)
-        
-    @property 
+        return getattr(self, "_last_reactor", None)
+
+    @property
     def last_reaction_type(self):
         """Get the type of the last reaction"""
-        return getattr(self, '_last_reaction_type', None)
-        
+        return getattr(self, "_last_reaction_type", None)
+
     @last_reaction_type.setter
     def last_reaction_type(self, value):
         """Set the type of the last reaction"""
@@ -217,11 +217,13 @@ class MessageEditHistory(models.Model):
     def edit_summary(self):
         """Returns a human-readable summary of the edit"""
         return {
-            "editor": self.edited_by.get_full_name() or self.edited_by.username if self.edited_by else "Unknown",
+            "editor": self.edited_by.get_full_name() or self.edited_by.username
+            if self.edited_by
+            else "Unknown",
             "timestamp": self.edited_at,
             "previous_content": (
-                self.previous_content[:100] + "..." 
-                if len(self.previous_content) > 100 
+                self.previous_content[:100] + "..."
+                if len(self.previous_content) > 100
                 else self.previous_content
             ),
         }

@@ -32,14 +32,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
         extra_kwargs = {"duration": {"read_only": True}}
 
     def get_therapist_name(self, obj):
-        return (
-            obj.therapist.user.username
-        )  # Access username through TherapistProfile -> User
+        return obj.therapist.user.username
 
     def get_patient_name(self, obj):
-        return (
-            obj.patient.user.username
-        )  # Access username through PatientProfile -> User
+        return obj.patient.user.username
 
     def validate(self, data):
         status = data.get("status", getattr(self.instance, "status", "scheduled"))
@@ -96,13 +92,13 @@ class AppointmentSerializer(serializers.ModelSerializer):
                 )
 
             try:
-                therapist_profile = TherapistProfile.objects.get(user=therapist.user)
+                # Corrected: Use therapist instance directly
+                therapist_profile = therapist
                 if not therapist_profile.is_verified:
                     raise serializers.ValidationError(
                         {"therapist": "Therapist's profile is not verified"}
                     )
 
-                # Pass duration_minutes directly instead of converting to timedelta
                 if not therapist_profile.check_availability(
                     appointment_date, duration_minutes
                 ):
@@ -118,7 +114,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
                             ],
                         }
                     )
-
             except TherapistProfile.DoesNotExist:
                 raise serializers.ValidationError(
                     {"therapist": "Therapist profile does not exist"}
@@ -129,7 +124,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
                 {"duration_minutes": "Duration must be at least 1 minute."}
             )
         data["duration"] = timedelta(minutes=duration_minutes)
-
         return data
 
     def create(self, validated_data):

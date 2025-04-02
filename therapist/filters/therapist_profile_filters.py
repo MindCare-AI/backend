@@ -17,3 +17,4 @@ class TherapistProfileFilter(django_filters.FilterSet):
 
     def filter_available_day(self, queryset, name, value):
         return queryset.filter(available_days__has_key=value.lower())
+    

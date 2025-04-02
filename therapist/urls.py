@@ -3,7 +3,7 @@ from django.urls import path
 from therapist.views.appointment_views import AppointmentViewSet
 from therapist.views.client_feedback_views import ClientFeedbackViewSet
 from therapist.views.session_note_views import SessionNoteViewSet
-from therapist.views.therapist_profile_views import TherapistProfileViewSet
+from therapist.views.therapist_profile_views import TherapistProfileViewSet, PublicTherapistListView
 
 urlpatterns = [
     # Therapist Profiles
@@ -31,14 +31,14 @@ urlpatterns = [
         name="therapist-book-appointment",
     ),
     path(
-        "profiles/<int:pk>/availability/",
+        "profiles/<uuid:unique_id>/availability/",  # Changed from <int:pk>
         TherapistProfileViewSet.as_view(
             {"get": "availability", "post": "update_availability"}
         ),
         name="therapist-availability",
     ),
     path(
-        "profiles/<int:pk>/verify/",
+        "profiles/<uuid:unique_id>/verify/",  # Changed from <int:pk>
         TherapistProfileViewSet.as_view({"post": "verify"}),
         name="therapist-verify",
     ),
@@ -46,6 +46,11 @@ urlpatterns = [
         "profiles/<uuid:unique_id>/appointments/",
         TherapistProfileViewSet.as_view({"get": "appointments"}),
         name="therapist-appointments",
+    ),
+    path(
+        "profiles/all/",
+        PublicTherapistListView.as_view(),
+        name="public-therapist-list",
     ),
     # Appointments
     path(

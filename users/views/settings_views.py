@@ -42,8 +42,24 @@ class UserSettingsViewSet(viewsets.ModelViewSet):
         return settings_obj
 
     def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(
+                instance, 
+                data=request.data, 
+                partial=kwargs.pop('partial', False)
+            )
+            if serializer.is_valid():
+                self.perform_update(serializer)
+                return Response(serializer.data)
+            logger.error(f"Validation errors: {serializer.errors}")
+            return Response(
+                {"error": "Invalid data", "details": serializer.errors}, 
+                status=400
+            )
+        except Exception as e:
+            logger.error(f"Error updating settings: {str(e)}")
+            return Response(
+                {"error": "Failed to update settings"}, 
+                status=500
+            )

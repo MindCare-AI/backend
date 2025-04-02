@@ -619,10 +619,14 @@ REDIS_POOL_SETTINGS = {"MAX_CONNECTIONS": 100, "TIMEOUT": 20, "RETRY_ON_TIMEOUT"
 
 # User Settings Configuration
 USER_SETTINGS = {
-    "THEME_MODES": ["light", "dark", "system"],
-    "PRIVACY_LEVELS": ["public", "private", "contacts_only"],
-    "DEFAULT_THEME": {"mode": "system", "color_scheme": "default"},
-    "DEFAULT_PRIVACY": {"profile_visibility": "public", "show_online_status": True},
+    "DEFAULT_THEME": {
+        "mode": "SYSTEM",
+        "color_scheme": "blue"
+    },
+    "DEFAULT_PRIVACY": {
+        "profile_visibility": "PUBLIC",
+        "show_online_status": True
+    }
 }
 
 # WebSocket URL config

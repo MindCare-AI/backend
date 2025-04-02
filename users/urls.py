@@ -26,12 +26,26 @@ urlpatterns = [
     ),
     path(
         "settings/",
-        UserSettingsViewSet.as_view({"get": "list"}),
+        UserSettingsViewSet.as_view(
+            {
+                "get": "list",
+                "post": "create",
+                "put": "update",
+                "patch": "partial_update",
+            }
+        ),
         name="settings-list",
     ),
     path(
         "settings/<int:pk>/",
-        UserSettingsViewSet.as_view({"get": "retrieve", "put": "update"}),
+        UserSettingsViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="settings-detail",
     ),
     path(

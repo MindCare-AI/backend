@@ -4,9 +4,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from drf_spectacular.utils import extend_schema
-from .models import Notification
-from .serializers import NotificationSerializer, NotificationUpdateSerializer
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from .models import Notification, NotificationType
+from .serializers import (
+    NotificationSerializer,
+    NotificationUpdateSerializer,
+    NotificationTypeSerializer,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,29 @@ class NotificationViewSet(viewsets.ModelViewSet):
             )
 
     @extend_schema(
+        description="Get notification count for the current user",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer"},
+                },
+            }
+        },
+    )
+    @action(detail=False, methods=["get"], url_path="count")
+    def count(self, request):
+        try:
+            count = Notification.objects.filter(user=request.user).count()
+            return Response({"count": count})
+        except Exception as e:
+            logger.error(f"Error fetching notification count: {str(e)}")
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
         description="Mark all unread notifications as read",
         responses={
             200: {
@@ -75,3 +102,15 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="List all notification types",
+        summary="List Notification Types",
+        tags=["Notifications"],
+    )
+)
+class NotificationTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = NotificationType.objects.all().order_by("name")
+    serializer_class = NotificationTypeSerializer

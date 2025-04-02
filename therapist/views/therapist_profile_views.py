@@ -1,5 +1,5 @@
 # therapist/views/therapist_profile_views.py
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -406,3 +406,13 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 {"error": "Verification process failed"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class PublicTherapistListView(generics.ListAPIView):
+    """
+    Lists all verified therapist profiles.
+    """
+
+    queryset = TherapistProfile.objects.filter(is_verified=True)
+    serializer_class = TherapistProfileSerializer
+    permission_classes = [permissions.AllowAny]

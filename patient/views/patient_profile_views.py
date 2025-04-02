@@ -115,21 +115,17 @@ class PublicPatientListView(generics.ListAPIView):
     """
     Lists all patient profiles with detailed information.
     """
+
     serializer_class = PatientProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [
         django_filters.DjangoFilterBackend,
         filters.SearchFilter,
-        filters.OrderingFilter
+        filters.OrderingFilter,
     ]
     filterset_class = PatientProfileFilter
-    search_fields = ['user__first_name', 'user__last_name', 'user__email']
-    ordering_fields = ['created_at', 'updated_at']
+    search_fields = ["user__first_name", "user__last_name", "user__email"]
+    ordering_fields = ["created_at", "updated_at"]
 
     def get_queryset(self):
-        return (
-            PatientProfile.objects
-            .select_related('user')
-            .all()
-            .order_by('id')
-        )
+        return PatientProfile.objects.select_related("user").all().order_by("id")

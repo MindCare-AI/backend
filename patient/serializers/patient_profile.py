@@ -13,10 +13,10 @@ class PatientProfileSerializer(serializers.ModelSerializer):
     )
     user_name = serializers.SerializerMethodField()
     # Allow updating these name fields by removing read_only and adding required=False
-    first_name = serializers.CharField(source='user.first_name', required=False)
-    last_name = serializers.CharField(source='user.last_name', required=False)
-    email = serializers.EmailField(source='user.email', read_only=True)
-    phone_number = serializers.CharField(source='user.phone_number', read_only=True)
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
 
     class Meta:
         model = PatientProfile
@@ -26,7 +26,7 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "user",
             "user_name",
             "first_name",  # New writable field
-            "last_name",   # New writable field
+            "last_name",  # New writable field
             "email",
             "phone_number",
             "medical_history",
@@ -45,7 +45,7 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "unique_id",  # Add this field
             "user",
             "created_at",
-            "updated_at"
+            "updated_at",
         ]
 
     def get_user_name(self, obj):
@@ -88,7 +88,7 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        user_data = validated_data.pop('user', {})
+        user_data = validated_data.pop("user", {})
         if user_data:
             user = instance.user
             for attr, value in user_data.items():

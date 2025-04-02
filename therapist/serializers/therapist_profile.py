@@ -9,10 +9,10 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
     is_profile_complete = serializers.BooleanField(read_only=True)
     username = serializers.SerializerMethodField()
     # Make these fields writable by removing read_only and adding required=False
-    first_name = serializers.CharField(source='user.first_name', required=False)
-    last_name = serializers.CharField(source='user.last_name', required=False)
-    email = serializers.EmailField(source='user.email', read_only=True)
-    phone_number = serializers.CharField(source='user.phone_number', read_only=True)
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
 
     class Meta:
         model = TherapistProfile
@@ -21,8 +21,8 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             "unique_id",  # Add this field
             "user",
             "username",
-            "first_name",  
-            "last_name",   
+            "first_name",
+            "last_name",
             "email",
             "phone_number",
             "specialization",
@@ -56,7 +56,7 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Handle nested user data (first_name, last_name)
-        user_data = validated_data.pop('user', {})
+        user_data = validated_data.pop("user", {})
         if user_data:
             user = instance.user
             for attr, value in user_data.items():

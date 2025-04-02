@@ -2,7 +2,10 @@
 from django.urls import path
 from patient.views.health_metric_views import HealthMetricViewSet
 from patient.views.medical_history_views import MedicalHistoryViewSet
-from patient.views.patient_profile_views import PatientProfileViewSet
+from patient.views.patient_profile_views import (
+    PatientProfileViewSet,
+    PublicPatientListView,
+)
 
 urlpatterns = [
     path(
@@ -51,4 +54,5 @@ urlpatterns = [
         ),
         name="medical-history-detail",
     ),
+    path("profiles/all/", PublicPatientListView.as_view(), name="public-patient-list"),
 ]

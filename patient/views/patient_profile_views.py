@@ -1,5 +1,5 @@
 # patient/views/patient_profile_views.py
-from rest_framework import viewsets, permissions, filters
+from rest_framework import viewsets, permissions, filters, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters import rest_framework as django_filters
@@ -109,3 +109,23 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
             uploaded_by=request.user,
         )
         return Response({"status": "file uploaded", "file_id": media_file.id})
+
+
+class PublicPatientListView(generics.ListAPIView):
+    """
+    Lists all patient profiles with detailed information.
+    """
+
+    serializer_class = PatientProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [
+        django_filters.DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
+    filterset_class = PatientProfileFilter
+    search_fields = ["user__first_name", "user__last_name", "user__email"]
+    ordering_fields = ["created_at", "updated_at"]
+
+    def get_queryset(self):
+        return PatientProfile.objects.select_related("user").all().order_by("id")

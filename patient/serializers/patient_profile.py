@@ -12,13 +12,23 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         min_value=0, max_value=10, required=False, allow_null=True
     )
     user_name = serializers.SerializerMethodField()
+    # Allow updating these name fields by removing read_only and adding required=False
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
 
     class Meta:
         model = PatientProfile
         fields = [
             "id",
+            "unique_id",  # Add this field
             "user",
             "user_name",
+            "first_name",  # New writable field
+            "last_name",  # New writable field
+            "email",
+            "phone_number",
             "medical_history",
             "current_medications",
             "profile_pic",
@@ -30,7 +40,13 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["user", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "unique_id",  # Add this field
+            "user",
+            "created_at",
+            "updated_at",
+        ]
 
     def get_user_name(self, obj):
         full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
@@ -70,3 +86,12 @@ class PatientProfileSerializer(serializers.ModelSerializer):
                 logger.error(f"Error validating image dimensions: {str(e)}")
 
         return value
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        if user_data:
+            user = instance.user
+            for attr, value in user_data.items():
+                setattr(user, attr, value)
+            user.save()
+        return super().update(instance, validated_data)

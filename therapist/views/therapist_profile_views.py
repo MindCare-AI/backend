@@ -412,6 +412,7 @@ class PublicTherapistListView(generics.ListAPIView):
     """
     Lists all verified therapist profiles.
     """
+
     queryset = TherapistProfile.objects.filter(is_verified=True)
     serializer_class = TherapistProfileSerializer
     permission_classes = [permissions.AllowAny]

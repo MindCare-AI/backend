@@ -6,7 +6,11 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Notification, NotificationType
-from .serializers import NotificationSerializer, NotificationUpdateSerializer, NotificationTypeSerializer
+from .serializers import (
+    NotificationSerializer,
+    NotificationUpdateSerializer,
+    NotificationTypeSerializer,
+)
 import logging
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,10 @@ from django.urls import path
 from therapist.views.appointment_views import AppointmentViewSet
 from therapist.views.client_feedback_views import ClientFeedbackViewSet
 from therapist.views.session_note_views import SessionNoteViewSet
-from therapist.views.therapist_profile_views import TherapistProfileViewSet, PublicTherapistListView
+from therapist.views.therapist_profile_views import (
+    TherapistProfileViewSet,
+    PublicTherapistListView,
+)
 
 urlpatterns = [
     # Therapist Profiles

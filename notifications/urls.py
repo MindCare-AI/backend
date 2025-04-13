@@ -5,7 +5,7 @@ from .views import NotificationViewSet, NotificationTypeViewSet
 urlpatterns = [
     path("", NotificationViewSet.as_view({"get": "list"}), name="notification-list"),
     path(
-        "<uuid:pk>/",
+        "<int:pk>/",  # Changed from <uuid:pk> to <int:pk>
         NotificationViewSet.as_view({"get": "retrieve", "patch": "partial_update"}),
         name="notification-detail",
     ),

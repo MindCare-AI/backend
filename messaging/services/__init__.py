@@ -2,6 +2,7 @@
 from .chatbot import ChatbotService, chatbot_service
 from .constants import THERAPEUTIC_GUIDELINES, ERROR_MESSAGES
 from .exceptions import ChatbotError, ChatbotConfigError, ChatbotAPIError
+from .message_delivery import MessageDeliveryService
 
 __all__ = [
     "ChatbotService",
@@ -11,4 +12,5 @@ __all__ = [
     "ChatbotError",
     "ChatbotConfigError",
     "ChatbotAPIError",
+    "MessageDeliveryService",
 ]

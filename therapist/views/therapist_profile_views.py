@@ -17,7 +17,6 @@ from therapist.services.therapist_verification_service import (
 )
 from django.db import transaction
 from django.utils import timezone
-from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +34,10 @@ logger = logging.getLogger(__name__)
     ),
 )
 class TherapistProfileViewSet(viewsets.ModelViewSet):
-    lookup_field = "unique_id"  # Add this line
+    lookup_field = "pk"  # Changed from "unique_id" to use pk
     serializer_class = TherapistProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
-    http_method_names = ["get", "post", "put", "patch", "delete"]  # Added "post"
+    http_method_names = ["get", "post", "put", "patch", "delete"]
 
     def get_queryset(self):
         if self.request.user.is_superuser:
@@ -68,10 +67,8 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
 
             with transaction.atomic():
-                profile = serializer.save()
-                logger.info(
-                    f"Created therapist profile for user {request.user.username}"
-                )
+                serializer.save()
+                logger.info(f"Created therapist profile for user {request.user.username}")
 
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -132,18 +129,12 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=["post"], permission_classes=[IsPatient])
-    def book_appointment(self, request, unique_id=None, **kwargs):
+    def book_appointment(self, request, pk=None, **kwargs):
         """
         Book an appointment with a therapist.
         """
         try:
-            # Only convert unique_id to UUID if it's a string
-            if not isinstance(unique_id, UUID):
-                unique_id = UUID(unique_id)
-
-            therapist_profile = TherapistProfile.objects.select_related("user").get(
-                unique_id=unique_id
-            )
+            therapist_profile = self.get_object()
 
             if not therapist_profile.is_verified:
                 return Response(
@@ -204,7 +195,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         },
     )
     @action(detail=True, methods=["get"])
-    def appointments(self, request, unique_id=None, **kwargs):  # Added **kwargs
+    def appointments(self, request, pk=None, **kwargs):
         try:
             therapist_profile = self.get_object()
             appointments = Appointment.objects.filter(

@@ -3,8 +3,6 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.core.cache import cache
 from django.utils import timezone
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 
 from ..models.base import BaseMessage
 from ..models.one_to_one import OneToOneMessage
@@ -100,6 +98,9 @@ def handle_message_reaction(sender, instance, created, **kwargs):
 @receiver(post_save, sender=GroupMessage)
 @receiver(post_save, sender=ChatbotMessage)
 def update_conversation_on_message_change(sender, instance, created, **kwargs):
+    from messaging.services.message_delivery import message_delivery_service
+
+    # Update conversation timestamp
     conversation = instance.conversation
     conversation.last_activity = timezone.now()
     conversation.save()
@@ -107,72 +108,33 @@ def update_conversation_on_message_change(sender, instance, created, **kwargs):
     # Send WebSocket update only for new messages or edited messages
     if created or getattr(instance, "edited", False):
         try:
-            channel_layer = get_channel_layer()
-            if not channel_layer:
-                logger.error("Channel layer not available")
-                return
+            event_type = "message_created" if created else "message_updated"
 
-            event_type = "message_create" if created else "message_update"
-
+            # Prepare message data
             message_data = {
-                "type": "conversation_message",  # Match the consumer method name
-                "message": {
-                    "event_type": event_type,
-                    "id": str(instance.id),
-                    "content": instance.content,
-                    "sender_id": str(instance.sender.id) if instance.sender else None,
-                    "sender_name": instance.sender.username
-                    if instance.sender
-                    else "System",
-                    "timestamp": instance.timestamp.isoformat(),
-                    "conversation_id": str(conversation.id),
-                    "message_type": getattr(instance, "message_type", "text"),
-                    "is_edited": getattr(instance, "edited", False),
-                },
+                "id": str(instance.id),
+                "content": instance.content,
+                "sender_id": str(instance.sender.id) if instance.sender else None,
+                "sender_name": instance.sender.username
+                if instance.sender
+                else "System",
+                "timestamp": instance.timestamp.isoformat(),
+                "conversation_id": str(conversation.id),
+                "message_type": getattr(instance, "message_type", "text"),
+                "is_edited": getattr(instance, "edited", False),
+                "read_by": [],  # Initialize empty read receipts
             }
 
-            async_to_sync(channel_layer.group_send)(
-                f"conversation_{conversation.id}", message_data
+            # Use the unified service to send the message
+            user_id = str(instance.sender.id) if instance.sender else None
+            message_delivery_service.send_message_update(
+                conversation_id=str(conversation.id),
+                event_type=event_type,
+                message_data=message_data,
+                user_id=user_id,
             )
 
             logger.debug(f"Sent WebSocket {event_type} for message {instance.id}")
 
         except Exception as e:
             logger.error(f"Error sending WebSocket message: {str(e)}", exc_info=True)
-
-
-@receiver(post_save, sender=OneToOneMessage)
-@receiver(post_save, sender=GroupMessage)
-def broadcast_message(sender, instance, created, **kwargs):
-    if created:  # Only for new messages
-        try:
-            channel_layer = get_channel_layer()
-            conversation_id = str(instance.conversation.id)
-
-            # Enhanced message data
-            message_data = {
-                "type": "conversation_message",
-                "message": {
-                    "id": str(instance.id),
-                    "content": instance.content,
-                    "sender_id": str(instance.sender.id),
-                    "sender_name": instance.sender.username,
-                    "conversation_id": conversation_id,
-                    "timestamp": instance.timestamp.isoformat(),
-                    "event_type": "new_message",
-                    "read_by": [],  # Initialize empty read receipts
-                    "message_type": getattr(instance, "message_type", "text"),
-                },
-            }
-
-            # Broadcast to the conversation group
-            async_to_sync(channel_layer.group_send)(
-                f"conversation_{conversation_id}", message_data
-            )
-
-            logger.debug(
-                f"Broadcasting new message {instance.id} to conversation {conversation_id}"
-            )
-
-        except Exception as e:
-            logger.error(f"Error broadcasting message: {str(e)}", exc_info=True)

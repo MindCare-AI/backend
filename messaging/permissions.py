@@ -1,5 +1,6 @@
 # messaging/permissions.py
 from rest_framework.permissions import BasePermission
+from rest_framework import permissions
 import logging
 
 logger = logging.getLogger(__name__)
@@ -99,9 +100,6 @@ class CanSendMessage(BasePermission):
         except Exception as e:
             logger.error(f"Error checking message permission: {str(e)}")
             return False
-
-
-from rest_framework import permissions
 
 
 class IsParticipantOrModerator(permissions.BasePermission):

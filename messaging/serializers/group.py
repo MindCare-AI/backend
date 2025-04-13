@@ -79,9 +79,20 @@ class GroupConversationSerializer(serializers.ModelSerializer):
 
 
 class GroupMessageSerializer(serializers.ModelSerializer):
-    sender_name = serializers.CharField(source="sender.username", read_only=True)
-    is_edited = serializers.BooleanField(read_only=True)
-    edit_history = serializers.JSONField(read_only=True)
+    MESSAGE_TYPE_CHOICES = (
+        ("text", "Text Message"),
+        ("system", "System Message"),
+    )
+
+    content = serializers.CharField(
+        max_length=5000, help_text="Enter the message content"
+    )
+
+    conversation = serializers.PrimaryKeyRelatedField(
+        queryset=GroupConversation.objects.all(), help_text="Select the conversation"
+    )
+
+    message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
 
     class Meta:
         model = GroupMessage
@@ -91,98 +102,6 @@ class GroupMessageSerializer(serializers.ModelSerializer):
             "content",
             "message_type",
             "sender",
-            "sender_name",
             "timestamp",
-            "is_edited",
-            "edited_at",
-            "edit_history",
-            "reactions",
-            "deleted",
-            "deletion_time",
         ]
-        read_only_fields = [
-            "sender",
-            "timestamp",
-            "is_edited",
-            "edited_at",
-            "deleted",
-            "deletion_time",
-        ]
-
-    def validate(self, attrs):
-        """Validate message creation/update"""
-        try:
-            conversation = attrs.get("conversation")
-            request = self.context.get("request")
-            if not request or not request.user:
-                raise serializers.ValidationError("Authentication required")
-
-            user = request.user
-
-            if not conversation:
-                raise serializers.ValidationError(
-                    {"conversation": "This field is required"}
-                )
-
-            # Ensure conversation exists and user is a participant
-            try:
-                conversation = GroupConversation.objects.get(
-                    id=conversation.id, participants=user
-                )
-            except GroupConversation.DoesNotExist:
-                raise serializers.ValidationError(
-                    {"conversation": "Invalid conversation or not a participant"}
-                )
-
-            # Check if conversation is archived
-            if conversation.archived:
-                raise serializers.ValidationError(
-                    "Cannot send messages to archived conversations"
-                )
-
-            # Only check blocked_users if the conversation has that attribute
-            if hasattr(conversation, "blocked_users"):
-                if conversation.blocked_users.filter(id=user.id).exists():
-                    raise serializers.ValidationError(
-                        "You have been blocked from this conversation"
-                    )
-
-            # Validate content
-            content = attrs.get("content", "").strip()
-            if not content:
-                raise serializers.ValidationError(
-                    {"content": "Message content cannot be empty"}
-                )
-            if len(content) > settings.GROUP_SETTINGS["MAX_MESSAGE_LENGTH"]:
-                raise serializers.ValidationError(
-                    {
-                        "content": f"Message too long (max {settings.GROUP_SETTINGS['MAX_MESSAGE_LENGTH']} characters)"
-                    }
-                )
-
-            return attrs
-
-        except Exception as e:
-            logger.error(f"Message validation error: {str(e)}")
-            raise serializers.ValidationError("Message validation failed")
-
-    def to_representation(self, instance):
-        """Override to convert non-serializable objects in reactions"""
-        representation = super().to_representation(instance)
-        reactions = representation.get("reactions")
-        if isinstance(reactions, dict):
-            safe_reactions = {}
-            for key, value in reactions.items():
-                # If value is a CustomUser instance, convert to its id
-                if hasattr(value, "id"):
-                    safe_reactions[key] = value.id
-                else:
-                    safe_reactions[key] = value
-            representation["reactions"] = safe_reactions
-        return representation
-
-    def validate_message_type(self, value):
-        allowed = ["text", "system"]
-        if value not in allowed:
-            raise serializers.ValidationError("Invalid message type for group.")
-        return value
+        read_only_fields = ["id", "sender", "timestamp"]

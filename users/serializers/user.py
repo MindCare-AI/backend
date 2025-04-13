@@ -2,7 +2,9 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
-from .profile import PatientProfileSerializer, TherapistProfileSerializer
+# Update imports to use app-specific serializers
+from patient.serializers.patient_profile import PatientProfileSerializer
+from therapist.serializers.therapist_profile import TherapistProfileSerializer
 from .preferences import UserPreferencesSerializer
 from .settings import UserSettingsSerializer
 
@@ -45,7 +47,10 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class UserTypeSerializer(serializers.ModelSerializer):
     user_type = serializers.ChoiceField(
         choices=CustomUser.USER_TYPE_CHOICES,
-        style={"base_template": "radio.html"},
+        style={
+            "base_template": "input.html",  # default input widget
+            "template": "rest_framework/vertical/radio.html",  # render as radio buttons
+        },
         help_text="Select your role in the system. This can only be set once.",
         label="User Role",
     )
@@ -53,7 +58,7 @@ class UserTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ["user_type"]
-        read_only_fields = ["id", "email"]  # Prevent other fields from being updated
+        read_only_fields = ["id", "email"]
 
     def validate_user_type(self, value):
         valid_types = [choice[0] for choice in CustomUser.USER_TYPE_CHOICES]

@@ -17,20 +17,19 @@ load_dotenv(dotenv_path=os.path.join(BASE_DIR, "..", ".env"), override=True)
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-0)cm(xhi^gtudqrk0t266=keuowd-x+cfmcrj8#k2_#dsrts&t"
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-0)cm(xhi^gtudqrk0t266=keuowd-x+cfmcrj8#k2_#dsrts&t"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-# Update ALLOWED_HOSTS to include 'localhost'
+# Update ALLOWED_HOSTS to be more restrictive
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
-    "localhost:8000",
     *os.getenv("ALLOWED_HOSTS", "").split(","),
-    "*",  # For development only - remove in production
 ]
-
 
 # Application definition
 
@@ -187,12 +186,12 @@ ACCOUNT_EMAIL_REQUIRED = True
 
 # Email Configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp-relay.brevo.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "7fa9d1001@smtp-brevo.com"
-EMAIL_HOST_PASSWORD = "y9Pw4DtnMFcI6Y38"
-DEFAULT_FROM_EMAIL = "azizbahloulextra@gmail.com"
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp-relay.brevo.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "7fa9d1001@smtp-brevo.com")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "azizbahloulextra@gmail.com")
 
 # Django-allauth Settings
 ACCOUNT_EMAIL_REQUIRED = True
@@ -209,6 +208,7 @@ ACCOUNT_EMAIL_SUBJECT_PREFIX = "MindCare - "
 MESSAGE_ENCRYPTION_KEY = os.environ.get(
     "MESSAGE_ENCRYPTION_KEY", "nQrchvGhEZoM462cbnZ5gZ4WpsP_M3yjD5jrW6aQ3OA="
 )
+
 # Remove duplicate settings and keep only this adapter
 ACCOUNT_ADAPTER = "auth.registration.custom_adapter.CustomAccountAdapter"
 
@@ -337,6 +337,12 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
+    "DEFAULT_CONTENT_NEGOTIATION_CLASS": "rest_framework.negotiation.DefaultContentNegotiation",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -448,7 +454,11 @@ CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_TASK_ROUTES = {"messaging.tasks.process_chatbot_response": {"queue": "chatbot"}}
 CELERY_TASK_DEFAULT_QUEUE = "default"
 
-# Enhanced logging configuration
+
+# Ensure logs directory exists
+logs_dir = BASE_DIR / "logs"
+logs_dir.mkdir(exist_ok=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -465,7 +475,7 @@ LOGGING = {
         },
         "file": {
             "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs/email.log",
+            "filename": logs_dir / "email.log",
             "formatter": "verbose",
         },
     },
@@ -502,18 +512,6 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": True,
         },
-    },
-}
-
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-        },
-    },
-    "loggers": {
         "notifications": {
             "handlers": ["console"],
             "level": "DEBUG",
@@ -523,6 +521,9 @@ LOGGING = {
 
 # Gemini API Configuration
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_API_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+)
 
 # Verification settings
 VERIFICATION_SETTINGS = {
@@ -534,18 +535,11 @@ VERIFICATION_SETTINGS = {
     "VERIFICATION_COOLDOWN_HOURS": 24,
 }
 
-# Group Conversation Settings
+# Group Settings - consolidated (removed duplicate)
 GROUP_SETTINGS = {
     "MAX_GROUPS_PER_USER": 10,
     "MAX_PARTICIPANTS_PER_GROUP": 50,
     "MAX_MODERATORS_PER_GROUP": 5,
-    "MESSAGE_EDIT_WINDOW": 3600,  # 1 hour in seconds
-    "MAX_MESSAGE_LENGTH": 5000,
-}
-
-# Group Settings
-GROUP_SETTINGS = {
-    "MAX_PARTICIPANTS_PER_GROUP": 50,
     "MAX_MESSAGE_LENGTH": 5000,
     "MAX_GROUP_NAME_LENGTH": 100,
     "MIN_PARTICIPANTS": 2,
@@ -562,10 +556,6 @@ MESSAGE_SETTINGS = {
 }
 
 # Chatbot Settings
-GEMINI_API_KEY = "AIzaSyC0kDGVJlr-vYPcYjHHSS__aLPfq2dI734"
-GEMINI_API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-)
 CHATBOT_SETTINGS = {
     "MAX_RETRIES": 3,
     "RESPONSE_TIMEOUT": 30,
@@ -626,3 +616,16 @@ USER_SETTINGS = {
 # WebSocket URL config
 WEBSOCKET_URL = "/ws/"
 WEBSOCKET_CONNECT_TIMEOUT = 10
+
+# WebSocket Rate Limiting
+WS_RATE_LIMIT_COUNT = 5  # Max number of messages per time period
+WS_RATE_LIMIT_PERIOD = 1  # Time period in seconds
+WS_MESSAGE_TYPES = {
+    "message_created": "New messages sent by users",
+    "message_updated": "Updates to existing messages",
+    "message_deleted": "Message deletion events",
+    "typing_indicator": "User typing indicators",
+    "read_receipt": "Message read receipts",
+    "presence_update": "Online/offline status updates",
+    "conversation_updated": "Changes to conversation metadata",
+}

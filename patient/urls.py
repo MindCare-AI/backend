@@ -14,7 +14,7 @@ urlpatterns = [
         name="patient-profile-list",
     ),
     path(
-        "profiles/<uuid:unique_id>/",
+        "profiles/<int:pk>/",  # Changed from <uuid:unique_id> to <int:pk>
         PatientProfileViewSet.as_view(
             {
                 "get": "retrieve",
@@ -26,7 +26,7 @@ urlpatterns = [
         name="patient-profile-detail",
     ),
     path(
-        "profiles/<uuid:unique_id>/appointments/",
+        "profiles/<int:pk>/appointments/",  # Changed accordingly
         PatientProfileViewSet.as_view({"get": "appointments"}),
         name="patient-appointments",
     ),

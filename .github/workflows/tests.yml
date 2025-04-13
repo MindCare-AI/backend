@@ -27,4 +27,6 @@ jobs:
         run: ruff check .
 
       - name: Run Pytest
+        env:
+          DJANGO_SETTINGS_MODULE: mindcare.settings
         run: pytest

@@ -58,14 +58,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             403: {"description": "Only therapist can confirm appointments"},
         },
     )
-    @action(detail=True, methods=["get", "post"])
+    @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
-        # GET is provided only so that the DRF Browsable API renders a form.
-        if request.method == "GET":
-            return Response(
-                {"detail": "This endpoint confirms an appointment. Please use POST."}
-            )
-
         appointment = self.get_object()
         if appointment.therapist.user != request.user:
             return Response(
@@ -87,14 +81,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             403: {"description": "Only therapist or patient can cancel appointments"},
         },
     )
-    @action(detail=True, methods=["get", "post"])
+    @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
-        # Provide GET method for the Browsable API.
-        if request.method == "GET":
-            return Response(
-                {"detail": "This endpoint cancels an appointment. Please use POST."}
-            )
-
         appointment = self.get_object()
         if (
             appointment.therapist.user != request.user

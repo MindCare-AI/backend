@@ -46,6 +46,12 @@ class RealTimeMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
         self.channel_layer = get_channel_layer()
+        # Define conversation URL patterns for more robust path matching
+        self.conversation_patterns = {
+            "one_to_one": r"/api/messaging/one_to_one/(\d+)",
+            "groups": r"/api/messaging/groups/(\d+)",
+            "chatbot": r"/api/messaging/chatbot/(\d+)",
+        }
 
     def __call__(self, request):
         response = self.get_response(request)
@@ -73,23 +79,31 @@ class RealTimeMiddleware:
         return is_messaging_path and is_modifying_method and is_successful
 
     def _extract_conversation_id(self, path):
-        """Extract conversation ID from request path"""
+        """Extract conversation ID from request path more reliably using regex"""
+        import re
+        
         try:
-            # Example paths:
-            # /api/messaging/one_to_one/123/
-            # /api/messaging/groups/123/
-            # /api/messaging/chatbot/123/
-            parts = path.split("/")
-            conversation_types = ["one_to_one", "groups", "chatbot"]
-            for i, part in enumerate(parts):
-                if part in conversation_types and i + 1 < len(parts):
-                    potential_id = parts[i + 1]
-                    # Check if the ID part is a valid numeric ID
-                    if potential_id and potential_id.isdigit():
+            # Try to match path against known conversation patterns
+            for conv_type, pattern in self.conversation_patterns.items():
+                match = re.search(pattern, path)
+                if match:
+                    conversation_id = match.group(1)
+                    logger.debug(f"Extracted conversation ID {conversation_id} from path {path} (type: {conv_type})")
+                    return conversation_id
+            
+            # If no direct match, try to find any numeric ID that might be a conversation ID
+            segments = path.strip('/').split('/')
+            for i, segment in enumerate(segments):
+                if segment in ["conversation", "conversations", "messages"] and i + 1 < len(segments):
+                    potential_id = segments[i + 1]
+                    if potential_id.isdigit():
+                        logger.debug(f"Found potential conversation ID {potential_id} from path {path}")
                         return potential_id
+            
+            logger.debug(f"Could not extract conversation ID from path: {path}")
             return None
         except Exception as e:
-            logger.error(f"Error extracting conversation ID: {str(e)}")
+            logger.error(f"Error extracting conversation ID: {str(e)}", exc_info=True)
             return None
 
     def _send_websocket_update(self, request, response):
@@ -99,9 +113,8 @@ class RealTimeMiddleware:
             if not conversation_id:
                 return
 
-            # Cache key for rate limiting
-            cache_key = f"ws_update_{conversation_id}_{request.user.id}"
-            cache.add(cache_key, 1, timeout=1)  # Simple rate limiting
+            # Import the message delivery service
+            from messaging.services.message_delivery import message_delivery_service
 
             # Determine action type based on method and endpoint
             if "message" in request.path.lower():
@@ -116,22 +129,24 @@ class RealTimeMiddleware:
             else:
                 action = "conversation_updated"
 
-            # Prepare update data
-            update_data = {
-                "type": "conversation.message",
-                "message": {
-                    "event_type": action,
-                    "user_id": str(request.user.id),
-                    "username": request.user.username,
-                    "data": response.data if hasattr(response, "data") else {},
-                    "timestamp": timezone.now().isoformat(),
-                    "conversation_id": conversation_id,
-                },
+            # Prepare message data
+            message_data = {
+                "user_id": str(request.user.id),
+                "username": request.user.username,
+                "data": response.data if hasattr(response, "data") else {},
+                "timestamp": timezone.now().isoformat(),
+                "conversation_id": conversation_id,
             }
+            
+            # Use the unified service to send the update
+            message_delivery_service.send_message_update(
+                conversation_id=conversation_id,
+                event_type=action,
+                message_data=message_data,
+                user_id=str(request.user.id)
+            )
 
-            # Send to appropriate group
-            group_name = f"conversation_{conversation_id}"
-            async_to_sync(self.channel_layer.group_send)(group_name, update_data)
+            logger.debug(f"Sent WebSocket update for {action} in conversation {conversation_id}")
 
         except Exception as e:
             logger.error(f"Failed to send WebSocket update: {str(e)}", exc_info=True)
@@ -178,3 +193,15 @@ class WebSocketAuthMiddleware(BaseMiddleware):
                 f"Unexpected error in token validation: {str(e)}", exc_info=True
             )
             return None
+
+
+class OnlineStatusMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            # Update last activity time
+            request.user.last_activity = timezone.now()
+            request.user.save(update_fields=['last_activity'])
+        return self.get_response(request)

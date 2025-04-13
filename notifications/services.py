@@ -34,8 +34,8 @@ class UnifiedNotificationService:
                 notification_type_name
             )
 
-            # Check user preferences
-            preferences = UserPreferences.objects.get_or_create(user=user)[0]
+            # Check user preferences (by default all notifications are allowed)
+            preferences, _ = UserPreferences.objects.get_or_create(user=user)
             if not self._check_notification_allowed(preferences, notification_type):
                 logger.debug(
                     f"Notification {notification_type_name} not allowed for {user}"
@@ -64,34 +64,15 @@ class UnifiedNotificationService:
 
         except Exception as e:
             logger.error(f"Error sending notification: {str(e)}", exc_info=True)
-            if kwargs.get("send_in_app", True):
-                self._send_in_app_notification(user, notification)
-
-            return notification
-
-        except Exception as e:
-            logger.error(f"Error sending notification: {str(e)}")
             return None
 
     def _check_notification_allowed(self, preferences, notification_type):
-        # Check global enable/disable first
-        if not preferences.in_app_notifications:
-            return False
-
-        # Check type-specific settings
-        if notification_type.is_global:
-            return (
-                notification_type.default_enabled
-                and not preferences.disabled_notification_types.filter(
-                    id=notification_type.id
-                ).exists()
-            )
-        else:
-            return notification_type.default_enabled
+        # Allow notifications by default if in_app_notifications is enabled.
+        return preferences.in_app_notifications
 
     def _send_email_notification(self, user, notification, preferences):
         if preferences.email_notifications:
-            # Implement actual email sending logic here
+            # Implement actual email sending logic here.
             logger.info(f"Sent email notification to {user.email}")
 
     def _send_in_app_notification(self, user, notification):
@@ -105,14 +86,12 @@ class UnifiedNotificationService:
                 "timestamp": notification.created_at.isoformat(),
                 "priority": notification.priority,
             }
-
             async_to_sync(channel_layer.group_send)(
                 f"user_{user.id}_notifications",
                 {"type": "notification.message", "message": notification_data},
             )
             logger.info(f"Sent WebSocket notification to user {user.username}")
             return True
-
         except Exception as e:
             logger.error(f"Error sending WebSocket notification: {str(e)}")
             return False

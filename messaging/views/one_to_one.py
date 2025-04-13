@@ -2,14 +2,11 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.db import IntegrityError, transaction
-from django.core.exceptions import ValidationError as DjangoValidationError
-from rest_framework.exceptions import ValidationError
 from django.db.models import Count, Max, Q, Prefetch
-from django.utils import timezone
-from django.conf import settings
-from ..mixins.edit_history import EditHistoryMixin
-from ..mixins.reactions import ReactionMixin
+from django.contrib.auth import get_user_model
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
 # Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
 # • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
@@ -22,11 +19,12 @@ from ..serializers.one_to_one import (
     OneToOneMessageSerializer,
 )
 
-# New corrected import
+# New corrected import  
 # Removed Firebase import
 # from ..services/firebase import push_message  # DELETE THIS LINE
 import logging
-from django.contrib.auth import get_user_model
+from ..mixins.edit_history import EditHistoryMixin
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -197,8 +195,17 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def typing(self, request, pk=None):
         conversation = self.get_object()
-        conversation.is_typing = True
-        conversation.save()
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"conversation_{conversation.id}",
+            {
+                "type": "typing.indicator",
+                "user_id": str(request.user.id),
+                "username": request.user.username,
+                "conversation_id": str(conversation.id),
+                "is_typing": True
+            }
+        )
         return Response({"status": "typing"}, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -316,250 +323,30 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
             )
 
 
-@extend_schema_view(
-    list=extend_schema(
-        description="List all messages in one-to-one conversations for the authenticated user.",
-        summary="List One-to-One Messages",
-        tags=["One-to-One Message"],
-    ),
-    retrieve=extend_schema(
-        description="Retrieve details of a specific one-to-one message.",
-        summary="Retrieve One-to-One Message",
-        tags=["One-to-One Message"],
-    ),
-)
-class OneToOneMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet):
+class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
     queryset = OneToOneMessage.objects.all()
     serializer_class = OneToOneMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer]
 
     def get_queryset(self):
-        return self.queryset.filter(conversation__participants=self.request.user)
+        """Filter messages to include only those in conversations the user participates in."""
+        return OneToOneMessage.objects.filter(
+            conversation__participants=self.request.user
+        ).order_by("-timestamp")
 
-    def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+    def retrieve(self, request, *args, **kwargs):
+        """Retrieve a specific message by ID with detailed information."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
-            # Get and verify conversation exists
-            conversation_id = request.data.get("conversation")
-            try:
-                conversation = OneToOneConversation.objects.get(
-                    id=conversation_id, participants=request.user
-                )
-            except OneToOneConversation.DoesNotExist:
-                return Response(
-                    {
-                        "error": f"Conversation {conversation_id} not found or you are not a participant."
-                    },
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+    @action(detail=True, methods=["post"], url_path="add_reaction")
+    def add_reaction(self, request, pk=None):
+        """Add a reaction to a specific message."""
+        return Response({"detail": "This feature is not implemented yet."}, status=status.HTTP_501_NOT_IMPLEMENTED)
 
-            # Create message
-            message = serializer.save(sender=request.user, conversation=conversation)
-
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error creating message: {str(e)}")
-            return Response(
-                {"error": "An unexpected error occurred"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def perform_create(self, serializer):
-        """
-        Set the current user as the sender of the message and notify
-        the other participant via unified notification.
-        """
-        try:
-            # Save the message with the current user as sender
-            instance = serializer.save(sender=self.request.user)
-            conversation = instance.conversation
-
-            # Identify the recipient (non-sender participant)
-            recipient = conversation.participants.exclude(
-                id=self.request.user.id
-            ).first()
-
-            if recipient:
-                try:
-                    from notifications.services import UnifiedNotificationService
-
-                    notification_service = UnifiedNotificationService()
-
-                    # Add debug logging
-                    logger.debug(
-                        f"Attempting to send notification to recipient: {recipient.id}"
-                    )
-
-                    notification = notification_service.send_notification(
-                        user=recipient,
-                        notification_type_name="new_message",
-                        title="New Message",
-                        message=f"You have a new message: {instance.content[:100]}{'...' if len(instance.content) > 100 else ''}",
-                        metadata={
-                            "conversation_id": str(conversation.id),
-                            "message_id": str(instance.id),
-                            "sender_id": str(self.request.user.id),
-                            "message_preview": instance.content[:100]
-                            + ("..." if len(instance.content) > 100 else ""),
-                            "category": "message",
-                            "link": f"/conversations/{conversation.id}/",
-                            "sender_name": self.request.user.get_full_name()
-                            or self.request.user.username,
-                        },
-                        send_email=True,
-                        send_in_app=True,
-                        priority="high",
-                        content_object=instance,
-                    )
-
-                    if notification:
-                        logger.info(
-                            f"Sent notification for message {instance.id} to user {recipient.id}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Notification not sent for message {instance.id} - possibly disabled by user preferences"
-                        )
-
-                except Exception as e:
-                    logger.error(
-                        f"Failed to send notification for message {instance.id}: {str(e)}",
-                        exc_info=True,
-                    )
-
-            return instance
-
-        except IntegrityError as e:
-            logger.error(f"Message creation failed: {str(e)}")
-            raise ValidationError(f"Failed to create message: {str(e)}")
-        except DjangoValidationError as e:
-            logger.error(f"Message validation failed: {str(e)}")
-            raise ValidationError(f"Validation error: {str(e)}")
-        except Exception as e:
-            logger.error(f"Unexpected error creating message: {str(e)}")
-            raise ValidationError(f"An unexpected error occurred: {str(e)}")
-
-    @transaction.atomic
-    def update(self, request, *args, **kwargs):
-        """Update message with validation and tracking"""
-        try:
-            instance = self.get_object()
-
-            # Check if user is message sender
-            if instance.sender != request.user:
-                return Response(
-                    {"error": "You can only edit your own messages"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            # Check if message is deleted
-            if instance.deleted:
-                return Response(
-                    {"error": "Deleted messages cannot be edited"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Check edit time window
-            edit_window = getattr(
-                settings, "MESSAGE_EDIT_WINDOW", 3600
-            )  # 1 hour default
-            if (timezone.now() - instance.timestamp).seconds > edit_window:
-                return Response(
-                    {
-                        "error": f"Messages can only be edited within {edit_window//60} minutes"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Update message
-            serializer = self.get_serializer(instance, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-
-            return Response(serializer.data)
-
-        except Exception as e:
-            logger.error(f"Failed to update message: {str(e)}", exc_info=True)
-            return Response(
-                {"error": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=True, methods=["post"])
-    def soft_delete(self, request, pk=None):
-        """
-        Soft delete a message
-        """
-        try:
-            instance = self.get_object()
-
-            # Check if user can delete message
-            if not (
-                instance.sender == request.user
-                or request.user.is_staff
-                or instance.conversation.moderators.filter(id=request.user.id).exists()
-            ):
-                return Response(
-                    {"error": "You don't have permission to delete this message"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            instance.deleted = True
-            instance.deletion_time = timezone.now()
-            instance.deleted_by = request.user
-            instance.save()
-
-            return Response(
-                {"message": "Message deleted successfully"}, status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to delete message: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=True, methods=["get"])
-    def edit_history(self, request, pk=None):
-        """
-        Get message edit history
-        """
-        try:
-            instance = self.get_object()
-
-            # Check if user can view history
-            if not (
-                instance.sender == request.user
-                or request.user.is_staff
-                or instance.conversation.participants.filter(
-                    id=request.user.id
-                ).exists()
-            ):
-                return Response(
-                    {"error": "You don't have permission to view edit history"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-
-            return Response(
-                {
-                    "current": {
-                        "content": instance.content,
-                        "edited_at": instance.edited_at,
-                        "edited_by": instance.edited_by.id
-                        if instance.edited_by
-                        else None,
-                    },
-                    "history": instance.edit_history,
-                }
-            )
-
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to retrieve edit history: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+    @action(detail=True, methods=["delete"], url_path="remove_reaction")
+    def remove_reaction(self, request, pk=None):
+        """Remove a reaction from a specific message."""
+        return Response({"detail": "This feature is not implemented yet."}, status=status.HTTP_501_NOT_IMPLEMENTED)

@@ -37,7 +37,7 @@ class MediaFile(models.Model):
         blank=True,
     )
 
-    # Generic relation fields with proper UUID handling
+    # Generic relation fields, updated to use standard integer IDs.
     content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
@@ -45,11 +45,11 @@ class MediaFile(models.Model):
         blank=True,
         related_name="media_files",
     )
-    object_id = models.UUIDField(
+    object_id = models.PositiveIntegerField(
         null=True,
         blank=True,
         db_index=True,
-        help_text="UUID of the related object (e.g., profile unique_id)",
+        help_text="ID of the related object"
     )
     content_object = GenericForeignKey("content_type", "object_id")
 
@@ -98,15 +98,9 @@ class MediaFile(models.Model):
         return os.path.basename(self.file.name)
 
     def link_to_profile(self, profile):
-        """Link media to a profile using UUID."""
-        if not hasattr(profile, "unique_id"):
-            raise ValidationError("Profile must have a unique_id field")
-
-        if not isinstance(profile.unique_id, uuid.UUID):
-            raise ValidationError("Profile unique_id must be a UUID")
-
+        """Link media to a profile using standard ID"""
         self.content_type = ContentType.objects.get_for_model(profile.__class__)
-        self.object_id = profile.unique_id
+        self.object_id = profile.id
         self.save()
 
     class Meta:

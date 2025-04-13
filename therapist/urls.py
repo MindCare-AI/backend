@@ -16,7 +16,7 @@ urlpatterns = [
         name="therapist-profiles",
     ),
     path(
-        "profiles/<uuid:unique_id>/",
+        "profiles/<int:pk>/",  # Changed from <uuid:unique_id> to <int:pk>
         TherapistProfileViewSet.as_view(
             {
                 "get": "retrieve",
@@ -29,24 +29,24 @@ urlpatterns = [
     ),
     # Therapist Profile Actions
     path(
-        "profiles/<uuid:unique_id>/book-appointment/",
+        "profiles/<int:pk>/book-appointment/",  # Changed accordingly
         TherapistProfileViewSet.as_view({"post": "book_appointment"}),
         name="therapist-book-appointment",
     ),
     path(
-        "profiles/<uuid:unique_id>/availability/",  # Changed from <int:pk>
+        "profiles/<int:pk>/availability/",  # Changed accordingly
         TherapistProfileViewSet.as_view(
             {"get": "availability", "post": "update_availability"}
         ),
         name="therapist-availability",
     ),
     path(
-        "profiles/<uuid:unique_id>/verify/",  # Changed from <int:pk>
+        "profiles/<int:pk>/verify/",  # Changed accordingly
         TherapistProfileViewSet.as_view({"post": "verify"}),
         name="therapist-verify",
     ),
     path(
-        "profiles/<uuid:unique_id>/appointments/",
+        "profiles/<int:pk>/appointments/",  # Changed accordingly
         TherapistProfileViewSet.as_view({"get": "appointments"}),
         name="therapist-appointments",
     ),

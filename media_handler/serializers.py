@@ -13,7 +13,7 @@ class MediaFileSerializer(serializers.ModelSerializer):
     content_type = serializers.PrimaryKeyRelatedField(
         queryset=ContentType.objects.all(), required=False, allow_null=True
     )
-    object_id = serializers.UUIDField(required=False, allow_null=True)
+    object_id = serializers.IntegerField(required=False, allow_null=True)  # Updated field type
 
     class Meta:
         model = MediaFile
@@ -79,12 +79,12 @@ class MediaFileSerializer(serializers.ModelSerializer):
         if content_type and object_id:
             model_class = content_type.model_class()
             if not any(
-                isinstance(field, models.UUIDField)
+                isinstance(field, models.IntegerField)
                 for field in model_class._meta.fields
             ):
                 raise serializers.ValidationError(
                     {
-                        "content_type": f"Model {model_class.__name__} does not have a UUID field"
+                        "content_type": f"Model {model_class.__name__} does not have an Integer field for linking."
                     }
                 )
 

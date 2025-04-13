@@ -2,7 +2,6 @@
 import uuid
 from django.db import models
 from django.utils import timezone
-from rest_framework import serializers
 
 
 class Appointment(models.Model):
@@ -26,6 +25,7 @@ class Appointment(models.Model):
         max_length=20,
         choices=[
             ("scheduled", "Scheduled"),
+            ("confirmed", "Confirmed"),
             ("completed", "Completed"),
             ("cancelled", "Cancelled"),
         ],
@@ -55,17 +55,3 @@ class Appointment(models.Model):
             raise models.ValidationError(
                 {"appointment_date": "Appointment date must be in the future"}
             )
-
-
-class AppointmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Appointment
-        fields = [
-            "id",
-            "patient",
-            "therapist",
-            "appointment_date",
-            "status",
-            "notes",
-            "duration",
-        ]

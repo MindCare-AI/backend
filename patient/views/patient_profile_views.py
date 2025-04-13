@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
     ),
 )
 class PatientProfileViewSet(viewsets.ModelViewSet):
-    lookup_field = "unique_id"  # Use unique_id for lookups
+    lookup_field = "pk"  # Changed from "unique_id" to "pk"
     serializer_class = PatientProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
     filter_backends = [
@@ -69,7 +69,7 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
         tags=["Patient Profile"],
     )
     @action(detail=True, methods=["get"])
-    def appointments(self, request, unique_id=None):
+    def appointments(self, request, pk=None):
         profile = self.get_object()
         return Response(
             {
@@ -97,10 +97,10 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
         tags=["Patient Profile"],
     )
     @action(detail=True, methods=["post"])
-    def upload_file(self, request, unique_id=None):
+    def upload_file(self, request, pk=None):
         patient_profile = request.user.patientprofile
         uploaded_file = request.FILES.get("file")
-        if not uploaded_file:  # validate file presence
+        if not uploaded_file:
             return Response({"error": "No file uploaded"}, status=400)
         media_file = MediaFile.objects.create(
             file=uploaded_file,

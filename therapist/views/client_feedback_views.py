@@ -10,4 +10,4 @@ class ClientFeedbackViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Save the feedback instance.
-        instance = serializer.save()
+        instance = serializer.save() #noqa: F841

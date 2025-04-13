@@ -19,7 +19,7 @@ from ..serializers.one_to_one import (
     OneToOneMessageSerializer,
 )
 
-# New corrected import  
+# New corrected import
 # Removed Firebase import
 # from ..services/firebase import push_message  # DELETE THIS LINE
 import logging
@@ -203,8 +203,8 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
                 "user_id": str(request.user.id),
                 "username": request.user.username,
                 "conversation_id": str(conversation.id),
-                "is_typing": True
-            }
+                "is_typing": True,
+            },
         )
         return Response({"status": "typing"}, status=status.HTTP_200_OK)
 
@@ -344,9 +344,15 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="add_reaction")
     def add_reaction(self, request, pk=None):
         """Add a reaction to a specific message."""
-        return Response({"detail": "This feature is not implemented yet."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        return Response(
+            {"detail": "This feature is not implemented yet."},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
 
     @action(detail=True, methods=["delete"], url_path="remove_reaction")
     def remove_reaction(self, request, pk=None):
         """Remove a reaction from a specific message."""
-        return Response({"detail": "This feature is not implemented yet."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        return Response(
+            {"detail": "This feature is not implemented yet."},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )

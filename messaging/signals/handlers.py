@@ -3,8 +3,6 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.core.cache import cache
 from django.utils import timezone
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 
 from ..models.base import BaseMessage
 from ..models.one_to_one import OneToOneMessage
@@ -101,7 +99,7 @@ def handle_message_reaction(sender, instance, created, **kwargs):
 @receiver(post_save, sender=ChatbotMessage)
 def update_conversation_on_message_change(sender, instance, created, **kwargs):
     from messaging.services.message_delivery import message_delivery_service
-    
+
     # Update conversation timestamp
     conversation = instance.conversation
     conversation.last_activity = timezone.now()
@@ -111,29 +109,31 @@ def update_conversation_on_message_change(sender, instance, created, **kwargs):
     if created or getattr(instance, "edited", False):
         try:
             event_type = "message_created" if created else "message_updated"
-            
+
             # Prepare message data
             message_data = {
                 "id": str(instance.id),
                 "content": instance.content,
                 "sender_id": str(instance.sender.id) if instance.sender else None,
-                "sender_name": instance.sender.username if instance.sender else "System",
+                "sender_name": instance.sender.username
+                if instance.sender
+                else "System",
                 "timestamp": instance.timestamp.isoformat(),
                 "conversation_id": str(conversation.id),
                 "message_type": getattr(instance, "message_type", "text"),
                 "is_edited": getattr(instance, "edited", False),
-                "read_by": []  # Initialize empty read receipts
+                "read_by": [],  # Initialize empty read receipts
             }
-            
+
             # Use the unified service to send the message
             user_id = str(instance.sender.id) if instance.sender else None
             message_delivery_service.send_message_update(
                 conversation_id=str(conversation.id),
                 event_type=event_type,
                 message_data=message_data,
-                user_id=user_id
+                user_id=user_id,
             )
-            
+
             logger.debug(f"Sent WebSocket {event_type} for message {instance.id}")
 
         except Exception as e:

@@ -85,24 +85,19 @@ class GroupMessageSerializer(serializers.ModelSerializer):
     )
 
     content = serializers.CharField(
-        max_length=5000,
-        help_text="Enter the message content"
+        max_length=5000, help_text="Enter the message content"
     )
-    
+
     conversation = serializers.PrimaryKeyRelatedField(
-        queryset=GroupConversation.objects.all(),
-        help_text="Select the conversation"
+        queryset=GroupConversation.objects.all(), help_text="Select the conversation"
     )
-    
-    message_type = serializers.ChoiceField(
-        choices=MESSAGE_TYPE_CHOICES,
-        default="text"
-    )
+
+    message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
 
     class Meta:
         model = GroupMessage
         fields = [
-            "id", 
+            "id",
             "conversation",
             "content",
             "message_type",

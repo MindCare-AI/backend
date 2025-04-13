@@ -13,12 +13,12 @@ class ChatbotConversationSerializer(serializers.ModelSerializer):
 class ChatbotMessageSerializer(serializers.ModelSerializer):
     content = serializers.CharField(
         style={
-            'base_template': 'textarea.html',
-            'rows': 3,
-            'placeholder': 'Enter your message to the chatbot...'
+            "base_template": "textarea.html",
+            "rows": 3,
+            "placeholder": "Enter your message to the chatbot...",
         },
         help_text="Enter your message",
-        max_length=1000
+        max_length=1000,
     )
 
     class Meta:

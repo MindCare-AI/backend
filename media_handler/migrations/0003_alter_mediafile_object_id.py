@@ -4,19 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('media_handler', '0002_initial'),
+        ("media_handler", "0002_initial"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='mediafile',
-            name='object_id',
+            model_name="mediafile",
+            name="object_id",
         ),
         migrations.AddField(
-            model_name='mediafile',
-            name='object_id',
-            field=models.PositiveIntegerField(blank=True, null=True, db_index=True, help_text="ID of the related object"),
+            model_name="mediafile",
+            name="object_id",
+            field=models.PositiveIntegerField(
+                blank=True,
+                null=True,
+                db_index=True,
+                help_text="ID of the related object",
+            ),
         ),
     ]

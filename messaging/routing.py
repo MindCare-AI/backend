@@ -8,7 +8,6 @@ websocket_urlpatterns = [
         r"^ws/messaging/(?P<conversation_id>\d+)/$",
         consumers.ConversationConsumer.as_asgi(),
     ),
-    
     # User presence endpoint
     re_path(r"^ws/presence/$", consumers.PresenceConsumer.as_asgi()),
 ]

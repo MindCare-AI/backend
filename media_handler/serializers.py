@@ -13,7 +13,9 @@ class MediaFileSerializer(serializers.ModelSerializer):
     content_type = serializers.PrimaryKeyRelatedField(
         queryset=ContentType.objects.all(), required=False, allow_null=True
     )
-    object_id = serializers.IntegerField(required=False, allow_null=True)  # Updated field type
+    object_id = serializers.IntegerField(
+        required=False, allow_null=True
+    )  # Updated field type
 
     class Meta:
         model = MediaFile

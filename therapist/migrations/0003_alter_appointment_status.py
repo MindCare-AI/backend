@@ -4,15 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('therapist', '0002_initial'),
+        ("therapist", "0002_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='appointment',
-            name='status',
-            field=models.CharField(choices=[('scheduled', 'Scheduled'), ('confirmed', 'Confirmed'), ('completed', 'Completed'), ('cancelled', 'Cancelled')], default='scheduled', max_length=20),
+            model_name="appointment",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("scheduled", "Scheduled"),
+                    ("confirmed", "Confirmed"),
+                    ("completed", "Completed"),
+                    ("cancelled", "Cancelled"),
+                ],
+                default="scheduled",
+                max_length=20,
+            ),
         ),
     ]

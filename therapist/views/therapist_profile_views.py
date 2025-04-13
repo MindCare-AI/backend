@@ -17,7 +17,6 @@ from therapist.services.therapist_verification_service import (
 )
 from django.db import transaction
 from django.utils import timezone
-from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +269,6 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             )
 
     def _validate_schedule(self, schedule):
-        import json
         if isinstance(schedule, str):
             try:
                 schedule = json.loads(schedule)

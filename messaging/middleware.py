@@ -3,9 +3,7 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from rest_framework.response import Response
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 import logging
-from django.core.cache import cache
 from django.utils import timezone
 from channels.middleware import BaseMiddleware
 from channels.db import database_sync_to_async
@@ -81,25 +79,33 @@ class RealTimeMiddleware:
     def _extract_conversation_id(self, path):
         """Extract conversation ID from request path more reliably using regex"""
         import re
-        
+
         try:
             # Try to match path against known conversation patterns
             for conv_type, pattern in self.conversation_patterns.items():
                 match = re.search(pattern, path)
                 if match:
                     conversation_id = match.group(1)
-                    logger.debug(f"Extracted conversation ID {conversation_id} from path {path} (type: {conv_type})")
+                    logger.debug(
+                        f"Extracted conversation ID {conversation_id} from path {path} (type: {conv_type})"
+                    )
                     return conversation_id
-            
+
             # If no direct match, try to find any numeric ID that might be a conversation ID
-            segments = path.strip('/').split('/')
+            segments = path.strip("/").split("/")
             for i, segment in enumerate(segments):
-                if segment in ["conversation", "conversations", "messages"] and i + 1 < len(segments):
+                if segment in [
+                    "conversation",
+                    "conversations",
+                    "messages",
+                ] and i + 1 < len(segments):
                     potential_id = segments[i + 1]
                     if potential_id.isdigit():
-                        logger.debug(f"Found potential conversation ID {potential_id} from path {path}")
+                        logger.debug(
+                            f"Found potential conversation ID {potential_id} from path {path}"
+                        )
                         return potential_id
-            
+
             logger.debug(f"Could not extract conversation ID from path: {path}")
             return None
         except Exception as e:
@@ -137,16 +143,18 @@ class RealTimeMiddleware:
                 "timestamp": timezone.now().isoformat(),
                 "conversation_id": conversation_id,
             }
-            
+
             # Use the unified service to send the update
             message_delivery_service.send_message_update(
                 conversation_id=conversation_id,
                 event_type=action,
                 message_data=message_data,
-                user_id=str(request.user.id)
+                user_id=str(request.user.id),
             )
 
-            logger.debug(f"Sent WebSocket update for {action} in conversation {conversation_id}")
+            logger.debug(
+                f"Sent WebSocket update for {action} in conversation {conversation_id}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to send WebSocket update: {str(e)}", exc_info=True)
@@ -203,5 +211,5 @@ class OnlineStatusMiddleware:
         if request.user.is_authenticated:
             # Update last activity time
             request.user.last_activity = timezone.now()
-            request.user.save(update_fields=['last_activity'])
+            request.user.save(update_fields=["last_activity"])
         return self.get_response(request)

@@ -48,7 +48,7 @@ class UserTypeSerializer(serializers.ModelSerializer):
     user_type = serializers.ChoiceField(
         choices=CustomUser.USER_TYPE_CHOICES,
         style={
-            "base_template": "input.html",           # default input widget
+            "base_template": "input.html",  # default input widget
             "template": "rest_framework/vertical/radio.html",  # render as radio buttons
         },
         help_text="Select your role in the system. This can only be set once.",

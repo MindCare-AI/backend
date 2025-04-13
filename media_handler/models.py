@@ -6,7 +6,6 @@ import os
 import magic
 import logging
 from django.core.exceptions import ValidationError
-import uuid
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -46,10 +45,7 @@ class MediaFile(models.Model):
         related_name="media_files",
     )
     object_id = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        db_index=True,
-        help_text="ID of the related object"
+        null=True, blank=True, db_index=True, help_text="ID of the related object"
     )
     content_object = GenericForeignKey("content_type", "object_id")
 

@@ -26,11 +26,11 @@ class UnifiedWebSocketAuthMiddleware(BaseMiddleware):
 
             # Try token authentication first
             user = await self.authenticate_by_token(scope)
-            
+
             # If token auth fails, try session authentication
             if not user or isinstance(user, AnonymousUser):
                 user = await self.authenticate_by_session(scope)
-                
+
             scope["user"] = user
             return await super().__call__(scope, receive, send)
         except Exception as e:
@@ -46,23 +46,25 @@ class UnifiedWebSocketAuthMiddleware(BaseMiddleware):
             query_string = scope.get("query_string", b"").decode()
             query_params = parse_qs(query_string)
             token = query_params.get("token", [None])[0]
-            
+
             # If no token in query string, try to get from headers
             if not token and "headers" in scope:
                 headers = dict(scope["headers"])
                 auth_header = headers.get(b"authorization", b"").decode()
                 if auth_header.startswith("Bearer "):
                     token = auth_header.split(" ")[1]
-            
+
             if not token:
                 logger.debug("No token found in WebSocket connection")
                 return None
-                
+
             # Validate token
             access_token = AccessToken(token)
             user_id = access_token["user_id"]
             user = User.objects.get(id=user_id)
-            logger.info(f"Successfully authenticated WebSocket user via token: {user.username}")
+            logger.info(
+                f"Successfully authenticated WebSocket user via token: {user.username}"
+            )
             return user
         except (TokenError, InvalidToken) as e:
             logger.warning(f"Invalid token: {str(e)}")
@@ -81,14 +83,16 @@ class UnifiedWebSocketAuthMiddleware(BaseMiddleware):
             if "session" not in scope:
                 logger.debug("No session found in WebSocket scope")
                 return AnonymousUser()
-                
+
             session_key = scope["session"].get("_auth_user_id")
             if not session_key:
                 logger.debug("No user ID found in session")
                 return AnonymousUser()
-                
+
             user = User.objects.get(id=session_key)
-            logger.info(f"Successfully authenticated WebSocket user via session: {user.username}")
+            logger.info(
+                f"Successfully authenticated WebSocket user via session: {user.username}"
+            )
             return user
         except User.DoesNotExist:
             logger.warning(f"Session user not found with ID: {session_key}")

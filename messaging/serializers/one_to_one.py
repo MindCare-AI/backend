@@ -125,26 +125,21 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
     )
 
     content = serializers.CharField(
-        max_length=5000,
-        help_text="Enter the message content"
-    )
-    
-    conversation = serializers.PrimaryKeyRelatedField(
-        queryset=OneToOneConversation.objects.all(),
-        help_text="Select the conversation"
-    )
-    
-    message_type = serializers.ChoiceField(
-        choices=MESSAGE_TYPE_CHOICES,
-        default="text"
+        max_length=5000, help_text="Enter the message content"
     )
 
-    sender_name = serializers.CharField(source='sender.username', read_only=True)
+    conversation = serializers.PrimaryKeyRelatedField(
+        queryset=OneToOneConversation.objects.all(), help_text="Select the conversation"
+    )
+
+    message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
+
+    sender_name = serializers.CharField(source="sender.username", read_only=True)
 
     class Meta:
         model = OneToOneMessage
         fields = [
-            "id", 
+            "id",
             "conversation",
             "content",
             "message_type",
@@ -157,7 +152,11 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context.get("request")
         if not request or not request.user:
-            raise serializers.ValidationError("Authenticated user is required to send a message.")
-        
-        validated_data["sender"] = request.user  # Set the sender to the authenticated user
+            raise serializers.ValidationError(
+                "Authenticated user is required to send a message."
+            )
+
+        validated_data["sender"] = (
+            request.user
+        )  # Set the sender to the authenticated user
         return super().create(validated_data)

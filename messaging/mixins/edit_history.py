@@ -21,10 +21,10 @@ class EditHistoryMixin:
         """Retrieve the edit history of a specific message."""
         try:
             message = self.get_object()
-            if not hasattr(message, 'edit_history'):
+            if not hasattr(message, "edit_history"):
                 return Response(
                     {"error": "This message does not have an edit history."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Assuming `edit_history` is a field or method on the message model
@@ -33,5 +33,5 @@ class EditHistoryMixin:
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

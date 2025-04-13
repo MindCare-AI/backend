@@ -17,7 +17,9 @@ load_dotenv(dotenv_path=os.path.join(BASE_DIR, "..", ".env"), override=True)
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-0)cm(xhi^gtudqrk0t266=keuowd-x+cfmcrj8#k2_#dsrts&t")
+SECRET_KEY = os.getenv(
+    "SECRET_KEY", "django-insecure-0)cm(xhi^gtudqrk0t266=keuowd-x+cfmcrj8#k2_#dsrts&t"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
@@ -452,7 +454,6 @@ CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_TASK_ROUTES = {"messaging.tasks.process_chatbot_response": {"queue": "chatbot"}}
 CELERY_TASK_DEFAULT_QUEUE = "default"
 
- 
 
 # Ensure logs directory exists
 logs_dir = BASE_DIR / "logs"
@@ -626,5 +627,5 @@ WS_MESSAGE_TYPES = {
     "typing_indicator": "User typing indicators",
     "read_receipt": "Message read receipts",
     "presence_update": "Online/offline status updates",
-    "conversation_updated": "Changes to conversation metadata"
+    "conversation_updated": "Changes to conversation metadata",
 }

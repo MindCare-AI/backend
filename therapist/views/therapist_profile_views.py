@@ -67,10 +67,8 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
 
             with transaction.atomic():
-                profile = serializer.save()
-                logger.info(
-                    f"Created therapist profile for user {request.user.username}"
-                )
+                serializer.save()
+                logger.info(f"Created therapist profile for user {request.user.username}")
 
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 

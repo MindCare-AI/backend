@@ -215,7 +215,14 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             )
         except Exception as e:
             logger.error(f"Error sending conversation message: {str(e)}", exc_info=True)
-            raise MessageDeliveryError(f"Failed to deliver message: {str(e)}")
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "error",
+                        "message": "Failed to deliver message. Please try again later.",
+                    }
+                )
+            )
 
     async def read_receipt(self, event):
         """Send read receipt to WebSocket"""

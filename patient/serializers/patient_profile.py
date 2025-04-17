@@ -16,13 +16,12 @@ class PatientProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source="user.first_name", required=False)
     last_name = serializers.CharField(source="user.last_name", required=False)
     email = serializers.EmailField(source="user.email", read_only=True)
-    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
+    phone_number = serializers.CharField(source="user.phone_number", required=False)
 
     class Meta:
         model = PatientProfile
         fields = [
             "id",
-            "unique_id",  # Add this field
             "user",
             "user_name",
             "first_name",  # New writable field
@@ -42,7 +41,6 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
-            "unique_id",  # Add this field
             "user",
             "created_at",
             "updated_at",
@@ -88,10 +86,13 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
+        logger.debug(f"PatientProfile update called with validated_data: {validated_data}")
         user_data = validated_data.pop("user", {})
         if user_data:
             user = instance.user
             for attr, value in user_data.items():
                 setattr(user, attr, value)
             user.save()
-        return super().update(instance, validated_data)
+        updated_instance = super().update(instance, validated_data)
+        logger.debug(f"PatientProfile update completed. Updated instance: {updated_instance}")
+        return updated_instance

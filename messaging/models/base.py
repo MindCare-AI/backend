@@ -95,6 +95,9 @@ class BaseMessage(models.Model):
         default=dict, help_text="Store additional message metadata"
     )
 
+    # Edit history field
+    edit_history = models.JSONField(default=list, help_text="List of previous message versions")
+
     class Meta:
         abstract = True
         ordering = ["-timestamp"]

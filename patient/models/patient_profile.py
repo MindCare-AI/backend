@@ -2,7 +2,6 @@
 from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
-import uuid
 from users.models import CustomUser
 from users.models.profile import Profile
 
@@ -30,14 +29,6 @@ class PatientProfile(Profile):
         CustomUser, on_delete=models.CASCADE, related_name="patient_profile"
     )
 
-    unique_id = models.UUIDField(
-        default=uuid.uuid4,
-        editable=False,
-        unique=True,
-        db_index=True,
-        verbose_name="Patient ID",
-        null=False,
-    )
     emergency_contact = models.JSONField(default=dict, blank=True, null=True)
     medical_history = models.TextField(blank=True, null=True)
     current_medications = models.TextField(blank=True, null=True)

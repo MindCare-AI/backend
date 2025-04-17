@@ -3,7 +3,6 @@
 import django.core.validators
 from django.db import migrations, models
 import django.utils.timezone
-import uuid
 
 
 class Migration(migrations.Migration):
@@ -98,16 +97,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("bio", models.TextField(blank=True, null=True)),
-                (
-                    "unique_id",
-                    models.UUIDField(
-                        db_index=True,
-                        default=uuid.uuid4,
-                        editable=False,
-                        unique=True,
-                        verbose_name="Patient ID",
-                    ),
-                ),
                 (
                     "emergency_contact",
                     models.JSONField(blank=True, default=dict, null=True),

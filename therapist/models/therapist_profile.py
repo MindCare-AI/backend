@@ -1,6 +1,5 @@
 # therapist/models/therapist_profile.py
 import logging
-import uuid
 from datetime import datetime, timedelta
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -14,13 +13,6 @@ logger = logging.getLogger(__name__)
 
 class TherapistProfile(models.Model):
     id = models.AutoField(primary_key=True)
-    unique_id = models.UUIDField(
-        default=uuid.uuid4,
-        unique=True,
-        editable=False,
-        db_index=True,
-        help_text="UUID for external references",
-    )
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -44,10 +36,9 @@ class TherapistProfile(models.Model):
     )
 
     treatment_approaches = models.JSONField(
-        default=dict,
+        default=list,
         blank=True,
-        null=True,
-        help_text="Therapy methods and approaches used",
+        help_text="List of therapy methods and approaches used",
     )
     available_days = models.JSONField(
         default=dict, blank=True, null=True, help_text="Weekly availability schedule"
@@ -151,8 +142,6 @@ class TherapistProfile(models.Model):
                 raise ValidationError(f"Invalid available_days format: {str(e)}")
 
     def save(self, *args, **kwargs):
-        if not self.unique_id:
-            self.unique_id = uuid.uuid4()
         self.clean()
         self._calculate_profile_completion()
         super().save(*args, **kwargs)

@@ -1,6 +1,8 @@
+# Updated Serializers Documentation
+Note: The serializers have been updated to remove the "unique_id" field from the Patient and Therapist Profile serializers. All models now use integer primary keys (id).
+
 # Patient Profile Serializer
 - id
-- unique_id
 - user
 - user_name
 - first_name
@@ -20,7 +22,6 @@
 
 # Therapist Profile Serializer
 - id
-- unique_id
 - user
 - username
 - first_name

@@ -94,6 +94,8 @@ class GroupMessageSerializer(serializers.ModelSerializer):
 
     message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
 
+    edit_history = serializers.ListField(child=serializers.CharField(), default=list)
+
     class Meta:
         model = GroupMessage
         fields = [
@@ -103,5 +105,6 @@ class GroupMessageSerializer(serializers.ModelSerializer):
             "message_type",
             "sender",
             "timestamp",
+            "edit_history",
         ]
         read_only_fields = ["id", "sender", "timestamp"]

@@ -2,6 +2,8 @@
 
 ## Overview
 This document outlines the requirements for a mobile application built using React Native. The app will provide a seamless user experience for managing mental health services, including therapy sessions, journaling, mood tracking, and messaging. The backend is powered by a Django-based API.
+Note: All resource identifiers (IDs) used in endpoints are now integers instead of UUIDs.
+Note: Profile endpoints now use integer primary keys, and backend update endpoints return the updated profile object instead of null.
 
 ## Objectives
 - Provide users with a platform to manage their mental health.
@@ -165,7 +167,7 @@ This document outlines the requirements for a mobile application built using Rea
     }
     ```
 
-- **Therapist Profiles**
+- **Therapist Profiles** (Updated to use integer primary keys)
   - **URL**: `http://<host>/therapist/profiles/`
   - **Method**: GET, POST
   - **Request Body (POST)**:
@@ -175,7 +177,8 @@ This document outlines the requirements for a mobile application built using Rea
       "license_number": "string",
       "years_of_experience": 5,
       "bio": "string",
-      "languages_spoken": ["English", "Spanish"]
+      "languages_spoken": ["English", "Spanish"],
+      "phone_number": "string"
     }
     ```
 
@@ -772,7 +775,8 @@ This document outlines the requirements for a mobile application built using Rea
       "license_number": "string",
       "years_of_experience": 5,
       "bio": "string",
-      "languages_spoken": ["English", "Spanish"]
+      "languages_spoken": ["English", "Spanish"],
+      "phone_number": "string"
     }
     ```
 
@@ -792,7 +796,8 @@ This document outlines the requirements for a mobile application built using Rea
       "license_number": "string",
       "years_of_experience": 5,
       "bio": "string",
-      "languages_spoken": ["English", "Spanish"]
+      "languages_spoken": ["English", "Spanish"],
+      "phone_number": "string"
     }
     ```
 
@@ -960,6 +965,6 @@ This document outlines the requirements for a mobile application built using Rea
 ## Milestones
 
 ## Appendix
-- **API Documentation**: Refer to the `endpoints/messaging.txt` file for detailed API specifications.
+- **API Documentation**: This document reflects the latest backend changes where integer primary keys are used throughout; refer to the source code and migration history for further details.
 - **Design Mockups**: Available in the `designs/` folder.
 - **Testing Plan**: Refer to the `tests/` folder for unit and integration tests.

@@ -93,6 +93,18 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             logger.error(f"Error updating therapist profile: {str(e)}", exc_info=True)
             raise ValidationError("Could not update therapist profile")
 
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)  # Updated to return updated profile
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
+
     @extend_schema(
         description="Check therapist availability details",
         summary="Check Therapist Availability",

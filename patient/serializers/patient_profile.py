@@ -1,6 +1,9 @@
 # patient/serializers/patient_profile.py
-from rest_framework import serializers
+from rest_framework import serializers, status, viewsets
+from rest_framework.response import Response
 from patient.models.patient_profile import PatientProfile
+from therapist.models import TherapistProfile
+from therapist.serializers.therapist_profile import TherapistProfileSerializer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -96,3 +99,73 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         updated_instance = super().update(instance, validated_data)
         logger.debug(f"PatientProfile update completed. Updated instance: {updated_instance}")
         return updated_instance
+
+
+class TherapistProfileSerializer(serializers.ModelSerializer):
+    # nested user fields
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    phone_number = serializers.CharField(source="user.phone_number", required=False)
+
+    # explicit JSON/List fields
+    available_days = serializers.JSONField(required=False)
+    treatment_approaches = serializers.JSONField(required=False)
+    languages_spoken = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+
+    class Meta:
+        model = TherapistProfile
+        fields = [
+            "id",
+            "user",
+            "first_name",
+            "last_name",
+            "phone_number",
+            "specialization",
+            "license_number",
+            "years_of_experience",
+            "bio",
+            "available_days",
+            "treatment_approaches",
+            "license_expiry",
+            "video_session_link",
+            "languages_spoken",
+            "profile_completion_percentage",
+            "is_profile_complete",
+            "verification_status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "user", "created_at", "updated_at"]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        if user_data:
+            user = instance.user
+            for attr, val in user_data.items():
+                setattr(user, attr, val)
+            user.save()
+        updated = super().update(instance, validated_data)
+        logger.debug(f"Updated TherapistProfile(id={instance.id}): {validated_data}")
+        return updated
+
+
+class TherapistProfileViewSet(viewsets.ModelViewSet):
+    queryset = TherapistProfile.objects.all()
+    serializer_class = TherapistProfileSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial
+        )
+        try:
+            serializer.is_valid(raise_exception=True)
+        except serializers.ValidationError as exc:
+            # return the real field errors
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+
+        self.perform_update(serializer)
+        return Response(serializer.data)

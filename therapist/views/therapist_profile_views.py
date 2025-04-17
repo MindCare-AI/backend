@@ -1,5 +1,5 @@
 # therapist/views/therapist_profile_views.py
-from rest_framework import viewsets, status, permissions, generics
+from rest_framework import viewsets, status, permissions, generics, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -10,13 +10,15 @@ from therapist.serializers.therapist_profile import TherapistProfileSerializer
 from therapist.permissions.therapist_permissions import IsPatient
 from therapist.permissions.therapist_permissions import IsSuperUserOrSelf
 import logging
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
+from django.core.exceptions import ValidationError
 import json
 from therapist.services.therapist_verification_service import (
     TherapistVerificationService,
 )
 from django.db import transaction
 from django.utils import timezone
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
     ),
 )
 class TherapistProfileViewSet(viewsets.ModelViewSet):
-    lookup_field = "pk"  # Changed from "unique_id" to use pk
+    queryset = TherapistProfile.objects.all()
     serializer_class = TherapistProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
     http_method_names = ["get", "post", "put", "patch", "delete"]
@@ -80,26 +82,24 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             )
 
     def perform_update(self, serializer):
+        # disallow changing the user FK
+        if "user" in self.request.data:
+            raise DRFValidationError({"user": "User field cannot be modified"})
+
         try:
-            if "user" in self.request.data:
-                raise ValidationError("User field cannot be modified")
-
             serializer.save()
-            logger.info(
-                f"Updated therapist profile for user {self.request.user.username}"
-            )
-
+        except DjangoValidationError as e:
+            # propagate your model.clean() messages verbatim
+            raise DRFValidationError(detail=e.messages)
+        except DRFValidationError:
+            # if serializer.is_valid() already raised, let it through
+            raise
         except Exception as e:
-            logger.error(f"Error updating therapist profile: {str(e)}", exc_info=True)
-            raise ValidationError("Could not update therapist profile")
+            logger.error(f"Unexpected error updating therapist profile: {e}", exc_info=True)
+            raise DRFValidationError("Could not update therapist profile")
 
     def update(self, request, *args, **kwargs):
-        partial = kwargs.pop("partial", False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)  # Updated to return updated profile
+        return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
         kwargs["partial"] = True
@@ -188,7 +188,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 {"error": "Therapist profile not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except ValidationError as e:
+        except (ValidationError, DRFValidationError) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error booking appointment: {str(e)}", exc_info=True)

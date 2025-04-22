@@ -11,7 +11,7 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 # Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
 # • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
 # • extend_schema_view: Applies common schema settings to all view methods of a viewset.
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample, OpenApiResponse
 
 from ..models.one_to_one import OneToOneConversation, OneToOneMessage
 from ..serializers.one_to_one import (
@@ -31,18 +31,40 @@ logger = logging.getLogger(__name__)
 
 @extend_schema_view(
     list=extend_schema(
-        description="List all one-to-one conversations for the authenticated user. Each conversation includes annotations for the latest message, its time, unread count, and participant details.",
+        description="List all one-to-one conversations for the authenticated user.",
         summary="List One-to-One Conversations",
         tags=["One-to-One Conversation"],
     ),
     retrieve=extend_schema(
-        description="Retrieve detailed information for a specific one-to-one conversation, including recent messages and details about the other participant(s).",
+        description="Retrieve detailed information for a specific one-to-one conversation.",
         summary="Retrieve One-to-One Conversation",
         tags=["One-to-One Conversation"],
     ),
     create=extend_schema(
-        description="Create a new one-to-one conversation.",
+        description="Create a new one-to-one conversation. Expects a request body with a 'participant_id'.",
         summary="Create One-to-One Conversation",
+        request={
+            "type": "object",
+            "properties": {
+                "participant_id": {
+                    "type": "integer",
+                    "description": "ID of the second participant (must be a patient if you're a therapist, or vice versa)."
+                }
+            },
+            "required": ["participant_id"]
+        },
+        responses={
+            201: OneToOneConversationSerializer,
+            400: OpenApiResponse(description="Bad Request – e.g., missing or invalid participant_id."),
+            404: OpenApiResponse(description="Participant not found."),
+        },
+        examples=[
+            OpenApiExample(
+                "Valid Request",
+                description="A valid request to create a one-to-one conversation.",
+                value={"participant_id": 2},
+            )
+        ],
         tags=["One-to-One Conversation"],
     ),
 )
@@ -190,6 +212,7 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
     @extend_schema(
         description="Set the conversation status as 'typing' for the authenticated user.",
         summary="Set Typing Status",
+        request=None,  # explicitly no body expected
         tags=["One-to-One Conversation"],
     )
     @action(detail=True, methods=["post"])

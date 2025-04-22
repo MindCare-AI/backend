@@ -5,6 +5,8 @@ from rest_framework.decorators import action
 from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
+    OpenApiExample,
+    OpenApiResponse,
 )  # Used to enhance the auto-generated Swagger docs.
 from ..models.chatbot import ChatbotConversation, ChatbotMessage
 from ..serializers.chatbot import (
@@ -55,8 +57,28 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
 
     @extend_schema(
         description="Send a message to the chatbot",
-        request=ChatbotMessageSerializer,
-        responses={201: ChatbotMessageSerializer},
+        request={
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "The user's message content to send to the chatbot."
+                }
+            },
+            "required": ["content"]
+        },
+        responses={
+            201: ChatbotMessageSerializer,
+            400: OpenApiResponse(description="Invalid message payload."),
+            503: OpenApiResponse(description="Chatbot service unavailable.")
+        },
+        examples=[
+            OpenApiExample(
+                "Valid Request",
+                summary="A valid request payload to send a message to the chatbot",
+                value={"content": "Hello, how are you?"}
+            )
+        ]
     )
     @action(detail=True, methods=["post"])
     def send_message(self, request, pk=None):

@@ -13,7 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiExample
 
 from ..models.group import GroupConversation, GroupMessage
 from ..serializers.group import GroupConversationSerializer, GroupMessageSerializer
@@ -100,8 +100,46 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             raise ValidationError(f"Failed to create group: {str(e)}")
 
     @extend_schema(
-        description="Add a user as a moderator to the group (notifications removed).",
+        description="Create a new group conversation. Provide a name and any other allowed fields. The creator is automatically added as a participant and moderator.",
+        summary="Create Group Conversation",
+        request={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "The name of the group conversation"},
+                # include any additional parameters as needed...
+            },
+            "required": ["name"]
+        },
+        responses={
+            201: GroupConversationSerializer,
+            400: OpenApiResponse(description="Bad Request – e.g., missing name or exceeding group limit.")
+        },
+        examples=[
+            OpenApiExample(
+                "Valid Request",
+                description="A valid request to create a group conversation",
+                value={"name": "Test Group Conversation"}
+            )
+        ]
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        description="Add a user as a moderator to the group.",
         summary="Add Moderator",
+        request={
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID of the user to add as moderator."}
+            },
+            "required": ["user_id"]
+        },
+        responses={
+            200: OpenApiResponse(description="User added as moderator successfully."),
+            400: OpenApiResponse(description="Bad Request – e.g., user not a participant."),
+            403: OpenApiResponse(description="Forbidden – insufficient permission.")
+        },
         tags=["Group Conversation"],
     )
     @action(detail=True, methods=["post"])
@@ -115,9 +153,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         user = get_object_or_404(get_user_model(), id=request.data.get("user_id"))
         if not group.participants.filter(id=user.id).exists():
             return Response(
-                {
-                    "detail": "User must be a participant before being promoted to moderator."
-                },
+                {"detail": "User must be a participant before being promoted to moderator."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         group.moderators.add(user)
@@ -146,6 +182,23 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         ]
         return Response(moderator_data)
 
+    @extend_schema(
+        description="Add a participant to the group.",
+        summary="Add Participant",
+        request={
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID of the user to add as participant."}
+            },
+            "required": ["user_id"]
+        },
+        responses={
+            200: OpenApiResponse(description="User added as participant successfully or already a member."),
+            400: OpenApiResponse(description="Bad Request – e.g., maximum participant limit reached."),
+            403: OpenApiResponse(description="Forbidden – only moderators can add participants.")
+        },
+        tags=["Group Conversation"],
+    )
     @action(detail=True, methods=["post"])
     def add_participant(self, request, pk=None):
         """Add participant to group"""
@@ -162,7 +215,6 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             user_id = request.data.get("user_id")
             user = get_object_or_404(get_user_model(), id=user_id)
 
-            # Fix: Use the correct settings reference
             if (
                 group.participants.count()
                 >= settings.GROUP_SETTINGS["MAX_PARTICIPANTS_PER_GROUP"]
@@ -192,6 +244,23 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        description="Remove a participant from the group.",
+        summary="Remove Participant",
+        request={
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID of the user to remove from the group."}
+            },
+            "required": ["user_id"]
+        },
+        responses={
+            200: OpenApiResponse(description="User removed from group successfully."),
+            403: OpenApiResponse(description="Forbidden – insufficient permission."),
+            500: OpenApiResponse(description="Internal server error.")
+        },
+        tags=["Group Conversation"],
+    )
     @action(detail=True, methods=["post"])
     def remove_participant(self, request, pk=None):
         """Remove participant with proper validation (notifications removed)"""
@@ -223,6 +292,23 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        description="Pin a message in the group conversation.",
+        summary="Pin Message",
+        request={
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "integer", "description": "ID of the message to be pinned."}
+            },
+            "required": ["message_id"]
+        },
+        responses={
+            200: OpenApiResponse(description="Message pinned successfully."),
+            400: OpenApiResponse(description="Bad Request – message_id missing."),
+            403: OpenApiResponse(description="Forbidden – only moderators can pin messages.")
+        },
+        tags=["Group Conversation"],
+    )
     @action(detail=True, methods=["post"])
     def pin_message(self, request, pk=None):
         group = self.get_object()

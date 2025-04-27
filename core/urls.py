@@ -22,6 +22,7 @@ urlpatterns = [
     path("messaging/", include("messaging.urls")),
     path("therapist/", include("therapist.urls")),
     path("patient/", include("patient.urls")),
+    path("feeds/", include("feeds.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

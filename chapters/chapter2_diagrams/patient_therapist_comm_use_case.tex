@@ -1,0 +1,31 @@
+\begin{tikzpicture}
+\tikzstyle{actor}=[draw, rounded corners=3pt, fill=gray!20, text width=2cm, minimum height=1cm, align=center]
+\tikzstyle{usecase}=[draw, ellipse, fill=blue!20, text width=3.5cm, align=center]
+\tikzstyle{system}=[draw, rectangle, dashed, minimum width=12cm, minimum height=8cm]
+\tikzstyle{line}=[draw]
+\tikzstyle{arrow}=[->, >=stealth, thick]
+
+% System boundary
+\node[system] (sys) at (4,0) {};
+\node[align=center] at (4,4) {\textbf{MindCare-IA: Patient-Therapist Communication}};
+
+% Actors
+\node[actor] (patient) at (-2,2) {Patient};
+\node[actor] (therapist) at (-2,-2) {Therapist};
+
+% Use Cases
+\node[usecase] (message) at (4,3) {Send/Receive Messages};
+\node[usecase] (attach) at (4,1) {Share Files/Media};
+\node[usecase] (read) at (4,-1) {View Message History};
+\node[usecase] (typing) at (4,-3) {See Typing Indicators};
+
+% Connections
+\draw[line] (patient) -- (message);
+\draw[line] (patient) -- (attach);
+\draw[line] (patient) -- (read);
+\draw[line] (patient) -- (typing);
+\draw[line] (therapist) -- (message);
+\draw[line] (therapist) -- (attach);
+\draw[line] (therapist) -- (read);
+\draw[line] (therapist) -- (typing);
+\end{tikzpicture}

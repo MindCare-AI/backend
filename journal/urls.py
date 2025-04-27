@@ -1,23 +1,13 @@
 # journal/urls.py
-from django.urls import path
-from journal.views import JournalEntryViewSet
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import JournalEntryViewSet
+
+router = DefaultRouter()
+router.register(r'entries', JournalEntryViewSet, basename='journal-entry')
+
+app_name = 'journal'
 
 urlpatterns = [
-    path(
-        "entries/",
-        JournalEntryViewSet.as_view({"get": "list", "post": "create"}),
-        name="journal-entry-list",
-    ),
-    path(
-        "entries/<int:pk>/",
-        JournalEntryViewSet.as_view(
-            {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }
-        ),
-        name="journal-entry-detail",
-    ),
+    path('', include(router.urls)),
 ]

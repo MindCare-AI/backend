@@ -1,0 +1,42 @@
+% Main document for your final project
+\documentclass[12pt,a4paper]{report}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{enumitem}
+
+% Document settings
+\title{Your Project Title}
+\author{Your Name}
+\date{\today}
+
+% Document begins
+\begin{document}
+
+% Front matter
+\maketitle
+\tableofcontents
+\listoffigures
+\listoftables
+
+% Chapters
+\include{chapters/chapter1} % Introduction
+\include{chapters/chapter2} % Analysis and Specification of Requirements
+% Include other chapters as needed
+
+% Back matter
+\appendix
+% \include{appendices/appendixA} % Uncomment if needed
+
+% Bibliography
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

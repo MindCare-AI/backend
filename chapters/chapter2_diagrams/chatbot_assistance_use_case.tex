@@ -1,0 +1,32 @@
+\begin{tikzpicture}
+\tikzstyle{actor}=[draw, rounded corners=3pt, fill=gray!20, text width=2cm, minimum height=1cm, align=center]
+\tikzstyle{usecase}=[draw, ellipse, fill=blue!20, text width=3.5cm, align=center]
+\tikzstyle{system}=[draw, rectangle, dashed, minimum width=12cm, minimum height=8cm]
+\tikzstyle{line}=[draw]
+\tikzstyle{extend}=[draw, ->, >=stealth, dashed]
+
+% System boundary
+\node[system] (sys) at (4,0) {};
+\node[align=center] at (4,4) {\textbf{MindCare-IA: Chatbot Assistance}};
+
+% Actors
+\node[actor] (patient) at (-2,0) {Patient};
+\node[actor] (system) at (10,0) {AI System};
+
+% Use Cases
+\node[usecase] (start) at (2,2) {Start Conversation};
+\node[usecase] (askQuestions) at (2,0) {Ask Mental Health Questions};
+\node[usecase] (coping) at (2,-2) {Get Coping Strategies};
+\node[usecase] (process) at (6,1) {Process Natural Language};
+\node[usecase] (generate) at (6,-1) {Generate Therapeutic Response};
+
+% Connections
+\draw[line] (patient) -- (start);
+\draw[line] (patient) -- (askQuestions);
+\draw[line] (patient) -- (coping);
+\draw[line] (system) -- (process);
+\draw[line] (system) -- (generate);
+\draw[extend] (askQuestions) -- (process) node[midway, above, sloped, font=\small] {<<includes>>};
+\draw[extend] (process) -- (generate) node[midway, above, sloped, font=\small] {<<includes>>};
+\draw[extend] (generate) -- (coping) node[midway, above, sloped, font=\small] {<<extends>>};
+\end{tikzpicture}

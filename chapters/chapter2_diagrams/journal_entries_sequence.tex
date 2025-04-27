@@ -1,0 +1,36 @@
+\begin{tikzpicture}
+\begin{sequencediagram}
+    \newthread{p}{Patient}
+    \newinst[1]{s}{System}
+    \newinst[1]{t}{Therapist}
+    
+    \begin{call}{p}{Open Journal}{s}{Show Editor}
+        \begin{callself}{s}{Load Previous Entries}{}
+        \end{callself}
+    \end{call}
+    
+    \begin{call}{p}{Create Entry}{s}{Entry Saved}
+        \begin{callself}{s}{Validate Content}{}
+        \end{callself}
+        \begin{callself}{s}{Check Keywords}{}
+        \end{callself}
+        \begin{callself}{s}{Store Entry}{}
+        \end{callself}
+    \end{call}
+
+    \begin{sdblock}{If Shared}{Entry Shared}
+        \begin{call}{s}{Notify Therapist}{t}{Notification Sent}
+        \end{call}
+    \end{sdblock}
+    
+    \begin{call}{t}{View Journal}{s}{Entries Displayed}
+        \begin{callself}{s}{Filter Shared Entries}{}
+        \end{callself}
+    \end{call}
+    
+    \begin{sdblock}{If Crisis Content}{Alert Triggered}
+        \begin{call}{s}{Show Resources}{p}{Resources Displayed}
+        \end{call}
+    \end{sdblock}
+\end{sequencediagram}
+\end{tikzpicture}

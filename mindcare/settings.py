@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "channels_redis",
     "therapist",
     "patient",
+    "feeds",
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_filters",

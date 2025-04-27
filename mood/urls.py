@@ -1,16 +1,11 @@
 # mood/urls.py
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from mood.views import MoodLogViewSet
 
+router = DefaultRouter()
+router.register(r'logs', MoodLogViewSet, basename='mood-log')
+
 urlpatterns = [
-    path(
-        "mood-logs/",
-        MoodLogViewSet.as_view({"get": "list", "post": "create"}),
-        name="mood-log-list",
-    ),
-    path(
-        "mood-logs/<int:pk>/",
-        MoodLogViewSet.as_view({"get": "retrieve", "delete": "destroy"}),
-        name="mood-log-detail",
-    ),
+    path('', include(router.urls)),
 ]

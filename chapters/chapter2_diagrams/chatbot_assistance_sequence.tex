@@ -1,0 +1,38 @@
+\begin{tikzpicture}
+\begin{sequencediagram}
+    \newthread{p}{Patient}
+    \newinst[1]{s}{System}
+    \newinst[1]{ai}{AI Model}
+    
+    \begin{call}{p}{Access Chatbot}{s}{Show Interface}
+        \begin{callself}{s}{Load Chat History}{}
+        \end{callself}
+    \end{call}
+    
+    \begin{call}{p}{Send Message}{s}{Message Processed}
+        \begin{callself}{s}{Validate Input}{}
+        \end{callself}
+        \begin{call}{s}{Generate Response}{ai}{Response Generated}
+            \begin{callself}{ai}{Analyze Context}{}
+            \end{callself}
+            \begin{callself}{ai}{Process Query}{}
+            \end{callself}
+        \end{call}
+    \end{call}
+
+    \begin{sdblock}{If Crisis Keywords}{Crisis Protocol}
+        \begin{call}{s}{Show Crisis Resources}{p}{Resources Displayed}
+        \end{call}
+    \end{sdblock}
+    
+    \begin{call}{s}{Store Conversation}{s}{Conversation Saved}
+        \begin{callself}{s}{Update History}{}
+        \end{callself}
+    \end{call}
+    
+    \begin{call}{p}{Request Previous Chats}{s}{History Displayed}
+        \begin{callself}{s}{Filter Personal History}{}
+        \end{callself}
+    \end{call}
+\end{sequencediagram}
+\end{tikzpicture}

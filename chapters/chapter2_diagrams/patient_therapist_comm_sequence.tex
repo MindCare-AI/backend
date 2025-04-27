@@ -1,0 +1,33 @@
+\begin{tikzpicture}
+\begin{sequencediagram}
+    \newthread{p}{Patient}
+    \newinst[1]{s}{System}
+    \newinst[1]{t}{Therapist}
+    
+    \begin{call}{p}{Initiate Conversation}{s}{Display Interface}
+        \begin{callself}{s}{Load History}{}
+        \end{callself}
+    \end{call}
+    
+    \begin{call}{p}{Send Message}{s}{Message Delivered}
+        \begin{call}{s}{Store Message}{s}{}
+            \begin{callself}{s}{Validate Content}{}
+            \end{callself}
+        \end{call}
+        \begin{call}{s}{Notify Recipient}{t}{Notification Sent}
+        \end{call}
+    \end{call}
+
+    \begin{call}{t}{View Message}{s}{Message Content}
+        \begin{callself}{s}{Update Read Status}{}
+        \end{callself}
+    \end{call}
+    
+    \begin{call}{t}{Send Reply}{s}{Reply Delivered}
+        \begin{call}{s}{Store Reply}{s}{}
+        \end{call}
+        \begin{call}{s}{Notify Patient}{p}{Notification Sent}
+        \end{call}
+    \end{call}
+\end{sequencediagram}
+\end{tikzpicture}

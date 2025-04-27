@@ -1,24 +1,27 @@
 # therapist/views/therapist_profile_views.py
-from rest_framework import viewsets, status, permissions, generics, serializers
+from django.conf import settings
+from rest_framework import viewsets, status, permissions, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from therapist.models.appointment import Appointment
+from appointments.models import Appointment
 from therapist.models.therapist_profile import TherapistProfile
-from therapist.serializers.appointment import AppointmentSerializer
+from appointments.serializers import AppointmentSerializer
 from therapist.serializers.therapist_profile import TherapistProfileSerializer
-from therapist.permissions.therapist_permissions import IsPatient
-from therapist.permissions.therapist_permissions import IsSuperUserOrSelf
+from therapist.permissions.therapist_permissions import IsPatient, IsSuperUserOrSelf
 import logging
 from rest_framework.exceptions import ValidationError as DRFValidationError
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 import json
 from therapist.services.therapist_verification_service import (
     TherapistVerificationService,
 )
 from django.db import transaction
 from django.utils import timezone
-from django.core.exceptions import ValidationError as DjangoValidationError
+from datetime import timedelta
+from django.core.exceptions import ValidationError
+from django.core.cache import cache
+import magic
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +73,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
 
             with transaction.atomic():
                 serializer.save()
-                logger.info(f"Created therapist profile for user {request.user.username}")
+                logger.info(
+                    f"Created therapist profile for user {request.user.username}"
+                )
 
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -95,7 +100,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             # if serializer.is_valid() already raised, let it through
             raise
         except Exception as e:
-            logger.error(f"Unexpected error updating therapist profile: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error updating therapist profile: {e}", exc_info=True
+            )
             raise DRFValidationError("Could not update therapist profile")
 
     def update(self, request, *args, **kwargs):
@@ -142,12 +149,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], permission_classes=[IsPatient])
     def book_appointment(self, request, pk=None, **kwargs):
-        """
-        Book an appointment with a therapist.
-        """
+        """Book an appointment with a therapist."""
         try:
             therapist_profile = self.get_object()
-
             if not therapist_profile.is_verified:
                 return Response(
                     {"error": "Therapist's profile is not verified"},
@@ -164,7 +168,9 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 "therapist": therapist_profile.id,
                 "patient": request.user.patient_profile.id,
                 "appointment_date": request.data.get("appointment_date"),
-                "duration_minutes": request.data.get("duration_minutes", 60),
+                "duration": timedelta(
+                    minutes=int(request.data.get("duration_minutes", 60))
+                ),
                 "notes": request.data.get("notes", ""),
                 "status": "scheduled",
             }
@@ -179,7 +185,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                     f"Appointment booked - Therapist: {therapist_profile.user.username}, "
                     f"Patient: {request.user.username}, "
                     f"Time: {appointment.appointment_date}, "
-                    f"Duration: {appointment.duration}min"
+                    f"Duration: {appointment.duration}"
                 )
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -188,7 +194,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 {"error": "Therapist profile not found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except (ValidationError, DRFValidationError) as e:
+        except (DjangoValidationError, DRFValidationError) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error booking appointment: {str(e)}", exc_info=True)
@@ -316,16 +322,25 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         return schedule
 
     @extend_schema(
-        description="Verify therapist license and credentials",
+        description="Verify therapist license and identity using ML",
         summary="Verify Therapist",
         tags=["Therapist"],
         request={
             "multipart/form-data": {
                 "type": "object",
                 "properties": {
-                    "verification_documents": {"type": "string", "format": "binary"}
+                    "license_image": {"type": "string", "format": "binary"},
+                    "selfie_image": {"type": "string", "format": "binary"},
+                    "specializations": {"type": "array", "items": {"type": "string"}},
+                    "license_number": {"type": "string"},
+                    "issuing_authority": {"type": "string"},
                 },
-                "required": ["verification_documents"],
+                "required": [
+                    "license_image",
+                    "selfie_image",
+                    "license_number",
+                    "issuing_authority",
+                ],
             }
         },
         responses={
@@ -340,73 +355,173 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                         "properties": {
                             "number": {"type": "string"},
                             "expiry": {"type": "string", "format": "date"},
+                            "issuing_authority": {"type": "string"},
+                            "verification_id": {"type": "string"},
+                        },
+                    },
+                    "face_match": {
+                        "type": "object",
+                        "properties": {
+                            "match": {"type": "boolean"},
+                            "confidence": {"type": "number"},
                         },
                     },
                 },
             },
             400: {"description": "Verification failed"},
+            429: {"description": "Too many verification attempts"},
             500: {"description": "Internal server error"},
         },
     )
     @action(detail=True, methods=["post"])
     def verify(self, request, pk=None):
+        """Verify therapist's credentials with enhanced security and validation"""
         try:
             profile = self.get_object()
 
-            if not (docs := request.FILES.get("verification_documents")):
+            # Check if profile can be verified
+            if profile.is_verified:
                 return Response(
-                    {"error": "Verification documents required"},
+                    {"error": "Profile is already verified"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Rate limiting
+            cache_key = f"verification_attempts_{profile.id}"
+            attempts = cache.get(cache_key, 0)
+            max_attempts = settings.VERIFICATION_SETTINGS["MAX_VERIFICATION_ATTEMPTS"]
+
+            if attempts >= max_attempts:
+                return Response(
+                    {
+                        "error": f"Maximum verification attempts ({max_attempts}) reached. Please try again after 24 hours.",
+                        "next_attempt": cache.ttl(cache_key),
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
+            # Validate required fields
+            required_fields = ["license_number", "issuing_authority"]
+            if not all(field in request.data for field in required_fields):
+                return Response(
+                    {"error": f"Missing required fields: {', '.join(required_fields)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate file uploads
+            if not request.FILES.get("license_image") or not request.FILES.get(
+                "selfie_image"
+            ):
+                return Response(
+                    {"error": "Both license image and selfie are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate file types
+            for file_key in ["license_image", "selfie_image"]:
+                file_obj = request.FILES.get(file_key)
+                if file_obj:
+                    mime_type = magic.from_buffer(file_obj.read(2048), mime=True)
+                    file_obj.seek(0)  # Reset file pointer
+                    if not mime_type.startswith("image/"):
+                        return Response(
+                            {
+                                "error": f"Invalid file type for {file_key}. Must be an image."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+            verification_service = TherapistVerificationService()
+
+            # First verify the license
+            license_result = verification_service.verify_license(
+                request.FILES["license_image"],
+                expected_number=request.data.get("license_number"),
+                issuing_authority=request.data.get("issuing_authority"),
+            )
+
+            if not license_result["success"]:
+                # Increment attempt counter on failure
+                cache.set(cache_key, attempts + 1, timeout=86400)  # 24 hours
+                return Response(
+                    {"error": license_result["error"]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Then verify face match
+            face_result = verification_service.verify_face_match(
+                request.FILES["license_image"],
+                request.FILES["selfie_image"],
+                threshold=0.7,  # Increased threshold for stricter matching
+            )
+
+            if not face_result["success"] or not face_result["match"]:
+                # Increment attempt counter on failure
+                cache.set(cache_key, attempts + 1, timeout=86400)
+                return Response(
+                    {
+                        "error": "Face verification failed - ID and selfie don't match",
+                        "details": face_result.get("details", {}),
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             with transaction.atomic():
-                profile.verification_documents = docs
-                profile.last_verification_attempt = timezone.now()
+                # Store verification documents securely
+                profile.verification_documents = request.FILES["license_image"]
+                profile.profile_picture = request.FILES["selfie_image"]
 
-                verification_service = TherapistVerificationService()
-                result = verification_service.verify_license(
-                    profile.verification_documents.path
+                # Update verification status
+                profile.verification_status = "verified"
+                profile.is_verified = True
+                profile.verified_at = timezone.now()
+                profile.verification_expiry = timezone.now() + timedelta(
+                    days=365
+                )  # 1 year validity
+
+                # Update license details
+                if license_number := license_result.get("license_number"):
+                    profile.license_number = license_number
+                if license_expiry := license_result.get("license_expiry"):
+                    profile.license_expiry = license_expiry
+
+                profile.issuing_authority = request.data.get("issuing_authority")
+                profile.specializations = request.data.get("specializations", [])
+                profile.verification_notes = "Verification completed successfully"
+
+                # Generate unique verification ID
+                profile.verification_id = (
+                    f"VER-{timezone.now().strftime('%Y%m%d')}-{profile.id}"
                 )
 
-                if result["success"]:
-                    profile.verification_status = "verified"
-                    profile.is_verified = True
-
-                    if license_number := result.get("license_number"):
-                        profile.license_number = license_number
-                    if license_expiry := result.get("license_expiry"):
-                        profile.license_expiry = license_expiry
-
-                    profile.verification_notes = "Verification completed successfully"
-                    profile.save()
-
-                    return Response(
-                        {
-                            "message": "Verification successful",
-                            "status": profile.verification_status,
-                            "license_details": {
-                                "number": profile.license_number,
-                                "expiry": profile.license_expiry,
-                            },
-                        }
-                    )
-
-                profile.verification_status = "rejected"
-                profile.verification_notes = result.get("error", "Verification failed")
                 profile.save()
 
+                # Clear verification attempts on success
+                cache.delete(cache_key)
+
+                # Return success response with detailed information
                 return Response(
                     {
-                        "error": profile.verification_notes,
+                        "message": "Verification successful",
                         "status": profile.verification_status,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
+                        "license_details": {
+                            "number": profile.license_number,
+                            "expiry": profile.license_expiry,
+                            "issuing_authority": profile.issuing_authority,
+                            "verification_id": profile.verification_id,
+                        },
+                        "face_match": {
+                            "match": face_result["match"],
+                            "confidence": face_result["confidence"],
+                        },
+                        "verification_expiry": profile.verification_expiry,
+                    }
                 )
 
         except Exception as e:
             logger.error(f"Verification failed: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Verification process failed"},
+                {"error": "Verification process failed. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

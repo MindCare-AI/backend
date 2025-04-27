@@ -4,8 +4,8 @@ from rest_framework.routers import DefaultRouter
 from mood.views import MoodLogViewSet
 
 router = DefaultRouter()
-router.register(r'logs', MoodLogViewSet, basename='mood-log')
+router.register(r"logs", MoodLogViewSet, basename="mood-log")
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path("", include(router.urls)),
 ]

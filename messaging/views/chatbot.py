@@ -1,160 +1,87 @@
 # messaging/views/chatbot.py
-from rest_framework import viewsets, status, permissions
-from rest_framework.response import Response
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from drf_spectacular.utils import (
-    extend_schema,
-    extend_schema_view,
-    OpenApiExample,
-    OpenApiResponse,
-)  # Used to enhance the auto-generated Swagger docs.
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import UserRateThrottle
+from django.db import transaction
 from ..models.chatbot import ChatbotConversation, ChatbotMessage
-from ..serializers.chatbot import (
-    ChatbotConversationSerializer,
-    ChatbotMessageSerializer,
-)
-from ..permissions import IsPatient
-from ..throttling import ChatbotRateThrottle
-from ..pagination import CustomMessagePagination
+from ..serializers.chatbot import ChatbotConversationSerializer, ChatbotMessageSerializer
 from ..services.chatbot import chatbot_service
 import logging
 
 logger = logging.getLogger(__name__)
 
+class ChatbotThrottle(UserRateThrottle):
+    rate = '30/minute'
+    scope = 'chatbot'
 
-@extend_schema_view(
-    list=extend_schema(
-        description="Return all chatbot conversations for the authenticated patient.",
-        summary="List Chatbot Conversations",
-        tags=["Chatbot"],
-    ),
-    retrieve=extend_schema(
-        description="Retrieve a specific chatbot conversation details.",
-        summary="Retrieve Chatbot Conversation",
-        tags=["Chatbot"],
-    ),
-    create=extend_schema(
-        description="Create or retrieve the existing chatbot conversation for the authenticated patient.",
-        summary="Create Chatbot Conversation",
-        tags=["Chatbot"],
-    ),
-)
 class ChatbotConversationViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated, IsPatient]
     serializer_class = ChatbotConversationSerializer
-    pagination_class = CustomMessagePagination
-    throttle_classes = [ChatbotRateThrottle]
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ChatbotThrottle]
 
     def get_queryset(self):
         return ChatbotConversation.objects.filter(user=self.request.user)
 
-    def create(self, request, *args, **kwargs):
-        conv, created = ChatbotConversation.objects.get_or_create(user=request.user)
-        return Response(
-            self.get_serializer(conv).data,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
-        )
-
-    @extend_schema(
-        description="Send a message to the chatbot",
-        request={
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "The user's message content to send to the chatbot."
-                }
-            },
-            "required": ["content"]
-        },
-        responses={
-            201: ChatbotMessageSerializer,
-            400: OpenApiResponse(description="Invalid message payload."),
-            503: OpenApiResponse(description="Chatbot service unavailable.")
-        },
-        examples=[
-            OpenApiExample(
-                "Valid Request",
-                summary="A valid request payload to send a message to the chatbot",
-                value={"content": "Hello, how are you?"}
-            )
-        ]
-    )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
-        """
-        Send a message to the chatbot and get response using ChatbotService.
-        """
-        conversation = self.get_object()
-
+        """Send a message in a chatbot conversation"""
         try:
-            # Validate and save user message
-            serializer = ChatbotMessageSerializer(data=request.data)
-            if not serializer.is_valid():
-                logger.error(f"Invalid message data: {serializer.errors}")
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-            # Save user message
-            user_message = serializer.save(
-                sender=request.user, conversation=conversation, is_bot=False
-            )
-            logger.debug(f"Saved user message: {user_message.id}")
+            conversation = self.get_object()
+            message_content = request.data.get('message')
+            
+            if not message_content:
+                return Response(
+                    {'error': 'Message content is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Get conversation history
-            history = list(
-                conversation.messages.order_by("-timestamp").values(
-                    "sender", "content", "is_bot"
-                )[:5]
+            history = list(conversation.messages.order_by('-timestamp')[:5].values('content', 'is_bot'))
+            
+            # Get response from chatbot service (includes both Gemini and Ollama)
+            response = chatbot_service.get_response(
+                user=request.user,
+                message=message_content,
+                conversation_history=history
             )
-            history.reverse()
 
-            # Get bot response using ChatbotService
-            try:
-                bot_response = chatbot_service.get_response(
-                    message=serializer.validated_data["content"],
-                    history=[
-                        {"content": msg["content"], "is_bot": msg["is_bot"]}
-                        for msg in history
-                    ],
+            if not response.get('success'):
+                return Response(
+                    {'error': response.get('error', 'Failed to get response')},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-                if not bot_response["success"]:
-                    logger.error(f"Chatbot service error: {bot_response.get('error')}")
-                    return Response(
-                        {"error": bot_response["response"]},
-                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    )
-
-                response_content = bot_response["response"]
-                logger.debug(f"Got bot response: {response_content[:50]}...")
-
-            except Exception as e:
-                logger.error(f"Error getting bot response: {str(e)}")
-                response_content = (
-                    "I apologize, but I'm having trouble processing your request."
+            # Save user message and bot response in transaction
+            with transaction.atomic():
+                # Save user message
+                user_message = ChatbotMessage.objects.create(
+                    conversation=conversation,
+                    content=message_content,
+                    sender=request.user,
+                    is_bot=False
                 )
 
-            # Save bot response
-            bot_message = ChatbotMessage.objects.create(
-                conversation=conversation, content=response_content, is_bot=True
-            )
-            logger.debug(f"Saved bot message: {bot_message.id}")
+                # Save bot response
+                bot_message = ChatbotMessage.objects.create(
+                    conversation=conversation,
+                    content=response['response'],
+                    is_bot=True
+                )
 
-            return Response(
-                {
-                    "user_message": ChatbotMessageSerializer(user_message).data,
-                    "bot_response": ChatbotMessageSerializer(bot_message).data,
-                },
-                status=status.HTTP_201_CREATED,
-            )
+            # Serialize messages
+            message_serializer = ChatbotMessageSerializer()
+            return Response({
+                'user_message': message_serializer.to_representation(user_message),
+                'bot_message': message_serializer.to_representation(bot_message),
+                'context_used': response.get('context_used', {}),
+                'analysis': response.get('analysis', {})
+            })
 
-        except ChatbotConversation.DoesNotExist:
-            logger.error(f"Conversation {pk} not found")
-            return Response(
-                {"error": "Conversation not found"}, status=status.HTTP_404_NOT_FOUND
-            )
         except Exception as e:
-            logger.exception(f"Unexpected error in send_message: {str(e)}")
+            logger.error(f"Error in chatbot message: {str(e)}")
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': 'An error occurred processing your message'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

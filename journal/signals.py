@@ -1,11 +1,14 @@
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from journal.models import JournalEntry
-from notifications.services import UnifiedNotificationService
 from django.utils import timezone
+from notifications.services import UnifiedNotificationService
+from .models import JournalEntry
+from AI_engine.services import predictive_service
+from AI_engine.models import AIInsight
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 @receiver(post_save, sender=JournalEntry)
 def handle_journal_entry_save(sender, instance, created, **kwargs):
@@ -27,11 +30,11 @@ def handle_journal_entry_save(sender, instance, created, **kwargs):
                 },
                 send_email=False,
                 send_in_app=True,
-                priority="low"
+                priority="low",
             )
         elif instance.shared_with_therapist:
             # Notify therapist when entry is shared with them
-            if hasattr(user, 'patient_profile') and user.patient_profile.therapist:
+            if hasattr(user, "patient_profile") and user.patient_profile.therapist:
                 therapist = user.patient_profile.therapist.user
                 notification_service.send_notification(
                     user=therapist,
@@ -45,11 +48,12 @@ def handle_journal_entry_save(sender, instance, created, **kwargs):
                     },
                     send_email=True,
                     send_in_app=True,
-                    priority="medium"
+                    priority="medium",
                 )
 
     except Exception as e:
         logger.error(f"Error handling journal entry signal: {str(e)}", exc_info=True)
+
 
 @receiver(post_delete, sender=JournalEntry)
 def handle_journal_entry_delete(sender, instance, **kwargs):
@@ -67,8 +71,46 @@ def handle_journal_entry_delete(sender, instance, **kwargs):
             },
             send_email=False,
             send_in_app=True,
-            priority="low"
+            priority="low",
         )
 
     except Exception as e:
         logger.error(f"Error handling journal delete signal: {str(e)}", exc_info=True)
+
+
+@receiver(post_save, sender=JournalEntry)
+def analyze_journal_entry(sender, instance, created, **kwargs):
+    """Trigger AI analysis when new journal entry is created"""
+    if created or instance.content_changed:
+        try:
+            # Analyze journal patterns
+            analysis = predictive_service.analyze_journal_patterns(instance.user)
+            
+            # If concerning themes are found, create an insight
+            if analysis.get('concerns'):
+                AIInsight.objects.create(
+                    user=instance.user,
+                    insight_type='journal_theme',
+                    insight_data={
+                        'analysis': analysis,
+                        'journal_entry_id': str(instance.id)
+                    },
+                    priority='medium'
+                )
+
+            # Update therapy predictions if themes indicate significant changes
+            if analysis.get('sentiment_trend') in ['improving', 'declining']:
+                therapy_prediction = predictive_service.predict_therapy_outcomes(instance.user)
+                if therapy_prediction.get('predicted_outcome') == 'declining':
+                    AIInsight.objects.create(
+                        user=instance.user,
+                        insight_type='therapy_adjustment',
+                        insight_data={
+                            'prediction': therapy_prediction,
+                            'context': 'Journal sentiment change'
+                        },
+                        priority='high'
+                    )
+                    
+        except Exception as e:
+            logger.error(f"Error analyzing journal patterns: {str(e)}")

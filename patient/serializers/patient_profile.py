@@ -89,7 +89,9 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         return value
 
     def update(self, instance, validated_data):
-        logger.debug(f"PatientProfile update called with validated_data: {validated_data}")
+        logger.debug(
+            f"PatientProfile update called with validated_data: {validated_data}"
+        )
         user_data = validated_data.pop("user", {})
         if user_data:
             user = instance.user
@@ -97,7 +99,9 @@ class PatientProfileSerializer(serializers.ModelSerializer):
                 setattr(user, attr, value)
             user.save()
         updated_instance = super().update(instance, validated_data)
-        logger.debug(f"PatientProfile update completed. Updated instance: {updated_instance}")
+        logger.debug(
+            f"PatientProfile update completed. Updated instance: {updated_instance}"
+        )
         return updated_instance
 
 
@@ -158,9 +162,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=partial
-        )
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
         try:
             serializer.is_valid(raise_exception=True)
         except serializers.ValidationError as exc:

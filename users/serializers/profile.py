@@ -21,7 +21,7 @@ class PatientProfileSerializer(AppPatientProfileSerializer):
             path = urlparse(profile_pic).path
             media_url = settings.MEDIA_URL
             if path.startswith(media_url):
-                path = path[len(media_url):]
+                path = path[len(media_url) :]
             instance.profile_pic = path
             validated_data.pop("profile_pic")
         return super().update(instance, validated_data)
@@ -36,7 +36,7 @@ class TherapistProfileSerializer(AppTherapistProfileSerializer):
             path = urlparse(profile_pic).path
             media_url = settings.MEDIA_URL
             if path.startswith(media_url):
-                path = path[len(media_url):]
+                path = path[len(media_url) :]
             instance.profile_pic = path
             validated_data.pop("profile_pic")
         return super().update(instance, validated_data)

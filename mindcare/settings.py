@@ -65,9 +65,11 @@ INSTALLED_APPS = [
     "therapist",
     "patient",
     "feeds",
+    "appointments",  # Added appointments app
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_filters",
+    "AI_engine",  # Added AI_engine app
 ]
 
 SITE_ID = 1
@@ -82,8 +84,9 @@ AUTHENTICATION_BACKENDS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",  # Must be near the top
-    "allauth.account.middleware.AccountMiddleware",  # <-- Added Allauth middleware
+    "corsheaders.middleware.CorsMiddleware",
+    "core.utils.RequestMiddleware",  # Place early to ensure request is available
+    "allauth.account.middleware.AccountMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -293,7 +296,7 @@ ALLOWED_MEDIA_TYPES = {
         "image/bmp",
         "image/webp",
         "image/tiff",
-        "image/svg+xml"
+        "image/svg+xml",
     ],
     "video": [
         "video/mp4",
@@ -302,7 +305,7 @@ ALLOWED_MEDIA_TYPES = {
         "video/x-msvideo",
         "video/x-ms-wmv",
         "video/webm",
-        "video/3gpp"
+        "video/3gpp",
     ],
     "audio": [
         "audio/mpeg",
@@ -313,7 +316,7 @@ ALLOWED_MEDIA_TYPES = {
         "audio/ogg",
         "audio/webm",
         "audio/aac",
-        "audio/x-m4a"
+        "audio/x-m4a",
     ],
     "document": [
         "application/pdf",
@@ -329,8 +332,8 @@ ALLOWED_MEDIA_TYPES = {
         "application/json",
         "application/xml",
         "application/zip",
-        "application/x-rar-compressed"
-    ]
+        "application/x-rar-compressed",
+    ],
 }
 
 MEDIA_FILE_STORAGE = {
@@ -555,14 +558,56 @@ GEMINI_API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 )
 
-# Verification settings
+# Notification Cache Settings
+NOTIFICATION_SETTINGS = {
+    'CACHE_TIMEOUT': 3600,  # 1 hour default
+    'COUNT_CACHE_TIMEOUT': 60,  # 1 minute for notification counts
+    'TYPE_CACHE_TIMEOUT': 86400,  # 24 hours for notification types
+    'PREFERENCES_CACHE_TIMEOUT': 3600,  # 1 hour for user preferences
+    'CACHE_KEY_PREFIX': 'notification',
+    'MAX_CACHED_TYPES': 100,
+}
+
+# Verification settings - consolidated and enhanced
 VERIFICATION_SETTINGS = {
+    "MAX_VERIFICATION_ATTEMPTS": 3,
+    "VERIFICATION_COOLDOWN_HOURS": 24,
     "LICENSE_PATTERNS": [
         r"License[:\s]+([A-Z0-9-]+)",
         r"Registration[:\s]+([A-Z0-9-]+)",
+        r"Number[:\s]+([A-Z0-9-]+)",
+        r"#([A-Z0-9-]+)",
+        r"Certificate[:\s]+([A-Z0-9-]+)",
+        r"ID[:\s]+([A-Z0-9-]+)",
     ],
-    "MAX_VERIFICATION_ATTEMPTS": 3,
-    "VERIFICATION_COOLDOWN_HOURS": 24,
+    "DATE_FORMATS": [
+        "%m/%d/%Y",
+        "%m-%d-%Y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%m/%d/%y",
+        "%d/%m/%y",
+    ],
+    "IMAGE_REQUIREMENTS": {
+        "MIN_WIDTH": 300,
+        "MIN_HEIGHT": 300,
+        "MAX_DIMENSION": 4000,
+        "MIN_ASPECT_RATIO": 0.5,
+        "MAX_ASPECT_RATIO": 2.0,
+        "ALLOWED_MIME_TYPES": ["image/jpeg", "image/png", "image/webp"],
+    },
+    "FACE_VERIFICATION": {
+        "CONFIDENCE_THRESHOLD": 0.7,
+        "MODEL": "VGG-Face",
+        "METRIC": "cosine",
+        "ENFORCE_DETECTION": True,
+        "DETECTOR_BACKEND": "opencv",
+    },
+    "LICENSE_VALIDITY": {
+        "DEFAULT_DURATION_DAYS": 365,
+        "REMINDER_DAYS_BEFORE": [90, 30, 7],
+        "GRACE_PERIOD_DAYS": 30,
+    },
 }
 
 # Group Settings - consolidated (removed duplicate)
@@ -613,18 +658,79 @@ USER_TYPE_THROTTLE_RATES = {
 
 # Redis Cache Configuration
 CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
-        "OPTIONS": {
-            "db": 1,
-            "socket_timeout": 5,
-            "socket_connect_timeout": 5,
-            "retry_on_timeout": True,
-            "max_connections": 100,
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PARSER_CLASS': 'redis.connection.HiredisParser',
+            'CONNECTION_POOL_CLASS': 'redis.connection.BlockingConnectionPool',
+            'CONNECTION_POOL_CLASS_KWARGS': {
+                'max_connections': 50,
+                'timeout': 20,
+            },
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
         },
-    }
+        'KEY_PREFIX': 'mindcare',
+        'TIMEOUT': 3600,  # 1 hour default
+    },
+    'notifications': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/2',  # Using database 2 for notifications
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PARSER_CLASS': 'redis.connection.HiredisParser',
+            'CONNECTION_POOL_CLASS': 'redis.connection.BlockingConnectionPool',
+            'CONNECTION_POOL_CLASS_KWARGS': {
+                'max_connections': 50,
+                'timeout': 20,
+            },
+            'MAX_CONNECTIONS': 50,
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+        },
+        'KEY_PREFIX': 'notification',
+        'TIMEOUT': 3600,
+    },
+    'ai_analysis': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/3',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'PARSER_CLASS': 'redis.connection.HiredisParser',
+            'CONNECTION_POOL_CLASS_KWARGS': {
+                'max_connections': 50,
+                'timeout': 20,
+            },
+            'MAX_CONNECTIONS': 50,
+        },
+        'KEY_PREFIX': 'ai_analysis',
+        'TIMEOUT': 3600,
+    },
 }
+
+# Cache timeouts for different types of data
+MESSAGE_CACHE_TIMEOUT = 3600  # 1 hour for messages
+CONVERSATION_CACHE_TIMEOUT = 1800  # 30 minutes for conversations
+CHATBOT_CACHE_TIMEOUT = 900  # 15 minutes for chatbot responses
+REACTIONS_CACHE_TIMEOUT = 3600  # 1 hour for reactions
+
+# Bulk operations settings
+MESSAGE_BULK_CACHE_SIZE = 100  # Maximum number of messages to cache per conversation
+
+# Use Redis for session backend as well
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+
+# Cache middleware settings
+CACHE_MIDDLEWARE_ALIAS = 'default'
+CACHE_MIDDLEWARE_SECONDS = 3600
+CACHE_MIDDLEWARE_KEY_PREFIX = 'mindcare'
+
+# Cache time to live is 15 minutes
+CACHE_TTL = 60 * 15
+
+# Cache key settings
+CACHE_KEY_PREFIX = "mindcare"
 
 # Session Configuration (if using Redis for sessions)
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -659,3 +765,28 @@ WS_MESSAGE_TYPES = {
     "presence_update": "Online/offline status updates",
     "conversation_updated": "Changes to conversation metadata",
 }
+
+# AI and Ollama Settings
+OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+
+CHATBOT_SETTINGS = {
+    "MAX_RETRIES": 3,
+    "RESPONSE_TIMEOUT": 30,
+    "MAX_HISTORY_MESSAGES": 5,
+}
+
+AI_ENGINE_SETTINGS = {
+    'ANALYSIS_BATCH_SIZE': 100,
+    'MAX_ANALYSIS_PERIOD': 90,  # Maximum days to analyze
+    'MIN_DATA_POINTS': 5,  # Minimum data points needed for analysis
+    'RISK_THRESHOLD': 0.7,  # Threshold for risk alerts
+    'UPDATE_FREQUENCY': 24,  # Hours between updates
+    'ENABLED_MODELS': ['sentiment', 'topic', 'risk'],
+    'CACHE_TIMEOUT': 3600,  # 1 hour cache for AI results
+}
+
+# OpenAI Configuration for AI analysis
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_MODEL = "gpt-4"
+OPENAI_TEMPERATURE = 0.7
+OPENAI_MAX_TOKENS = 1000

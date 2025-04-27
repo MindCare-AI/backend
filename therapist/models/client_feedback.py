@@ -27,7 +27,7 @@ class ClientFeedback(models.Model):
         limit_choices_to={"user_type": "patient"},
     )
     appointment = models.OneToOneField(
-        "Appointment",
+        "appointments.Appointment",
         on_delete=models.CASCADE,
         related_name="feedback",
         null=True,
@@ -59,9 +59,9 @@ class ClientFeedback(models.Model):
 
     def clean(self):
         if self.appointment:
-            if self.therapist != self.appointment.therapist:
+            if self.therapist != self.appointment.therapist.user:
                 raise ValidationError(
                     "Feedback therapist must match appointment therapist"
                 )
-            if self.patient != self.appointment.patient:
+            if self.patient != self.appointment.patient.user:
                 raise ValidationError("Feedback patient must match appointment patient")

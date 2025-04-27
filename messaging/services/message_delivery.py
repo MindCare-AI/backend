@@ -23,6 +23,73 @@ class MessageDeliveryService:
         self.channel_layer = get_channel_layer()
         self.rate_limit_count = getattr(settings, "WS_RATE_LIMIT_COUNT", 5)
         self.rate_limit_period = getattr(settings, "WS_RATE_LIMIT_PERIOD", 1)  # seconds
+        self.cache_timeout = getattr(settings, "MESSAGE_CACHE_TIMEOUT", 3600)  # 1 hour default
+        self.cache_prefix = "msg_delivery_"
+        # Add new cache settings
+        self.bulk_cache_size = getattr(settings, "MESSAGE_BULK_CACHE_SIZE", 100)
+        self.conversation_cache_timeout = getattr(settings, "CONVERSATION_CACHE_TIMEOUT", 7200)  # 2 hours
+
+    def _get_cache_key(self, conversation_id: str, message_id: str = None) -> str:
+        """Generate a cache key for message delivery"""
+        if message_id:
+            return f"{self.cache_prefix}conv_{conversation_id}_msg_{message_id}"
+        return f"{self.cache_prefix}conv_{conversation_id}"
+
+    def _cache_message(self, conversation_id: str, message_data: dict) -> None:
+        """Cache message data for a conversation with improved bulk handling"""
+        try:
+            message_id = str(message_data.get('id', ''))
+            cache_key = self._get_cache_key(conversation_id, message_id)
+            
+            # Cache individual message with TTL
+            pipeline = cache.pipeline()
+            pipeline.set(cache_key, message_data, timeout=self.cache_timeout)
+            
+            # Update conversation messages list
+            conv_cache_key = self._get_cache_key(conversation_id)
+            cached_messages = cache.get(conv_cache_key, [])
+            
+            # Implement LRU-like behavior for conversation cache
+            if len(cached_messages) >= self.bulk_cache_size:
+                cached_messages.pop(0)  # Remove oldest message
+            
+            if message_id not in cached_messages:
+                cached_messages.append(message_id)
+                pipeline.set(conv_cache_key, cached_messages, timeout=self.conversation_cache_timeout)
+            
+            # Execute all cache operations atomically
+            pipeline.execute()
+            
+        except Exception as e:
+            logger.error(f"Error caching message: {str(e)}", exc_info=True)
+            
+    def _clear_conversation_cache(self, conversation_id: str) -> None:
+        """Clear all cached messages for a conversation"""
+        try:
+            conv_cache_key = self._get_cache_key(conversation_id)
+            cached_messages = cache.get(conv_cache_key, [])
+            
+            # Create pipeline for bulk delete
+            pipeline = cache.pipeline()
+            
+            # Delete all message keys
+            for message_id in cached_messages:
+                msg_cache_key = self._get_cache_key(conversation_id, message_id)
+                pipeline.delete(msg_cache_key)
+            
+            # Delete conversation key
+            pipeline.delete(conv_cache_key)
+            
+            # Execute all deletes atomically
+            pipeline.execute()
+            
+        except Exception as e:
+            logger.error(f"Error clearing conversation cache: {str(e)}", exc_info=True)
+
+    def _get_cached_message(self, conversation_id: str, message_id: str) -> dict:
+        """Retrieve cached message data"""
+        cache_key = self._get_cache_key(conversation_id, message_id)
+        return cache.get(cache_key)
 
     def send_message_update(
         self,
@@ -68,6 +135,9 @@ class MessageDeliveryService:
             if "conversation_id" not in message_data:
                 message_data["conversation_id"] = conversation_id
 
+            # Cache the message data
+            self._cache_message(conversation_id, message_data)
+
             # Prepare the update data
             update_data = {"type": "conversation.message", "message": message_data}
 
@@ -81,7 +151,6 @@ class MessageDeliveryService:
             return True
 
         except RateLimitExceededError as e:
-            # Just log but don't re-raise to avoid breaking the application flow
             logger.warning(str(e))
             return False
 
@@ -96,6 +165,10 @@ class MessageDeliveryService:
     ) -> bool:
         """Send typing indicator to a conversation"""
         try:
+            # Cache typing status
+            cache_key = f"typing_{conversation_id}_{user_id}"
+            cache.set(cache_key, is_typing, timeout=30)  # Cache for 30 seconds
+
             group_name = f"conversation_{conversation_id}"
             async_to_sync(self.channel_layer.group_send)(
                 group_name,

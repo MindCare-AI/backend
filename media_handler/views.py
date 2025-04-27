@@ -4,7 +4,6 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from django.conf import settings
 import logging
 from .models import MediaFile
 from .serializers import MediaFileSerializer
@@ -61,7 +60,7 @@ class MediaFileViewSet(viewsets.ModelViewSet):
         serializer.save(
             uploaded_by=self.request.user,
             file_size=file_obj.size,
-            mime_type=file_obj.content_type
+            mime_type=file_obj.content_type,
         )
 
     def get_queryset(self):

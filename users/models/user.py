@@ -5,7 +5,7 @@ from django.utils import timezone
 import logging
 from model_utils import FieldTracker
 from django.apps import apps
-from therapist.models.appointment import Appointment
+from appointments.models import Appointment
 
 logger = logging.getLogger(__name__)
 

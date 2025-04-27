@@ -17,7 +17,6 @@ from messaging.exceptions import (
     WebSocketAuthenticationError,
     WebSocketMessageError,
     ConversationAccessError,
-    MessageDeliveryError,
 )
 
 User = get_user_model()

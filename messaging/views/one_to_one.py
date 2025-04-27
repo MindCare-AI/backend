@@ -7,11 +7,19 @@ from django.contrib.auth import get_user_model
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 # Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
 # • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
 # • extend_schema_view: Applies common schema settings to all view methods of a viewset.
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample, OpenApiResponse
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiExample,
+    OpenApiResponse,
+)
 
 from ..models.one_to_one import OneToOneConversation, OneToOneMessage
 from ..serializers.one_to_one import (
@@ -48,14 +56,16 @@ logger = logging.getLogger(__name__)
             "properties": {
                 "participant_id": {
                     "type": "integer",
-                    "description": "ID of the second participant (must be a patient if you're a therapist, or vice versa)."
+                    "description": "ID of the second participant (must be a patient if you're a therapist, or vice versa).",
                 }
             },
-            "required": ["participant_id"]
+            "required": ["participant_id"],
         },
         responses={
             201: OneToOneConversationSerializer,
-            400: OpenApiResponse(description="Bad Request – e.g., missing or invalid participant_id."),
+            400: OpenApiResponse(
+                description="Bad Request – e.g., missing or invalid participant_id."
+            ),
             404: OpenApiResponse(description="Participant not found."),
         },
         examples=[
@@ -358,19 +368,39 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
             conversation__participants=self.request.user
         ).order_by("-timestamp")
 
+    @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
+    def list(self, request, *args, **kwargs):
+        """Cache the message list for better performance"""
+        return super().list(request, *args, **kwargs)
+
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve a specific message by ID with detailed information."""
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        """Get message with cache handling"""
+        message_id = kwargs.get('pk')
+        cache_key = f'one_to_one_message_{message_id}'
+        
+        # Try to get from cache first
+        cached_message = cache.get(cache_key)
+        if cached_message:
+            return Response(cached_message)
+            
+        response = super().retrieve(request, *args, **kwargs)
+        
+        # Cache the response for 1 hour
+        cache.set(cache_key, response.data, timeout=3600)
+        return response
 
     @action(detail=True, methods=["post"], url_path="add_reaction")
     def add_reaction(self, request, pk=None):
-        """Add a reaction to a specific message."""
-        return Response(
-            {"detail": "This feature is not implemented yet."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
-        )
+        """Add reaction with cache invalidation"""
+        response = super().add_reaction(request, pk)
+        if response.status_code == 200:
+            # Invalidate message cache
+            cache_key = f'one_to_one_message_{pk}'
+            cache.delete(cache_key)
+            # Invalidate reactions cache
+            cache_key = f'message_reactions_{pk}'
+            cache.delete(cache_key)
+        return response
 
     @action(detail=True, methods=["delete"], url_path="remove_reaction")
     def remove_reaction(self, request, pk=None):

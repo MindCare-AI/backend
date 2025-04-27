@@ -5,12 +5,9 @@ from rest_framework.response import Response
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.core.cache import cache
 from .models import Notification, NotificationType
-from .serializers import (
-    NotificationSerializer,
-    NotificationUpdateSerializer,
-    NotificationTypeSerializer,
-)
+from .serializers import NotificationSerializer, NotificationTypeSerializer, NotificationUpdateSerializer
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,12 +19,19 @@ class NotificationViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "patch", "post", "head", "options"]
 
     def get_queryset(self):
-        """Get notifications for the current user with type information."""
-        return (
-            Notification.objects.filter(user=self.request.user)
-            .select_related("notification_type")
-            .order_by("-created_at")
-        )
+        """Get notifications for the current user with type information and caching."""
+        cache_key = f'user_notifications_{self.request.user.id}'
+        queryset = cache.get(cache_key)
+        
+        if queryset is None:
+            queryset = (
+                Notification.objects.filter(user=self.request.user)
+                .select_related("notification_type")
+                .order_by("-created_at")
+            )
+            cache.set(cache_key, queryset, timeout=300)  # Cache for 5 minutes
+            
+        return queryset
 
     @extend_schema(
         description="Update notification status",
@@ -35,15 +39,15 @@ class NotificationViewSet(viewsets.ModelViewSet):
         responses={200: NotificationSerializer},
     )
     def partial_update(self, request, *args, **kwargs):
+        """Update notification with cache invalidation"""
         try:
             with transaction.atomic():
-                instance = self.get_object()
-                serializer = NotificationUpdateSerializer(
-                    instance, data=request.data, partial=True
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                return Response(NotificationSerializer(instance).data)
+                response = super().partial_update(request, *args, **kwargs)
+                if response.status_code == 200:
+                    # Invalidate caches
+                    cache.delete(f'user_notifications_{request.user.id}')
+                    cache.delete(f'notification_count_{request.user.id}')
+                return response
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -66,8 +70,15 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=["get"], url_path="count")
     def count(self, request):
+        """Get notification count with caching"""
         try:
-            count = Notification.objects.filter(user=request.user).count()
+            cache_key = f'notification_count_{request.user.id}'
+            count = cache.get(cache_key)
+            
+            if count is None:
+                count = Notification.objects.filter(user=request.user).count()
+                cache.set(cache_key, count, timeout=60)  # Cache for 1 minute
+                
             return Response({"count": count})
         except Exception as e:
             logger.error(f"Error fetching notification count: {str(e)}")
@@ -90,11 +101,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=["post"])
     def mark_all_read(self, request):
+        """Mark all notifications as read with cache invalidation"""
         try:
             with transaction.atomic():
-                updated = request.user.notifications.filter(read=False).update(
-                    read=True
-                )
+                updated = request.user.notifications.filter(read=False).update(read=True)
+                # Invalidate user's notification cache
+                cache.delete(f'user_notifications_{request.user.id}')
+                cache.delete(f'notification_count_{request.user.id}')
                 return Response({"status": "success", "count": updated})
         except Exception as e:
             logger.error(f"Error marking notifications as read: {str(e)}")

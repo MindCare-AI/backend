@@ -56,24 +56,29 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.debug(f"TherapistProfile update called with validated_data: {validated_data}")
-        
+        logger.debug(
+            f"TherapistProfile update called with validated_data: {validated_data}"
+        )
+
         # Handle treatment_approaches separately to ensure it's always a list
-        treatment_approaches = validated_data.get('treatment_approaches', [])
+        treatment_approaches = validated_data.get("treatment_approaches", [])
         if treatment_approaches is None:
             treatment_approaches = []
-        validated_data['treatment_approaches'] = treatment_approaches
-            
+        validated_data["treatment_approaches"] = treatment_approaches
+
         user_data = validated_data.pop("user", {})
         if user_data:
             user = instance.user
             for attr, value in user_data.items():
                 setattr(user, attr, value)
             user.save()
-            
+
         updated_instance = super().update(instance, validated_data)
-        logger.debug(f"TherapistProfile update completed. Updated instance: {updated_instance}")
+        logger.debug(
+            f"TherapistProfile update completed. Updated instance: {updated_instance}"
+        )
         return updated_instance
 
     def get_username(self, obj):

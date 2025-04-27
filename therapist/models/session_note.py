@@ -18,7 +18,7 @@ class SessionNote(models.Model):
         limit_choices_to={"user_type": "patient"},
     )
     appointment = models.OneToOneField(
-        "Appointment",
+        "appointments.Appointment",
         on_delete=models.CASCADE,
         related_name="session_note",
         null=True,
@@ -42,5 +42,8 @@ class SessionNote(models.Model):
         return f"Session note for {self.patient.username} by {self.therapist.username}"
 
     def clean(self):
-        if self.appointment and self.session_date != self.appointment.date_time.date():
+        if (
+            self.appointment
+            and self.session_date != self.appointment.appointment_date.date()
+        ):
             raise ValidationError("Session date must match appointment date")

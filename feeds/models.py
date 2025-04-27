@@ -1,10 +1,40 @@
 from django.db import models
-from django.utils import timezone
-from django.contrib.postgres.fields import ArrayField
+from django.contrib.contenttypes.fields import GenericRelation, GenericForeignKey
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 
+POST_TYPES = [
+    ('text', 'Text'),
+    ('image', 'Image'),
+    ('video', 'Video')
+]
+
+# Topics choices for better organization
+TOPIC_CHOICES = [
+    ('mental_health', 'Mental Health'),
+    ('therapy', 'Therapy'),
+    ('self_care', 'Self Care'),
+    ('mindfulness', 'Mindfulness'),
+    ('stress_management', 'Stress Management'),
+    ('relationships', 'Relationships'),
+    ('personal_growth', 'Personal Growth'),
+    ('anxiety', 'Anxiety'),
+    ('depression', 'Depression'),
+    ('wellness', 'Wellness')
+]
+
+TAG_CHOICES = [
+    ('mental_health', 'Mental Health'),
+    ('therapy', 'Therapy'),
+    ('self_care', 'Self Care'),
+    ('mindfulness', 'Mindfulness'),
+    ('stress_management', 'Stress Management'),
+    ('relationships', 'Relationships'),
+    ('personal_growth', 'Personal Growth'),
+    ('anxiety', 'Anxiety'),
+    ('depression', 'Depression'),
+    ('wellness', 'Wellness')
+]
 
 class Topic(models.Model):
     """Topics for posts categorization"""
@@ -28,15 +58,14 @@ class Topic(models.Model):
     def __str__(self):
         return self.name
 
-
 class Reaction(models.Model):
     """Model for storing reactions to posts and comments"""
     REACTION_TYPES = [
-        ('like', 'Like'),
-        ('love', 'Love'),
-        ('support', 'Support'),
-        ('insightful', 'Insightful'),
-        ('celebrate', 'Celebrate')
+        ('like', 'Like 👍'),
+        ('love', 'Love ❤️'),
+        ('support', 'Support 🤝'),
+        ('insightful', 'Insightful 💡'),
+        ('celebrate', 'Celebrate 🎉')
     ]
     
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -55,24 +84,7 @@ class Reaction(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.reaction_type}"
 
-
 class Post(models.Model):
-    """Post model for the feed"""
-    POST_TYPES = [
-        ('text', 'Text'),
-        ('image', 'Image'),
-        ('video', 'Video'),
-        ('link', 'Link'),
-        ('poll', 'Poll'),
-    ]
-
-    VISIBILITY_CHOICES = [
-        ('public', 'Public'),
-        ('patients', 'Patients Only'),
-        ('therapists', 'Therapists Only'),
-        ('connections', 'My Connections')
-    ]
-    
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -80,29 +92,30 @@ class Post(models.Model):
     )
     content = models.TextField()
     post_type = models.CharField(max_length=20, choices=POST_TYPES, default='text')
-    topics = models.ManyToManyField(Topic, related_name='posts', blank=True)
-    visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='public')
+    topics = models.CharField(
+        max_length=20,
+        choices=TOPIC_CHOICES,
+        blank=True,
+        null=True
+    )
+    visibility = models.CharField(
+        max_length=20,
+        default='public',
+        editable=False
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_edited = models.BooleanField(default=False)
-    is_pinned = models.BooleanField(default=False)
-    is_featured = models.BooleanField(default=False)
-    is_archived = models.BooleanField(default=False)
     media_files = models.ManyToManyField(
         'media_handler.MediaFile',
         related_name='posts',
         blank=True
     )
-    views_count = models.PositiveIntegerField(default=0)
-    tags = ArrayField(
-        models.CharField(max_length=50),
-        blank=True,
-        null=True
-    )
     link_url = models.URLField(blank=True, null=True)
-    link_title = models.CharField(max_length=255, blank=True, null=True)
-    link_description = models.TextField(blank=True, null=True)
-    link_image = models.URLField(blank=True, null=True)
+    views_count = models.PositiveIntegerField(default=0)
+    tags = models.CharField(
+        max_length=50,
+        choices=TAG_CHOICES
+    )
     
     # Generic relations
     reactions = GenericRelation(Reaction)
@@ -137,7 +150,6 @@ class Post(models.Model):
         """Increment the view count"""
         self.views_count += 1
         self.save(update_fields=['views_count'])
-
 
 class Comment(models.Model):
     """Comments on posts"""
@@ -176,51 +188,6 @@ class Comment(models.Model):
     def reactions_count(self):
         return self.reactions.count()
 
-
-class SavedPost(models.Model):
-    """Track posts saved by users"""
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='saved_posts'
-    )
-    post = models.ForeignKey(
-        Post,
-        on_delete=models.CASCADE,
-        related_name='saved_by'
-    )
-    saved_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        unique_together = ['user', 'post']
-        ordering = ['-saved_at']
-        
-    def __str__(self):
-        return f"{self.user.username} saved {self.post}"
-
-
-class HiddenPost(models.Model):
-    """Track posts hidden by users"""
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='hidden_posts'
-    )
-    post = models.ForeignKey(
-        Post,
-        on_delete=models.CASCADE,
-        related_name='hidden_by'
-    )
-    hidden_at = models.DateTimeField(auto_now_add=True)
-    reason = models.CharField(max_length=100, blank=True, null=True)
-    
-    class Meta:
-        unique_together = ['user', 'post']
-        
-    def __str__(self):
-        return f"{self.user.username} hid {self.post}"
-
-
 class PollOption(models.Model):
     """Options for poll posts"""
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='poll_options')
@@ -232,7 +199,6 @@ class PollOption(models.Model):
         
     def __str__(self):
         return self.option_text
-
 
 class PollVote(models.Model):
     """User votes on poll options"""

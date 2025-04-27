@@ -2,12 +2,13 @@
 from rest_framework import viewsets, permissions, filters, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Count
+from django.db.models import Count
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 from journal.models import JournalEntry
 from journal.serializers import JournalEntrySerializer, JournalEntryDetailSerializer
+from feeds.models import Post  # Updated from FeedPost to Post
 import logging
 
 logger = logging.getLogger(__name__)
@@ -90,12 +91,14 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
             entry.save()
 
             # Post to feed
-            from feeds.models import FeedPost
-            FeedPost.objects.create(
-                user=request.user,
-                content=f"Shared a journal entry: {entry.title}",
-                related_object=entry
-            )
+            if hasattr(request.user, 'patient_profile') and hasattr(request.user.patient_profile, 'therapist'):
+                Post.objects.create(
+                    author=request.user,
+                    content=f"Shared a journal entry: {entry.title}",
+                    post_type='text',
+                    topics='mental_health',  # Default topic
+                    tags='personal_growth'   # Default tag
+                )
 
             return Response({'status': 'shared', 'message': 'Journal entry shared successfully and posted to feed.'})
         except JournalEntry.DoesNotExist:

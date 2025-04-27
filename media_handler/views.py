@@ -54,67 +54,15 @@ class MediaFileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsUploaderOrReadOnly]
 
     def perform_create(self, serializer):
-        """Handle file upload with enhanced validation and error handling."""
-        try:
-            file_obj = self.request.FILES.get("file")
-            if not file_obj:
-                raise ValidationError({"file": "No file provided"})
+        file_obj = self.request.FILES.get("file")
+        if not file_obj:
+            raise ValidationError({"file": "No file provided"})
 
-            max_size_mb = settings.MAX_UPLOAD_SIZE / (1024 * 1024)
-            if file_obj.size > settings.MAX_UPLOAD_SIZE:
-                raise ValidationError(
-                    {
-                        "file": f"File size ({file_obj.size / (1024 * 1024):.1f}MB) "
-                        f"exceeds maximum allowed size ({max_size_mb:.1f}MB)"
-                    }
-                )
-
-            media_type = self.request.data.get("media_type", "")
-            if not media_type:
-                raise ValidationError({"media_type": "Media type is required"})
-
-            if media_type not in settings.ALLOWED_MEDIA_TYPES:
-                raise ValidationError(
-                    {
-                        "media_type": f"Invalid media type. Allowed types: "
-                        f"{', '.join(settings.ALLOWED_MEDIA_TYPES.keys())}"
-                    }
-                )
-
-            instance = serializer.save(
-                uploaded_by=self.request.user,
-                file_size=file_obj.size,
-                mime_type=file_obj.content_type,
-            )
-
-            logger.info(
-                f"File uploaded successfully: {file_obj.name} "
-                f"(type: {media_type}, size: {file_obj.size / 1024:.1f}KB, "
-                f"user: {self.request.user.username})"
-            )
-
-            return instance
-
-        except ValidationError as e:
-            logger.warning(
-                f"Validation error during file upload: {str(e)} "
-                f"(user: {self.request.user.username})"
-            )
-            raise
-
-        except Exception as e:
-            logger.error(
-                f"Unexpected error during file upload: {str(e)} "
-                f"(user: {self.request.user.username})",
-                exc_info=True,
-            )
-            raise ValidationError(
-                {
-                    "non_field_errors": [
-                        "File upload failed. Please try again or contact support."
-                    ]
-                }
-            )
+        serializer.save(
+            uploaded_by=self.request.user,
+            file_size=file_obj.size,
+            mime_type=file_obj.content_type
+        )
 
     def get_queryset(self):
         queryset = MediaFile.objects.all()

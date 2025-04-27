@@ -1,5 +1,5 @@
 # feeds/signals.py
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 from feeds.models import Post, Comment, Reaction, PollVote
 from notifications.models import Notification

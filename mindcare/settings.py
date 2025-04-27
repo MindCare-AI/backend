@@ -281,27 +281,56 @@ STATIC_URL = "static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# Media file size limits
+# Media file size limits and allowed types
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
 ALLOWED_MEDIA_TYPES = {
-    "image": ["image/jpeg", "image/png", "image/gif"],
-    "video": ["video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo"],
-    "audio": ["audio/mpeg", "audio/wav", "audio/ogg"],
+    "image": [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/bmp",
+        "image/webp",
+        "image/tiff",
+        "image/svg+xml"
+    ],
+    "video": [
+        "video/mp4",
+        "video/mpeg",
+        "video/quicktime",
+        "video/x-msvideo",
+        "video/x-ms-wmv",
+        "video/webm",
+        "video/3gpp"
+    ],
+    "audio": [
+        "audio/mpeg",
+        "audio/wav",
+        "audio/wave",
+        "audio/x-wav",
+        "audio/mp3",
+        "audio/ogg",
+        "audio/webm",
+        "audio/aac",
+        "audio/x-m4a"
+    ],
     "document": [
         "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "text/plain",
-    ],
-}
-
-# Media upload settings
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
-ALLOWED_MEDIA_TYPES = {
-    "image": [".jpg", ".jpeg", ".png", ".gif"],
-    "video": [".mp4", ".mov", ".avi"],
-    "audio": [".mp3", ".wav", ".ogg"],
-    "document": [".pdf", ".doc", ".docx", ".txt"],
+        "text/csv",
+        "text/html",
+        "application/json",
+        "application/xml",
+        "application/zip",
+        "application/x-rar-compressed"
+    ]
 }
 
 MEDIA_FILE_STORAGE = {

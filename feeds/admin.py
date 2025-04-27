@@ -6,8 +6,6 @@ from feeds.models import (
     Comment, 
     Topic, 
     Reaction, 
-    SavedPost, 
-    HiddenPost, 
     PollOption, 
     PollVote
 )
@@ -52,21 +50,15 @@ class TopicAdmin(admin.ModelAdmin):
     color_display.short_description = 'Color'
 
 
+# Updated PostAdmin to match new post_type options
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    """Admin interface for Posts"""
-    list_display = [
-        'id', 'short_content', 'author', 'post_type', 
-        'visibility', 'created_at', 'views_count', 'is_featured'
-    ]
-    list_filter = [
-        'post_type', 'visibility', 'is_featured', 'is_pinned',
-        'is_archived', 'created_at', 'topics'
-    ]
-    search_fields = ['content', 'author__username', 'tags']
+    list_display = ['author', 'content', 'post_type', 'topics', 'visibility', 'created_at', 'updated_at', 'views_count']
+    list_filter = ['post_type', 'topics', 'visibility']
+    search_fields = ['content', 'tags']
     readonly_fields = ['created_at', 'updated_at', 'views_count']
-    filter_horizontal = ['topics', 'media_files']
-    inlines = [PollOptionInline, CommentInline]
+    filter_horizontal = []
+    inlines = [CommentInline]
     date_hierarchy = 'created_at'
     
     fieldsets = [
@@ -74,27 +66,19 @@ class PostAdmin(admin.ModelAdmin):
             'fields': ['author', 'content', 'post_type', 'tags']
         }),
         ('Settings', {
-            'fields': ['topics', 'visibility', 'is_pinned', 'is_featured', 'is_archived']
+            'fields': ['topics', 'visibility']
         }),
         ('Media', {
             'fields': ['media_files']
         }),
-        ('Link Details', {
-            'fields': ['link_url', 'link_title', 'link_description', 'link_image'],
-            'classes': ['collapse']
+        ('Links', {
+            'fields': ['link_url'],
         }),
         ('Statistics', {
             'fields': ['views_count', 'created_at', 'updated_at'],
             'classes': ['collapse']
         })
     ]
-    
-    def short_content(self, obj):
-        """Display truncated content"""
-        if len(obj.content) > 50:
-            return obj.content[:50] + '...'
-        return obj.content
-    short_content.short_description = 'Content'
 
 
 @admin.register(Comment)
@@ -126,24 +110,6 @@ class ReactionAdmin(admin.ModelAdmin):
     list_filter = ['reaction_type', 'created_at', 'content_type']
     search_fields = ['user__username', 'reaction_type']
     readonly_fields = ['created_at']
-
-
-@admin.register(SavedPost)
-class SavedPostAdmin(admin.ModelAdmin):
-    """Admin interface for SavedPosts"""
-    list_display = ['id', 'user', 'post', 'saved_at']
-    list_filter = ['saved_at']
-    search_fields = ['user__username', 'post__content']
-    readonly_fields = ['saved_at']
-
-
-@admin.register(HiddenPost)
-class HiddenPostAdmin(admin.ModelAdmin):
-    """Admin interface for HiddenPosts"""
-    list_display = ['id', 'user', 'post', 'hidden_at', 'reason']
-    list_filter = ['hidden_at']
-    search_fields = ['user__username', 'post__content', 'reason']
-    readonly_fields = ['hidden_at']
 
 
 @admin.register(PollOption)

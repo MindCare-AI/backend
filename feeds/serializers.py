@@ -5,13 +5,12 @@ from feeds.models import (
     Comment, 
     Topic, 
     Reaction, 
-    SavedPost, 
-    HiddenPost, 
     PollOption, 
     PollVote
 )
 from django.contrib.contenttypes.models import ContentType
 from users.models import CustomUser
+from media_handler.models import MediaFile
 from media_handler.serializers import MediaFileSerializer
 
 
@@ -29,21 +28,42 @@ class TopicSerializer(serializers.ModelSerializer):
 
 
 class ReactionSerializer(serializers.ModelSerializer):
-    """Serializer for reactions to posts or comments"""
-    user_name = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
     
     class Meta:
         model = Reaction
-        fields = ['id', 'user', 'user_name', 'reaction_type', 'created_at']
+        fields = ['id', 'user', 'reaction_type', 'created_at']
         read_only_fields = ['user', 'created_at']
 
-    def get_user_name(self, obj):
-        return obj.user.get_full_name() or obj.user.username
+    def get_user(self, obj):
+        return {
+            'id': obj.user.id,
+            'username': obj.user.username,
+            'full_name': obj.user.get_full_name()
+        }
 
-    def create(self, validated_data):
-        """Associate the reaction with the authenticated user"""
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
+    def validate_reaction_type(self, value):
+        valid_types = dict(Reaction.REACTION_TYPES).keys()
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                f"Invalid reaction type. Must be one of: {', '.join(valid_types)}"
+            )
+        return value
+
+
+class ReactionActionSerializer(serializers.Serializer):
+    """Dedicated serializer for reaction actions"""
+    reaction_type = serializers.ChoiceField(
+        choices=[
+            ('like', 'Like 👍'),
+            ('love', 'Love ❤️'),
+            ('support', 'Support 🤝'),
+            ('insightful', 'Insightful 💡'),
+            ('celebrate', 'Celebrate 🎉')
+        ],
+        required=True,
+        help_text="Type of reaction to add"
+    )
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -68,7 +88,6 @@ class CommentSerializer(serializers.ModelSerializer):
         return obj.author.get_full_name() or obj.author.username
     
     def get_author_profile_pic(self, obj):
-        # Try to get profile image URL through the user's profile
         if hasattr(obj.author, 'profile') and hasattr(obj.author.profile, 'profile_image'):
             if obj.author.profile.profile_image:
                 return obj.author.profile.profile_image.url
@@ -118,55 +137,29 @@ class PollOptionSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    """Serializer for feed posts"""
-    author_name = serializers.SerializerMethodField()
-    author_profile_pic = serializers.SerializerMethodField()
-    topics_data = TopicSerializer(source='topics', many=True, read_only=True)
-    comments_count = serializers.SerializerMethodField()
-    reactions_count = serializers.SerializerMethodField()
+    file = serializers.FileField(required=False)
+    media_files = MediaFileSerializer(many=True, read_only=True)
     reactions_summary = serializers.SerializerMethodField()
     current_user_reaction = serializers.SerializerMethodField()
-    is_saved = serializers.SerializerMethodField()
-    media_files_data = MediaFileSerializer(source='media_files', many=True, read_only=True)
-    poll_options = PollOptionSerializer(many=True, read_only=True)
-    
+    comments_count = serializers.IntegerField(read_only=True)
+    author_name = serializers.SerializerMethodField()
+    author_profile_pic = serializers.SerializerMethodField()
+
     class Meta:
         model = Post
         fields = [
-            'id', 'author', 'author_name', 'author_profile_pic', 'content',
-            'post_type', 'topics', 'topics_data', 'visibility', 'created_at',
-            'updated_at', 'is_edited', 'is_pinned', 'is_featured', 'is_archived',
-            'media_files', 'media_files_data', 'views_count', 'tags',
-            'comments_count', 'reactions_count', 'reactions_summary',
-            'current_user_reaction', 'is_saved', 'link_url', 'link_title',
-            'link_description', 'link_image', 'poll_options'
+            'id', 'author', 'author_name', 'author_profile_pic', 
+            'content', 'post_type', 'topics', 'visibility', 
+            'created_at', 'updated_at', 'file', 'media_files',
+            'link_url', 'views_count', 'tags', 'reactions_summary',
+            'current_user_reaction', 'comments_count'
         ]
-        read_only_fields = [
-            'author', 'created_at', 'updated_at', 'is_edited',
-            'views_count', 'reactions_count', 'comments_count',
-        ]
+        read_only_fields = ['author', 'visibility', 'created_at', 'updated_at']
 
-    def get_author_name(self, obj):
-        return obj.author.get_full_name() or obj.author.username
-    
-    def get_author_profile_pic(self, obj):
-        # Try to get profile image URL through the user's profile
-        if hasattr(obj.author, 'profile') and hasattr(obj.author.profile, 'profile_image'):
-            if obj.author.profile.profile_image:
-                return obj.author.profile.profile_image.url
-        return None
-    
-    def get_comments_count(self, obj):
-        return obj.comments_count
-    
-    def get_reactions_count(self, obj):
-        return obj.reactions_count
-    
     def get_reactions_summary(self, obj):
         return obj.get_reactions_summary()
-    
+
     def get_current_user_reaction(self, obj):
-        """Get the current user's reaction to this post if any"""
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             content_type = ContentType.objects.get_for_model(Post)
@@ -180,66 +173,39 @@ class PostSerializer(serializers.ModelSerializer):
             except Reaction.DoesNotExist:
                 return None
         return None
-    
-    def get_is_saved(self, obj):
-        """Check if the post is saved by the current user"""
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return SavedPost.objects.filter(user=request.user, post=obj).exists()
-        return False
+
+    def get_author_name(self, obj):
+        return obj.author.get_full_name() or obj.author.username
+
+    def get_author_profile_pic(self, obj):
+        if hasattr(obj.author, 'profile') and hasattr(obj.author.profile, 'profile_image'):
+            if obj.author.profile.profile_image:
+                return obj.author.profile.profile_image.url
+        return None
 
     def create(self, validated_data):
-        """Create a post with related topics and poll options"""
-        topics_data = validated_data.pop('topics', [])
-        media_files_data = validated_data.pop('media_files', [])
-        poll_options_data = self.context.get('request').data.get('poll_options', [])
-        
-        # Create the post
-        post = Post.objects.create(
-            author=self.context['request'].user,
-            **validated_data
-        )
-        
-        # Add topics
-        if topics_data:
-            post.topics.set(topics_data)
-            
-        # Add media files
-        if media_files_data:
-            post.media_files.set(media_files_data)
-            
-        # Create poll options if post_type is poll
-        if post.post_type == 'poll' and poll_options_data:
-            for option_text in poll_options_data:
-                PollOption.objects.create(
-                    post=post,
-                    option_text=option_text
-                )
-                
+        file = validated_data.pop('file', None)
+        post = super().create(validated_data)
+
+        if file:
+            media_file = MediaFile.objects.create(
+                file=file,
+                uploaded_by=post.author,
+                media_type=self._determine_media_type(file)
+            )
+            post.media_files.add(media_file)
+
         return post
-        
-    def update(self, instance, validated_data):
-        """Update a post with related topics and poll options"""
-        topics_data = validated_data.pop('topics', None)
-        media_files_data = validated_data.pop('media_files', None)
-        
-        # Update the post fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        
-        # Mark as edited
-        instance.is_edited = True
-        instance.save()
-        
-        # Update topics if provided
-        if topics_data is not None:
-            instance.topics.set(topics_data)
-            
-        # Update media files if provided
-        if media_files_data is not None:
-            instance.media_files.set(media_files_data)
-            
-        return instance
+
+    def _determine_media_type(self, file):
+        content_type = getattr(file, 'content_type', '')
+        if content_type.startswith('image/'):
+            return 'image'
+        elif content_type.startswith('video/'):
+            return 'video'
+        elif content_type.startswith('audio/'):
+            return 'audio'
+        return 'document'
 
 
 class PostDetailSerializer(PostSerializer):
@@ -251,28 +217,12 @@ class PostDetailSerializer(PostSerializer):
         
     def get_comments(self, obj):
         """Get top-level comments on the post"""
-        # Get top-level comments (no parent)
         comments = obj.comments.filter(parent=None).order_by('-created_at')[:5]
         return CommentSerializer(
             comments, 
             many=True, 
             context=self.context
         ).data
-
-
-class SavedPostSerializer(serializers.ModelSerializer):
-    """Serializer for saved posts"""
-    post_data = PostSerializer(source='post', read_only=True)
-    
-    class Meta:
-        model = SavedPost
-        fields = ['id', 'user', 'post', 'post_data', 'saved_at']
-        read_only_fields = ['user', 'saved_at']
-
-    def create(self, validated_data):
-        """Associate the saved post with the authenticated user"""
-        validated_data['user'] = self.context['request'].user
-        return super().create(validated_data)
 
 
 class PollVoteSerializer(serializers.ModelSerializer):
@@ -294,7 +244,6 @@ class PollVoteSerializer(serializers.ModelSerializer):
         poll_option = data['poll_option']
         post = poll_option.post
         
-        # Check if user has already voted on this poll
         existing_votes = PollVote.objects.filter(
             poll_option__post=post,
             user=user
@@ -319,7 +268,6 @@ class UserProfileMinimalSerializer(serializers.ModelSerializer):
         return obj.get_full_name() or obj.username
         
     def get_profile_pic(self, obj):
-        # Try to get profile image URL through the user's profile
         if hasattr(obj, 'profile') and hasattr(obj.profile, 'profile_image'):
             if obj.profile.profile_image:
                 return obj.profile.profile_image.url

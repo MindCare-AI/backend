@@ -58,7 +58,7 @@ class MediaFile(models.Model):
 
         if self.media_type and self.mime_type:
             allowed_mime_types = settings.ALLOWED_MEDIA_TYPES.get(self.media_type, [])
-            if self.mime_type not in allowed_mime_types:
+            if not any(self.mime_type.lower().startswith(allowed_type.lower()) for allowed_type in allowed_mime_types):
                 raise ValidationError(
                     f"Invalid MIME type {self.mime_type} for {self.media_type}. "
                     f"Allowed types: {', '.join(allowed_mime_types)}"
@@ -81,6 +81,20 @@ class MediaFile(models.Model):
             self.file.seek(0)
             mime = magic.from_buffer(self.file.read(2048), mime=True)
             self.file.seek(0)
+            
+            # Normalize MIME type
+            mime = mime.lower()
+            
+            # Map the MIME type to our media types
+            if any(mime.startswith(t) for t in settings.ALLOWED_MEDIA_TYPES['image']):
+                self.media_type = 'image'
+            elif any(mime.startswith(t) for t in settings.ALLOWED_MEDIA_TYPES['video']):
+                self.media_type = 'video'
+            elif any(mime.startswith(t) for t in settings.ALLOWED_MEDIA_TYPES['audio']):
+                self.media_type = 'audio'
+            else:
+                self.media_type = 'document'
+                
             return mime
         except magic.MagicException as e:
             logger.error(f"Magic library error: {str(e)}")

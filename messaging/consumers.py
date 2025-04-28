@@ -25,62 +25,69 @@ logger = logging.getLogger(__name__)
 
 class ConversationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        """Handle WebSocket connection with token authentication."""
+        logger.info("============= WebSocket Connection Attempt =============")
         try:
             # Get conversation ID from URL route
             self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
-            self.group_name = f"conversation_{self.conversation_id}"
+            logger.info(f"Attempting connection to conversation: {self.conversation_id}")
+            
+            # Log the full scope for debugging
+            headers = dict(self.scope.get('headers', {}))
+            logger.debug(f"WebSocket headers: {headers}")
+            logger.debug(f"WebSocket query string: {self.scope.get('query_string', b'').decode()}")
+            
+            # Get user from scope (set by middleware)
+            user = self.scope.get("user")
+            logger.info(f"User from scope: {getattr(user, 'username', 'AnonymousUser')} (ID: {getattr(user, 'id', 'None')})")
+            
+            if not user or user.is_anonymous:
+                logger.warning("Anonymous user attempted to connect - rejecting connection")
+                await self.close(code=4003)
+                return
 
-            # Handle authentication
-            if self.scope["user"].is_anonymous:
-                logger.warning("Anonymous user attempted to connect")
-                raise WebSocketAuthenticationError(
-                    "Authentication required for WebSocket connection"
-                )
-
+            logger.info(f"Authenticated user: {user.username} (ID: {user.id})")
+            
             # Check conversation participant
             is_participant = await self.is_conversation_participant()
+            logger.info(f"Is participant check result: {is_participant}")
+            
             if not is_participant:
                 logger.warning(
-                    f"User {self.scope['user'].username} is not a participant in conversation {self.conversation_id}"
+                    f"User {user.username} is not a participant in conversation {self.conversation_id}"
                 )
-                raise ConversationAccessError(
-                    f"User not authorized to access conversation {self.conversation_id}"
-                )
+                await self.close(code=4004)
+                return
 
-            # Join the group
+            logger.info(f"User {user.username} is confirmed participant in conversation {self.conversation_id}")
+
+            # Set up the channel group
+            self.group_name = f"conversation_{self.conversation_id}"
+            logger.info(f"Adding user to channel group: {self.group_name}")
             await self.channel_layer.group_add(self.group_name, self.channel_name)
+            
+            # Accept the connection and send handshake
             await self.accept()
+            await self.send(text_data=json.dumps({
+                "type": "connection_established",
+                "message": "Connected successfully",
+                "conversation_id": self.conversation_id,
+            }))
+            logger.info(f"WebSocket handshake sent to user {user.username}")
 
-            # Update online presence to True (with error handling)
+            # Update online presence (errors should not close connection)
             try:
                 await self.update_user_presence(True)
             except Exception as e:
-                logger.error(f"Failed to update user presence: {str(e)}", exc_info=True)
-                # Continue connection process even if presence update fails
+                logger.warning(f"Presence update failed: {str(e)}")
 
-            # Send success message
-            await self.send(
-                json.dumps(
-                    {
-                        "type": "connection_established",
-                        "message": "Connected successfully",
-                        "conversation_id": self.conversation_id,
-                    }
-                )
-            )
-            logger.info(
-                f"User {self.scope['user'].username} connected to conversation {self.conversation_id}"
-            )
+            logger.info("============= WebSocket Connection Complete =============")
 
-        except WebSocketAuthenticationError as e:
-            logger.warning(f"Authentication error: {str(e)}")
-            await self.close(code=4003)
-        except ConversationAccessError as e:
-            logger.warning(f"Access error: {str(e)}")
-            await self.close(code=4004)
         except Exception as e:
             logger.error(f"WebSocket connection error: {str(e)}", exc_info=True)
+            logger.info("============= WebSocket Connection Failed =============")
             await self.close(code=4000)
+            return
 
     async def disconnect(self, close_code):
         try:
@@ -264,10 +271,10 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Validate JWT token and get user"""
         try:
             access_token = AccessToken(token)
-            user_id = access_token["user_id"]
+            user_id = access_token.get('user_id')
             return User.objects.get(id=user_id)
         except (TokenError, InvalidToken, User.DoesNotExist) as e:
-            logger.warning(f"Invalid token: {str(e)}")
+            logger.warning(f"Invalid token or user not found: {str(e)}")
             return None
         except Exception as e:
             logger.error(f"Error validating token: {str(e)}", exc_info=True)

@@ -21,18 +21,31 @@ class UnifiedWebSocketAuthMiddleware(BaseMiddleware):
 
     async def __call__(self, scope, receive, send):
         try:
+            logger.info("============= WebSocket Authentication Start =============")
             if scope["type"] != "websocket":
                 return await super().__call__(scope, receive, send)
 
+            # Log the query string for debugging
+            query_string = scope.get("query_string", b"").decode()
+            logger.info(f"Query string received: {query_string}")
+
             # Try token authentication first
             user = await self.authenticate_by_token(scope)
-
-            # If token auth fails, try session authentication
-            if not user or isinstance(user, AnonymousUser):
+            if user:
+                logger.info(f"Successfully authenticated user via token: {user.username} (ID: {user.id})")
+            else:
+                logger.warning("Token authentication failed, trying session authentication")
                 user = await self.authenticate_by_session(scope)
 
             scope["user"] = user
+            if user and not user.is_anonymous:
+                logger.info(f"Authentication successful for user: {user.username} (ID: {user.id})")
+            else:
+                logger.warning("User is anonymous or authentication failed")
+
+            logger.info("============= WebSocket Authentication End =============")
             return await super().__call__(scope, receive, send)
+            
         except Exception as e:
             logger.error(f"WebSocket authentication error: {str(e)}", exc_info=True)
             scope["user"] = AnonymousUser()
@@ -46,6 +59,7 @@ class UnifiedWebSocketAuthMiddleware(BaseMiddleware):
             query_string = scope.get("query_string", b"").decode()
             query_params = parse_qs(query_string)
             token = query_params.get("token", [None])[0]
+            logger.debug(f"Token from query string: {token and token[:10]}...")
 
             # If no token in query string, try to get from headers
             if not token and "headers" in scope:
@@ -53,19 +67,21 @@ class UnifiedWebSocketAuthMiddleware(BaseMiddleware):
                 auth_header = headers.get(b"authorization", b"").decode()
                 if auth_header.startswith("Bearer "):
                     token = auth_header.split(" ")[1]
+                    logger.debug(f"Token from header: {token and token[:10]}...")
 
             if not token:
-                logger.debug("No token found in WebSocket connection")
+                logger.warning("No token found in request")
                 return None
 
             # Validate token
             access_token = AccessToken(token)
             user_id = access_token["user_id"]
+            logger.debug(f"Token validated, user_id: {user_id}")
+            
             user = User.objects.get(id=user_id)
-            logger.info(
-                f"Successfully authenticated WebSocket user via token: {user.username}"
-            )
+            logger.info(f"User found: {user.username} (ID: {user_id})")
             return user
+            
         except (TokenError, InvalidToken) as e:
             logger.warning(f"Invalid token: {str(e)}")
             return None

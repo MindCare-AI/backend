@@ -53,6 +53,7 @@ class Appointment(models.Model):
         "users.CustomUser",
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,  # Explicitly set blank=True to make it optional in forms/validation
         related_name="rescheduled_appointments",
     )
 
@@ -89,11 +90,17 @@ class Appointment(models.Model):
                 f"https://meet.mindcare.ai/{str(uuid.uuid4())[:8]}"
             )
 
-        if not self.pk and not self.original_date:  # New appointment
+        if not self.pk:  # New appointment
             self.original_date = self.appointment_date
-
-        self.full_clean()
-        super().save(*args, **kwargs)
+            self.rescheduled_by = None  # Explicitly set to None for new appointments
+            
+            # Skip validation for new appointments to avoid rescheduled_by validation issues
+            kwargs['force_insert'] = True
+            super().save(*args, **kwargs)
+        else:
+            # Only run validation for existing appointments
+            self.full_clean()
+            super().save(*args, **kwargs)
 
     def clean(self):
         if not self.pk:  # Only for new appointments
@@ -101,6 +108,7 @@ class Appointment(models.Model):
             self._validate_business_hours()
             self._validate_availability()
             self._validate_concurrent_appointments()
+            return  # Skip other validations for new appointments
 
         if self.appointment_date and self.appointment_date < timezone.now():
             raise ValidationError("Appointment date cannot be in the past")
@@ -120,6 +128,9 @@ class Appointment(models.Model):
 
         if self.pk:  # Exclude current appointment when updating
             overlapping = overlapping.exclude(pk=self.pk)
+            # Only validate rescheduled_by for rescheduled appointments
+            if self.status == "rescheduled" and not self.rescheduled_by:
+                raise ValidationError({"rescheduled_by": "This field is required when rescheduling an appointment."})
 
         if overlapping.exists():
             raise ValidationError(

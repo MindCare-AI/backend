@@ -275,6 +275,10 @@ USE_I18N = True
 
 USE_TZ = True
 
+TIME_INPUT_FORMATS = ['%H:%M']
+TIME_FORMAT = 'H:i'
+USE_L10N = False  # Disable localization to ensure your format is used
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
@@ -376,6 +380,12 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_CONTENT_NEGOTIATION_CLASS": "rest_framework.negotiation.DefaultContentNegotiation",
+    # Note: For date-only fields (if any)
+    'DATE_FORMAT': '%Y-%m-%d',
+    # For time only fields
+    'TIME_FORMAT': '%H:%M',
+    # For date/time fields – 24-hour format
+    'DATETIME_FORMAT': '%Y-%m-%d %H:%M',
 }
 
 SPECTACULAR_SETTINGS = {
@@ -570,8 +580,8 @@ NOTIFICATION_SETTINGS = {
 
 # Verification settings - consolidated and enhanced
 VERIFICATION_SETTINGS = {
-    "MAX_VERIFICATION_ATTEMPTS": 3,
-    "VERIFICATION_COOLDOWN_HOURS": 24,
+    "MAX_VERIFICATION_ATTEMPTS": 10,  # Increased from 3 to 10
+    "VERIFICATION_COOLDOWN_MINUTES": 2,  # Changed from 24 hours to 2 minutes
     "LICENSE_PATTERNS": [
         r"License[:\s]+([A-Z0-9-]+)",
         r"Registration[:\s]+([A-Z0-9-]+)",
@@ -594,6 +604,7 @@ VERIFICATION_SETTINGS = {
         "MAX_DIMENSION": 4000,
         "MIN_ASPECT_RATIO": 0.5,
         "MAX_ASPECT_RATIO": 2.0,
+        "MAX_SIZE": 5 * 1024 * 1024,  # 5MB
         "ALLOWED_MIME_TYPES": ["image/jpeg", "image/png", "image/webp"],
     },
     "FACE_VERIFICATION": {
@@ -608,9 +619,27 @@ VERIFICATION_SETTINGS = {
         "REMINDER_DAYS_BEFORE": [90, 30, 7],
         "GRACE_PERIOD_DAYS": 30,
     },
+    "OCR_SETTINGS": {
+        "LANGUAGES": ["en"],
+        "FORCE_CPU": False,  # Set to True to always use CPU
+        "GPU_MEMORY_LIMIT": 2048,  # Limit GPU memory usage (in MB)
+        "CONFIDENCE_THRESHOLD": 0.7,
+    },
+    "LICENSE_VALIDATION": {
+        "MIN_CONFIDENCE": 0.7,
+        "REQUIRED_FIELDS": ["license_number", "issuing_authority", "expiry_date"],
+        "ALLOWED_AUTHORITIES": [
+            "State Medical Board",
+            "State Board of Psychology",
+            "State Board of Behavioral Sciences",
+            "State Mental Health Board",
+            "Board of Professional Counselors",
+            "National Board for Certified Counselors",
+            "American Psychological Association"
+        ]
+    }
 }
 
-# Group Settings - consolidated (removed duplicate)
 GROUP_SETTINGS = {
     "MAX_GROUPS_PER_USER": 10,
     "MAX_PARTICIPANTS_PER_GROUP": 50,
@@ -658,54 +687,13 @@ USER_TYPE_THROTTLE_RATES = {
 
 # Redis Cache Configuration
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PARSER_CLASS': 'redis.connection.HiredisParser',
-            'CONNECTION_POOL_CLASS': 'redis.connection.BlockingConnectionPool',
-            'CONNECTION_POOL_CLASS_KWARGS': {
-                'max_connections': 50,
-                'timeout': 20,
-            },
-            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-        },
-        'KEY_PREFIX': 'mindcare',
-        'TIMEOUT': 3600,  # 1 hour default
-    },
-    'notifications': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/2',  # Using database 2 for notifications
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PARSER_CLASS': 'redis.connection.HiredisParser',
-            'CONNECTION_POOL_CLASS': 'redis.connection.BlockingConnectionPool',
-            'CONNECTION_POOL_CLASS_KWARGS': {
-                'max_connections': 50,
-                'timeout': 20,
-            },
-            'MAX_CONNECTIONS': 50,
-            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-        },
-        'KEY_PREFIX': 'notification',
-        'TIMEOUT': 3600,
-    },
-    'ai_analysis': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/3',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PARSER_CLASS': 'redis.connection.HiredisParser',
-            'CONNECTION_POOL_CLASS_KWARGS': {
-                'max_connections': 50,
-                'timeout': 20,
-            },
-            'MAX_CONNECTIONS': 50,
-        },
-        'KEY_PREFIX': 'ai_analysis',
-        'TIMEOUT': 3600,
-    },
+        "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
 }
 
 # Cache timeouts for different types of data
@@ -785,8 +773,3 @@ AI_ENGINE_SETTINGS = {
     'CACHE_TIMEOUT': 3600,  # 1 hour cache for AI results
 }
 
-# OpenAI Configuration for AI analysis
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-OPENAI_MODEL = "gpt-4"
-OPENAI_TEMPERATURE = 0.7
-OPENAI_MAX_TOKENS = 1000

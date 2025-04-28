@@ -3,6 +3,8 @@ from typing import Dict, Any
 import requests
 from django.utils import timezone
 from datetime import timedelta
+from journal.models import JournalEntry
+from django.db.models import Avg, Case, When, FloatField
 
 logger = logging.getLogger(__name__)
 
@@ -128,59 +130,35 @@ class PredictiveAnalysisService:
             logger.error(f"Error in therapy outcome prediction: {str(e)}")
             return {"engagement_level": "unknown", "confidence": 0}
 
-    def analyze_journal_patterns(self, user, timeframe_days: int = 30) -> Dict:
+    def analyze_journal_patterns(self, user, time_field="created_at", **kwargs) -> Dict:
         """Analyze patterns in journal entries to identify themes and concerns"""
-        from journal.models import JournalEntry
+        now = timezone.now()
+        month_ago = now - timedelta(days=30)
         
-        entries = JournalEntry.objects.filter(
-            user=user,
-            created_at__gte=timezone.now() - timedelta(days=timeframe_days)
-        ).order_by('created_at')
+        qs = JournalEntry.objects.filter(user=user, **{f"{time_field}__gte": month_ago})
         
-        if not entries.exists():
-            return {"themes": [], "concerns": [], "recommendations": []}
-            
-        # Prepare journal data
-        journal_data = [
-            {
-                "content": entry.content,
-                "mood": entry.mood,
-                "activities": entry.activities,
-                "date": entry.created_at.isoformat()
-            }
-            for entry in entries
-        ]
-        
-        prompt = f"""Analyze these journal entries for patterns and themes:
-        {journal_data}
-        
-        Provide analysis in JSON format:
-        {{
-            "themes": [<list of recurring themes>],
-            "concerns": [<list of potential concerns>],
-            "progress_indicators": [<list of positive progress indicators>],
-            "recommendations": [<list of recommendations>],
-            "sentiment_trend": "improving|stable|declining"
-        }}
-        """
-        
-        try:
-            response = requests.post(
-                f"{self.base_url}/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False
-                }
+        # Map valid 'mood' field choices to numeric values for aggregation
+        avg_mood = qs.aggregate(
+            avg_mood=Avg(
+                Case(
+                    When(mood="very_negative", then=1.0),
+                    When(mood="negative", then=2.0),
+                    When(mood="neutral", then=3.0),
+                    When(mood="positive", then=4.0),
+                    When(mood="very_positive", then=5.0),
+                    default=3.0,
+                    output_field=FloatField()
+                )
             )
-            
-            if response.status_code == 200:
-                return response.json().get('response', {})
-            return {"themes": [], "concerns": [], "recommendations": []}
-            
-        except Exception as e:
-            logger.error(f"Error in journal pattern analysis: {str(e)}")
-            return {"themes": [], "concerns": [], "recommendations": []}
+        )["avg_mood"] or 3.0
+        
+        analysis = {
+            "concerns": qs.exists(),  # Dummy flag; update with real logic as needed
+            "sentiment_trend": "neutral",  # Placeholder value
+            "avg_mood": avg_mood,
+        }
+        
+        return analysis
 
 # Create singleton instance
 predictive_service = PredictiveAnalysisService()

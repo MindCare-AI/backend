@@ -15,7 +15,6 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         min_value=0, max_value=10, required=False, allow_null=True
     )
     user_name = serializers.SerializerMethodField()
-    # Allow updating these name fields by removing read_only and adding required=False
     first_name = serializers.CharField(source="user.first_name", required=False)
     last_name = serializers.CharField(source="user.last_name", required=False)
     email = serializers.EmailField(source="user.email", read_only=True)
@@ -27,18 +26,17 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "user_name",
-            "first_name",  # New writable field
-            "last_name",  # New writable field
+            "first_name", 
+            "last_name",  
             "email",
             "phone_number",
-            "medical_history",
-            "current_medications",
             "profile_pic",
             "blood_type",
-            "treatment_plan",
-            "pain_level",
+            "gender",
+            "emergency_contact",
             "last_appointment",
             "next_appointment",
+            "pain_level",
             "created_at",
             "updated_at",
         ]

@@ -1,7 +1,8 @@
 # therapist/models/therapist_profile.py
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from django.db import models
+from django.db.models import Q
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -19,18 +20,23 @@ class TherapistProfile(models.Model):
     )
     bio = models.TextField(blank=True)
     specializations = models.JSONField(default=list)
-    education = models.JSONField(default=list)
+    education = models.JSONField(default=list, help_text="List of educational qualifications")
     experience = models.JSONField(default=list)
     years_of_experience = models.PositiveIntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(100)]
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        default=0,
     )
     license_number = models.CharField(max_length=100, unique=True)
-    license_expiry = models.DateField()
+    license_expiry = models.DateField(null=True, blank=True)
     available_days = models.JSONField(
         default=dict, help_text="Dictionary of available days and time slots"
     )
     hourly_rate = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True
+        max_digits=10, 
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)]
     )
     profile_completion = models.FloatField(default=0)
 
@@ -51,6 +57,8 @@ class TherapistProfile(models.Model):
     profile_picture = models.ImageField(
         upload_to="therapist_profile_pics/", null=True, blank=True
     )
+
+    # Practice Details
     rating = models.FloatField(
         default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(5.0)]
     )
@@ -61,11 +69,11 @@ class TherapistProfile(models.Model):
     )
     therapy_types = models.JSONField(default=list, help_text="Types of therapy offered")
     accepts_insurance = models.BooleanField(default=False)
-    insurance_providers = models.JSONField(
-        default=list, help_text="List of accepted insurance providers"
-    )
-    session_duration = models.JSONField(
-        default=list, help_text="Available session durations in minutes"
+    insurance_providers = models.JSONField(default=list, help_text="List of accepted insurance providers")
+    session_duration = models.PositiveIntegerField(
+        default=60,
+        help_text="Default session duration in minutes",
+        validators=[MinValueValidator(15), MaxValueValidator(180)]
     )
 
     def __str__(self):
@@ -111,8 +119,10 @@ class TherapistProfile(models.Model):
                             raise ValidationError(f"Invalid time slot format in {day}")
 
                         try:
-                            datetime.strptime(slot["start"], "%H:%M")
-                            datetime.strptime(slot["end"], "%H:%M")
+                            start_time = datetime.strptime(slot["start"], "%H:%M").time()
+                            end_time = datetime.strptime(slot["end"], "%H:%M").time()
+                            if start_time >= end_time:
+                                raise ValidationError(f"Start time must be before end time in {day}")
                         except ValueError:
                             raise ValidationError(
                                 f"Invalid time format in {day}. Use HH:MM format"
@@ -123,8 +133,7 @@ class TherapistProfile(models.Model):
                 raise ValidationError(f"Invalid available_days format: {str(e)}")
 
     def save(self, *args, **kwargs):
-        if not self.pk:  # New instance
-            self.profile_completion = self._calculate_profile_completion()
+        self.profile_completion = self._calculate_profile_completion()
         super().save(*args, **kwargs)
 
     def _calculate_profile_completion(self):
@@ -141,11 +150,15 @@ class TherapistProfile(models.Model):
             "languages": bool(self.languages),
             "therapy_types": bool(self.therapy_types),
             "profile_picture": bool(self.profile_picture),
+            "hourly_rate": bool(self.hourly_rate),
+            "accepts_insurance": bool(self.accepts_insurance),
+            "insurance_providers": bool(self.insurance_providers),
+            "session_duration": bool(self.session_duration),
         }
 
         completed = sum(required_fields.values())
         total = len(required_fields)
-        return (completed / total) * 100
+        return (completed / total) * 100 if total > 0 else 0
 
     def check_availability(self, date_time, duration=60):
         if not self.available_days:
@@ -156,23 +169,49 @@ class TherapistProfile(models.Model):
         if day not in self.available_days:
             return False
 
-        time = date_time.time()
-        end_time = (date_time + timedelta(minutes=duration)).time()
+        requested_start_time = date_time.time()
+        requested_end_time = (date_time + timedelta(minutes=duration)).time()
+        requested_date = date_time.date()
 
+        is_slot_available = False
         for slot in self.available_days[day]:
             slot_start = datetime.strptime(slot["start"], "%H:%M").time()
             slot_end = datetime.strptime(slot["end"], "%H:%M").time()
 
-            if slot_start <= time and end_time <= slot_end:
-                conflicting_appointments = Appointment.objects.filter(
-                    therapist=self,
-                    appointment_date__range=(
-                        date_time,
-                        date_time + timedelta(minutes=duration),
-                    ),
-                    status__in=["scheduled", "confirmed"],
-                ).exists()
+            if slot_start <= requested_start_time and requested_end_time <= slot_end:
+                is_slot_available = True
+                break
 
-                return not conflicting_appointments
+        if not is_slot_available:
+            return False
 
-        return False
+        requested_start_datetime = timezone.make_aware(datetime.combine(requested_date, requested_start_time))
+        requested_end_datetime = timezone.make_aware(datetime.combine(requested_date, requested_end_time))
+
+        conflicting_appointments = Appointment.objects.filter(
+            therapist=self,
+            appointment_date__date=requested_date,
+            status__in=["scheduled", "confirmed"],
+        ).filter(
+            Q(appointment_date__lt=requested_end_datetime) &
+            Q(appointment_date__gte=requested_start_datetime - timedelta(minutes=duration))
+        ).exists()
+
+        return not conflicting_appointments
+
+    def get_available_days(self):
+        # Example: return next 7 weekdays starting tomorrow
+        available = []
+        current = date.today() + timedelta(days=1)
+        while len(available) < 7:
+            if current.weekday() < 5:  # Monday-Friday
+                available.append(current)
+            current += timedelta(days=1)
+        return available
+
+    class Meta:
+        ordering = ["user__username"]
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["is_verified", "verification_status"]),
+        ]

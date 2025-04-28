@@ -189,3 +189,4 @@ ki
 opencv-python
 deepface
 easyocr
+face_recognition

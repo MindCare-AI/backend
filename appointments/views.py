@@ -56,35 +56,43 @@ logger = logging.getLogger(__name__)
     ),
 )
 class AppointmentViewSet(viewsets.ModelViewSet):
+    queryset = Appointment.objects.all()  # <-- Added queryset attribute
     serializer_class = AppointmentSerializer
     permission_classes = [permissions.IsAuthenticated, IsPatientOrTherapist]
     http_method_names = ["get", "post", "patch", "put", "delete"]
 
     def get_queryset(self):
+        qs = super().get_queryset()
         user = self.request.user
-        queryset = Appointment.objects.all()
-
         if user.user_type == "patient":
-            queryset = queryset.filter(patient__user=user)
+            qs = qs.filter(patient__user=user)
         elif user.user_type == "therapist":
-            queryset = queryset.filter(therapist__user=user)
+            qs = qs.filter(therapist__user=user)
 
         # Filter by status if provided
         status = self.request.query_params.get("status")
         if status:
-            queryset = queryset.filter(status=status)
+            qs = qs.filter(status=status)
 
         # Filter upcoming if requested
         upcoming = self.request.query_params.get("upcoming")
         if upcoming and upcoming.lower() == "true":
-            queryset = queryset.filter(appointment_date__gt=timezone.now())
+            qs = qs.filter(appointment_date__gt=timezone.now())
 
-        return queryset.order_by("appointment_date")
+        # Filter by therapist's available day if patient has a therapist
+        if hasattr(user, "patient_profile") and hasattr(user.patient_profile, "therapist"):
+            therapist = user.patient_profile.therapist
+            qs = qs.filter(date=therapist.available_day)
+
+        return qs.order_by("appointment_date")
 
     def perform_create(self, serializer):
-        with transaction.atomic():
-            appointment = serializer.save()
-            appointment.full_clean()  # Run model validation
+        user = self.request.user
+        # Automatically set patient profile if the user has one
+        if hasattr(user, "patient_profile"):
+            serializer.save(patient_profile=user.patient_profile, rescheduled_by=None)
+        else:
+            serializer.save(rescheduled_by=None)  # Fallback if no patient_profile attribute
 
     @extend_schema(
         description="Cancel an appointment",

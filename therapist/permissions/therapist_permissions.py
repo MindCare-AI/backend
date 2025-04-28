@@ -1,6 +1,9 @@
 # therapist/permissions/therapist_permissions.py
 from rest_framework.permissions import BasePermission
 from rest_framework import permissions
+from rest_framework import viewsets
+from therapist.models import TherapistProfile
+from therapist.serializers import TherapistProfileSerializer
 
 
 class IsPatient(BasePermission):
@@ -45,3 +48,9 @@ class IsSuperUserOrSelf(permissions.BasePermission):
             is_self = obj == request.user
 
         return is_self
+
+
+class TherapistProfileViewSet(viewsets.ModelViewSet):
+    queryset = TherapistProfile.objects.all()
+    serializer_class = TherapistProfileSerializer
+    permission_classes = [IsSuperUserOrSelf]

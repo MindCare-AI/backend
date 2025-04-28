@@ -30,14 +30,8 @@ class PatientProfile(Profile):
     )
 
     emergency_contact = models.JSONField(default=dict, blank=True, null=True)
-    medical_history = models.TextField(blank=True, null=True)
-    current_medications = models.TextField(blank=True, null=True)
     blood_type = models.CharField(
         max_length=3, choices=BLOOD_TYPE_CHOICES, blank=True, null=True
-    )
-    treatment_plan = models.TextField(blank=True, null=True)
-    pain_level = models.IntegerField(
-        validators=[MinValueValidator(0), MaxValueValidator(10)], blank=True, null=True
     )
     gender = models.CharField(
         max_length=1,

@@ -21,6 +21,18 @@ logger = logging.getLogger(__name__)
         description="List mood logs with optional filtering",
         summary="List Mood Logs",
         tags=["Mood Tracking"],
+    ),
+    analytics=extend_schema(
+        summary="Mood analytics",
+        description="Returns mood analytics and trends aggregated data."
+    ),
+    export=extend_schema(
+        summary="Export mood logs",
+        description="Exports mood logs in CSV format."
+    ),
+    bulk_create=extend_schema(
+        summary="Bulk create mood logs",
+        description="Creates multiple mood logs at once."
     )
 )
 class MoodLogViewSet(viewsets.ModelViewSet):
@@ -36,13 +48,13 @@ class MoodLogViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = MoodLog.objects.filter(user=self.request.user)
 
-        # Date range filtering
+        # Date range filtering using 'logged_at' instead of 'timestamp'
         start_date = self.request.query_params.get("start_date")
         end_date = self.request.query_params.get("end_date")
         if start_date:
-            queryset = queryset.filter(timestamp__gte=start_date)
+            queryset = queryset.filter(logged_at__gte=start_date)
         if end_date:
-            queryset = queryset.filter(timestamp__lte=end_date)
+            queryset = queryset.filter(logged_at__lte=end_date)
 
         return queryset
 
@@ -56,27 +68,27 @@ class MoodLogViewSet(viewsets.ModelViewSet):
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
 
-        # Calculate averages
+        # Calculate averages using 'logged_at' and 'mood_rating'
         weekly_avg = (
-            queryset.filter(timestamp__gte=week_ago).aggregate(
-                avg_mood=Avg("mood_score")
+            queryset.filter(logged_at__gte=week_ago).aggregate(
+                avg_mood=Avg("mood_rating")
             )["avg_mood"]
             or 0
         )
 
         monthly_avg = (
-            queryset.filter(timestamp__gte=month_ago).aggregate(
-                avg_mood=Avg("mood_score")
+            queryset.filter(logged_at__gte=month_ago).aggregate(
+                avg_mood=Avg("mood_rating")
             )["avg_mood"]
             or 0
         )
 
         # Daily mood averages for the past week
         daily_moods = (
-            queryset.filter(timestamp__gte=week_ago)
-            .extra(select={"day": "date(timestamp)"})
+            queryset.filter(logged_at__gte=week_ago)
+            .extra(select={"day": "date(logged_at)"})
             .values("day")
-            .annotate(avg_mood=Avg("mood_score"))
+            .annotate(avg_mood=Avg("mood_rating"))
             .order_by("day")
         )
 
@@ -92,7 +104,7 @@ class MoodLogViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def export(self, request):
         """Export mood logs to CSV"""
-        queryset = self.get_queryset().order_by("timestamp")
+        queryset = self.get_queryset().order_by("logged_at")
 
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="mood_logs.csv"'
@@ -103,7 +115,7 @@ class MoodLogViewSet(viewsets.ModelViewSet):
         for log in queryset:
             writer.writerow(
                 [
-                    log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    log.logged_at.strftime("%Y-%m-%d %H:%M:%S"),
                     log.mood_rating,
                     log.activities if log.activities else "",
                 ]

@@ -8,6 +8,7 @@ from appointments.models import Appointment
 from therapist.models.therapist_profile import TherapistProfile
 from appointments.serializers import AppointmentSerializer
 from therapist.serializers.therapist_profile import TherapistProfileSerializer
+from therapist.serializers.verification import TherapistVerificationSerializer, VerificationStatusSerializer
 from therapist.permissions.therapist_permissions import IsPatient, IsSuperUserOrSelf
 import logging
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -22,6 +23,7 @@ from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 import magic
+from rest_framework.parsers import MultiPartParser, FormParser
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,14 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         return TherapistProfile.objects.select_related("user").filter(
             user=self.request.user
         )
+
+    def get_serializer_class(self):
+        """Return appropriate serializer class based on action"""
+        if self.action == 'verify':
+            if self.request.method == 'GET':
+                return VerificationStatusSerializer
+            return TherapistVerificationSerializer
+        return TherapistProfileSerializer
 
     def create(self, request, *args, **kwargs):
         try:
@@ -322,142 +332,133 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         return schedule
 
     @extend_schema(
-        description="Verify therapist license and identity using ML",
-        summary="Verify Therapist",
+        description="Verify therapist license and identity or check verification status",
+        summary="Verify/Check Therapist Status",
         tags=["Therapist"],
         request={
-            "multipart/form-data": {
-                "type": "object",
-                "properties": {
-                    "license_image": {"type": "string", "format": "binary"},
-                    "selfie_image": {"type": "string", "format": "binary"},
-                    "specializations": {"type": "array", "items": {"type": "string"}},
-                    "license_number": {"type": "string"},
-                    "issuing_authority": {"type": "string"},
-                },
-                "required": [
-                    "license_image",
-                    "selfie_image",
-                    "license_number",
-                    "issuing_authority",
-                ],
-            }
+            'multipart/form-data': TherapistVerificationSerializer,
         },
         responses={
-            200: {
-                "description": "Verification successful",
-                "type": "object",
-                "properties": {
-                    "message": {"type": "string"},
-                    "status": {"type": "string"},
-                    "license_details": {
-                        "type": "object",
-                        "properties": {
-                            "number": {"type": "string"},
-                            "expiry": {"type": "string", "format": "date"},
-                            "issuing_authority": {"type": "string"},
-                            "verification_id": {"type": "string"},
-                        },
-                    },
-                    "face_match": {
-                        "type": "object",
-                        "properties": {
-                            "match": {"type": "boolean"},
-                            "confidence": {"type": "number"},
-                        },
-                    },
-                },
-            },
-            400: {"description": "Verification failed"},
+            200: VerificationStatusSerializer,
+            400: {"description": "Bad request - invalid data"},
             429: {"description": "Too many verification attempts"},
             500: {"description": "Internal server error"},
-        },
+        }
     )
-    @action(detail=True, methods=["post"])
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        parser_classes=[MultiPartParser, FormParser],
+        url_path='verify',
+        url_name='verify'
+    )
     def verify(self, request, pk=None):
-        """Verify therapist's credentials with enhanced security and validation"""
+        """Verify therapist's credentials or check verification status"""
+        profile = self.get_object()
+
+        # Handle GET request to check verification status
+        if request.method == "GET":
+            serializer = VerificationStatusSerializer(profile)
+            return Response(serializer.data)
+
+        # Handle POST request for verification
+        if profile.is_verified:
+            return Response(
+                {"error": "Profile is already verified"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Log detailed request information
+        logger.info("=== Verification Request Details ===")
+        logger.info(f"Content-Type: {request.content_type}")
+        logger.info(f"Files: {request.FILES}")
+        logger.info(f"POST data: {request.POST}")
+        logger.info(f"Data: {request.data}")
+
+        # Rate limiting check
+        cache_key = f"verification_attempts_{profile.id}"
+        attempts = cache.get(cache_key, 0)
+        max_attempts = settings.VERIFICATION_SETTINGS["MAX_VERIFICATION_ATTEMPTS"]
+        cooldown_minutes = settings.VERIFICATION_SETTINGS["VERIFICATION_COOLDOWN_MINUTES"]
+
+        if attempts >= max_attempts:
+            return Response(
+                {
+                    "error": f"Maximum verification attempts ({max_attempts}) reached. Please try again after {cooldown_minutes} minutes.",
+                    "next_attempt": cache.ttl(cache_key),
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # Check if required files are present
+        if 'license_image' not in request.FILES:
+            return Response(
+                {"error": "License image is required", "field": "license_image"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if 'selfie_image' not in request.FILES:
+            return Response(
+                {"error": "Selfie image is required", "field": "selfie_image"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if required fields are present
+        if not request.POST.get('license_number'):
+            return Response(
+                {"error": "License number is required", "field": "license_number"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not request.POST.get('issuing_authority'):
+            return Response(
+                {"error": "Issuing authority is required", "field": "issuing_authority"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Log the data that will be passed to the serializer
+        serializer_data = {
+            'license_image': request.FILES.get('license_image'),
+            'selfie_image': request.FILES.get('selfie_image'),
+            'license_number': request.POST.get('license_number'),
+            'issuing_authority': request.POST.get('issuing_authority'),
+        }
+        logger.info("=== Serializer Input Data ===")
+        logger.info(f"Data being passed to serializer: {serializer_data}")
+
+        # Validate request data
+        serializer = TherapistVerificationSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("=== Serializer Validation Errors ===")
+            logger.warning(f"Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         try:
-            profile = self.get_object()
-
-            # Check if profile can be verified
-            if profile.is_verified:
-                return Response(
-                    {"error": "Profile is already verified"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Rate limiting
-            cache_key = f"verification_attempts_{profile.id}"
-            attempts = cache.get(cache_key, 0)
-            max_attempts = settings.VERIFICATION_SETTINGS["MAX_VERIFICATION_ATTEMPTS"]
-
-            if attempts >= max_attempts:
-                return Response(
-                    {
-                        "error": f"Maximum verification attempts ({max_attempts}) reached. Please try again after 24 hours.",
-                        "next_attempt": cache.ttl(cache_key),
-                    },
-                    status=status.HTTP_429_TOO_MANY_REQUESTS,
-                )
-
-            # Validate required fields
-            required_fields = ["license_number", "issuing_authority"]
-            if not all(field in request.data for field in required_fields):
-                return Response(
-                    {"error": f"Missing required fields: {', '.join(required_fields)}"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Validate file uploads
-            if not request.FILES.get("license_image") or not request.FILES.get(
-                "selfie_image"
-            ):
-                return Response(
-                    {"error": "Both license image and selfie are required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Validate file types
-            for file_key in ["license_image", "selfie_image"]:
-                file_obj = request.FILES.get(file_key)
-                if file_obj:
-                    mime_type = magic.from_buffer(file_obj.read(2048), mime=True)
-                    file_obj.seek(0)  # Reset file pointer
-                    if not mime_type.startswith("image/"):
-                        return Response(
-                            {
-                                "error": f"Invalid file type for {file_key}. Must be an image."
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
             verification_service = TherapistVerificationService()
 
-            # First verify the license
+            # Verify license
             license_result = verification_service.verify_license(
-                request.FILES["license_image"],
-                expected_number=request.data.get("license_number"),
-                issuing_authority=request.data.get("issuing_authority"),
+                serializer.validated_data["license_image"],
+                expected_number=serializer.validated_data["license_number"],
+                issuing_authority=serializer.validated_data["issuing_authority"],
             )
 
             if not license_result["success"]:
-                # Increment attempt counter on failure
-                cache.set(cache_key, attempts + 1, timeout=86400)  # 24 hours
+                cache.set(cache_key, attempts + 1, timeout=cooldown_minutes * 60)  # Convert minutes to seconds
                 return Response(
                     {"error": license_result["error"]},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Then verify face match
+            # Verify face match
             face_result = verification_service.verify_face_match(
-                request.FILES["license_image"],
-                request.FILES["selfie_image"],
-                threshold=0.7,  # Increased threshold for stricter matching
+                serializer.validated_data["license_image"],
+                serializer.validated_data["selfie_image"],
+                threshold=settings.VERIFICATION_SETTINGS["FACE_VERIFICATION"]["CONFIDENCE_THRESHOLD"]
             )
 
             if not face_result["success"] or not face_result["match"]:
-                # Increment attempt counter on failure
-                cache.set(cache_key, attempts + 1, timeout=86400)
+                cache.set(cache_key, attempts + 1, timeout=cooldown_minutes * 60)
                 return Response(
                     {
                         "error": "Face verification failed - ID and selfie don't match",
@@ -467,56 +468,30 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 )
 
             with transaction.atomic():
-                # Store verification documents securely
-                profile.verification_documents = request.FILES["license_image"]
-                profile.profile_picture = request.FILES["selfie_image"]
-
-                # Update verification status
+                # Update verification documents and status
+                profile.verification_documents = serializer.validated_data["license_image"]
+                profile.profile_picture = serializer.validated_data["selfie_image"]
                 profile.verification_status = "verified"
                 profile.is_verified = True
                 profile.verified_at = timezone.now()
                 profile.verification_expiry = timezone.now() + timedelta(
-                    days=365
-                )  # 1 year validity
-
-                # Update license details
-                if license_number := license_result.get("license_number"):
-                    profile.license_number = license_number
-                if license_expiry := license_result.get("license_expiry"):
-                    profile.license_expiry = license_expiry
-
-                profile.issuing_authority = request.data.get("issuing_authority")
-                profile.specializations = request.data.get("specializations", [])
-                profile.verification_notes = "Verification completed successfully"
-
-                # Generate unique verification ID
-                profile.verification_id = (
-                    f"VER-{timezone.now().strftime('%Y%m%d')}-{profile.id}"
+                    days=settings.VERIFICATION_SETTINGS["LICENSE_VALIDITY"]["DEFAULT_DURATION_DAYS"]
                 )
 
+                # Update professional details
+                profile.license_number = serializer.validated_data["license_number"]
+                profile.issuing_authority = serializer.validated_data["issuing_authority"]
+                if specializations := serializer.validated_data.get("specializations"):
+                    profile.specializations = specializations
+                profile.verification_notes = "Verification completed successfully"
                 profile.save()
 
                 # Clear verification attempts on success
                 cache.delete(cache_key)
 
-                # Return success response with detailed information
-                return Response(
-                    {
-                        "message": "Verification successful",
-                        "status": profile.verification_status,
-                        "license_details": {
-                            "number": profile.license_number,
-                            "expiry": profile.license_expiry,
-                            "issuing_authority": profile.issuing_authority,
-                            "verification_id": profile.verification_id,
-                        },
-                        "face_match": {
-                            "match": face_result["match"],
-                            "confidence": face_result["confidence"],
-                        },
-                        "verification_expiry": profile.verification_expiry,
-                    }
-                )
+                # Return success response with verification status
+                status_serializer = VerificationStatusSerializer(profile)
+                return Response(status_serializer.data)
 
         except Exception as e:
             logger.error(f"Verification failed: {str(e)}", exc_info=True)

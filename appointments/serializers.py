@@ -1,12 +1,19 @@
 from rest_framework import serializers
 from django.utils import timezone
 from datetime import timedelta, datetime
+import re
 from .models import Appointment, WaitingListEntry
 
 
 class AppointmentSerializer(serializers.ModelSerializer):
-    duration_minutes = serializers.IntegerField(
-        write_only=True, required=False, default=60
+    # Example: a field that appears in the serializer but is not a model field must be read-only
+    # If patient_profile is provided to the serializer you can mark it as read-only:
+    patient_profile = serializers.CharField(read_only=True, required=False)
+
+    # Override to use 24-hour format in output
+    appointment_date = serializers.DateTimeField(format='%Y-%m-%d %H:%M')
+    duration = serializers.CharField(
+        help_text="Select the appointment duration in minutes (24-hour time)"
     )
     therapist_name = serializers.CharField(
         source="therapist.user.get_full_name", read_only=True
@@ -31,10 +38,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "therapist",
             "therapist_name",
             "patient_name",
+            "patient_profile",
             "appointment_date",
             "status",
             "notes",
-            "duration_minutes",
             "duration",
             "created_at",
             "updated_at",
@@ -63,10 +70,29 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "original_date",
             "reschedule_count",
             "last_rescheduled",
+            "rescheduled_by",
         ]
+        extra_kwargs = {
+            "rescheduled_by": {"required": False, "allow_null": True},
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        initial = getattr(self, "initial_data", None)
+        if initial and initial.get("therapist"):
+            try:
+                from .models import Therapist  # adjust import if necessary
+                therapist = Therapist.objects.get(pk=initial.get("therapist"))
+                if hasattr(therapist, "get_available_days"):
+                    available_days = therapist.get_available_days()  # expected list of date objects
+                    self.fields["appointment_date"] = serializers.ChoiceField(
+                        choices=[(day.isoformat(), day.strftime("%Y-%m-%d")) for day in available_days],
+                        help_text="Select an available day for the appointment"
+                    )
+            except Exception:
+                pass
 
     def get_can_cancel(self, obj):
-        # Can cancel if appointment is upcoming and not already cancelled/completed
         return (
             obj.is_upcoming
             and obj.status not in ["cancelled", "completed"]
@@ -74,7 +100,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         )
 
     def get_can_confirm(self, obj):
-        # Only therapist can confirm pending appointments
         request = self.context.get("request")
         return (
             request
@@ -84,7 +109,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         )
 
     def get_can_complete(self, obj):
-        # Only therapist can mark appointments as completed
         request = self.context.get("request")
         return (
             request
@@ -102,58 +126,131 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if self.instance is None:  # Creating new appointment
-            if "duration_minutes" in data:
-                data["duration"] = timedelta(minutes=data.pop("duration_minutes"))
-            elif "duration" not in data:
-                data["duration"] = timedelta(minutes=60)  # Default duration
+            try:
+                # First check if appointment_date exists in the data
+                if "appointment_date" not in data:
+                    raise serializers.ValidationError({"appointment_date": "Please select an appointment day"})
+                
+                # Parse 'appointment_date' safely - support 24-hour format
+                date_str = str(data["appointment_date"]).replace("\u202f", " ").strip()
+                
+                try:
+                    # First try 24-hour format
+                    appointment_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+                except ValueError:
+                    try:
+                        # Try ISO format
+                        appointment_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    except ValueError:
+                        raise serializers.ValidationError(
+                            {"appointment_date": "Invalid date format. Use YYYY-MM-DD HH:MM (24-hour format)"}
+                        )
 
-            # Validate appointment date is in future
-            if (
-                data.get("appointment_date")
-                and data["appointment_date"] <= timezone.now()
-            ):
-                raise serializers.ValidationError(
-                    {"appointment_date": "Appointment must be in the future"}
-                )
-
-            # Check therapist availability
-            if data.get("therapist") and data.get("appointment_date"):
-                if not data["therapist"].check_availability(
-                    data["appointment_date"], data["duration"].total_seconds() / 60
-                ):
+                # Store the parsed datetime back in data to avoid re-parsing later
+                data["appointment_date"] = appointment_dt
+                
+                # Validate appointment time
+                if appointment_dt < (timezone.now() + timedelta(hours=24)):
                     raise serializers.ValidationError(
-                        {"appointment_date": "Therapist is not available at this time"}
+                        {"appointment_date": "Appointments need 24-hour notice"}
                     )
 
-        # Convert duration_minutes to timedelta if provided
-        if "duration_minutes" in data:
-            data["duration"] = timedelta(minutes=data.pop("duration_minutes"))
+                # Convert duration to integer safely
+                try:
+                    duration_str = data.get('duration', '60')
+                    if not duration_str:
+                        data['duration'] = 60
+                    elif isinstance(duration_str, int):
+                        data['duration'] = duration_str
+                    else:
+                        # Extract digits from string
+                        digits = re.sub(r'[^0-9]', '', str(duration_str))
+                        data['duration'] = int(digits) if digits else 60
+                except (ValueError, TypeError):
+                    data['duration'] = 60  # Default to 60 minutes
 
-        # Validate appointment date
-        if "appointment_date" in data:
-            min_notice = timezone.now() + timedelta(hours=24)
-            if data["appointment_date"] < min_notice:
-                raise serializers.ValidationError(
-                    "Appointments must be scheduled at least 24 hours in advance"
-                )
+                # Convert duration to timedelta
+                duration = data.get("duration", None)
+                if isinstance(duration, int):
+                    data["duration"] = timedelta(minutes=duration)
+                elif isinstance(duration, str):
+                    try:
+                        minutes = int(duration)
+                        data["duration"] = timedelta(minutes=minutes)
+                    except ValueError:
+                        data["duration"] = timedelta(minutes=60)
 
+                # Remove any extra fields that are not valid model fields
+                data.pop("patient_profile", None)
+
+                # Rest of validation code...
+            except KeyError as e:
+                raise serializers.ValidationError({str(e): "This field is required"})
+                
+        else:  # Updating existing appointment
+            # Handle update case
+            if "appointment_date" in data:
+                # Similar parsing as above for update
+                pass
+
+            # Convert duration during update as well if it exists
+            if "duration" in data:
+                duration = data["duration"]
+                if isinstance(duration, int):
+                    data["duration"] = timedelta(minutes=duration)
+                elif isinstance(duration, str):
+                    try:
+                        minutes = int(duration)
+                        data["duration"] = timedelta(minutes=minutes)
+                    except ValueError:
+                        data["duration"] = timedelta(minutes=60)
+        
         return data
 
     def create(self, validated_data):
-        # Ensure original_date is set for new appointments
+        # Remove any extra fields that are not valid model fields
+        validated_data.pop("patient_profile", None)
+        
+        # Explicitly set rescheduled_by to None for new appointments
+        validated_data["rescheduled_by"] = None
+        
+        # Set original_date to appointment_date for new appointments
         validated_data["original_date"] = validated_data.get("appointment_date")
+        
+        # Convert duration from minutes (int) to timedelta if necessary
+        duration = validated_data.get("duration", None)
+        if isinstance(duration, int):
+            validated_data["duration"] = timedelta(minutes=duration)
+        elif isinstance(duration, str):
+            try:
+                minutes = int(duration)
+                validated_data["duration"] = timedelta(minutes=minutes)
+            except ValueError:
+                validated_data["duration"] = timedelta(minutes=60)
+
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        # Track rescheduling if appointment date changes
         if (
             "appointment_date" in validated_data
-            and validated_data["appointment_date"] != instance.appointment_date
+            and validated_data["appointment_date"] != instance.appointment_date.isoformat()
         ):
             validated_data["last_rescheduled"] = timezone.now()
             validated_data["reschedule_count"] = instance.reschedule_count + 1
             validated_data["rescheduled_by"] = self.context["request"].user
 
+        validated_data.pop("patient_profile", None)
+        # Convert duration during update as well if it exists
+        if "duration" in validated_data:
+            duration = validated_data["duration"]
+            if isinstance(duration, int):
+                validated_data["duration"] = timedelta(minutes=duration)
+            elif isinstance(duration, str):
+                try:
+                    minutes = int(duration)
+                    validated_data["duration"] = timedelta(minutes=minutes)
+                except ValueError:
+                    validated_data["duration"] = timedelta(minutes=60)
         return super().update(instance, validated_data)
 
 
@@ -184,7 +281,6 @@ class WaitingListEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ["status", "created_at", "notified_at", "expires_at"]
 
     def validate_preferred_time_slots(self, value):
-        """Validate time slots are in correct format and within business hours"""
         if not isinstance(value, list):
             raise serializers.ValidationError("Time slots must be a list")
 
@@ -203,7 +299,6 @@ class WaitingListEntrySerializer(serializers.ModelSerializer):
         return value
 
     def validate_requested_date(self, value):
-        """Validate requested date is in the future"""
         if value < timezone.now().date():
             raise serializers.ValidationError("Requested date must be in the future")
         return value

@@ -1,301 +1,177 @@
 # therapist/services/therapist_verification_service.py
-import numpy as np
-import cv2
-from deepface import DeepFace
 import easyocr
+import face_recognition
+import torch
 import logging
-from datetime import datetime
+import numpy as np
 from PIL import Image
-import io
+from datetime import datetime
 import re
-from django.core.files.uploadedfile import InMemoryUploadedFile
-from pathlib import Path
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-
 class TherapistVerificationService:
+    """Service for verifying therapist licenses and identity"""
+
     def __init__(self):
-        self.reader = easyocr.Reader(["en"])
-        self.face_detector = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        )
-
-    def verify_license(
-        self, license_image, expected_number=None, issuing_authority=None
-    ):
-        """
-        Verify license authenticity and extract information with enhanced validation
-
-        Args:
-            license_image: The license image file
-            expected_number: The license number provided by the therapist
-            issuing_authority: The authority that issued the license
-        """
         try:
-            # Validate input image
-            if not isinstance(license_image, InMemoryUploadedFile):
-                return {"success": False, "error": "Invalid image format"}
+            # First try to use GPU if available
+            if torch.cuda.is_available():
+                self.device = "cuda"
+                logger.info("Using CUDA for verification service")
+            else:
+                self.device = "cpu"
+                logger.info("CUDA not available, using CPU for verification service")
 
-            # Convert to OpenCV format
-            img_bytes = license_image.read()
-            nparr = np.frombuffer(img_bytes, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            # Initialize EasyOCR with selected device
+            try:
+                self.reader = easyocr.Reader(["en"], gpu=self.device=="cuda")
+                logger.info(f"Successfully initialized EasyOCR on {self.device}")
+            except RuntimeError as e:
+                logger.warning(f"Failed to initialize EasyOCR with {self.device}, falling back to CPU: {str(e)}")
+                self.device = "cpu"
+                self.reader = easyocr.Reader(["en"], gpu=False)
 
-            if img is None:
-                return {"success": False, "error": "Could not process license image"}
+        except Exception as e:
+            logger.error(f"Error initializing verification service: {str(e)}")
+            raise
 
-            # Read text from image
-            results = self.reader.readtext(img)
-            extracted_text = " ".join([text[1] for text in results])
+    def verify_license(self, license_image, expected_number: str, issuing_authority: str) -> Dict[str, Any]:
+        """Verify license details using OCR"""
+        try:
+            # Convert InMemoryUploadedFile to numpy array
+            image = Image.open(license_image)
+            # Convert to RGB if necessary
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            # Convert to numpy array
+            image_np = np.array(image)
 
-            # Extract license information using regex patterns
-            license_info = self._extract_license_info(extracted_text)
+            # Use EasyOCR to read text
+            results = self.reader.readtext(image_np)
+            
+            # Extract text from results
+            text = " ".join([result[1] for result in results])
+            
+            # Look for license number
+            license_found = any(
+                expected_number.lower() in result[1].lower() 
+                for result in results
+            )
+            
+            # Look for issuing authority
+            authority_found = any(
+                issuing_authority.lower() in result[1].lower() 
+                for result in results
+            )
 
-            # Validate against expected license number if provided
-            if expected_number and license_info.get("license_number"):
-                if not self._verify_license_number_match(
-                    license_info["license_number"], expected_number
-                ):
-                    return {
-                        "success": False,
-                        "error": "Detected license number does not match provided number",
+            # Look for expiry date
+            expiry_date = self._extract_expiry_date(text)
+
+            if license_found and authority_found:
+                return {
+                    "success": True,
+                    "license_number": expected_number,
+                    "issuing_authority": issuing_authority,
+                    "license_expiry": expiry_date,
+                    "confidence": "high" if expiry_date else "medium"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Could not verify license number or issuing authority"
+                }
+
+        except Exception as e:
+            logger.error(f"License verification error: {str(e)}")
+            return {
+                "success": False,
+                "error": "Error processing license image"
+            }
+
+    def verify_face_match(self, license_image, selfie_image, threshold: float = 0.6) -> Dict[str, Any]:
+        """Verify face match between license and selfie"""
+        try:
+            # Convert InMemoryUploadedFile objects to numpy arrays
+            license_face = Image.open(license_image)
+            selfie_face = Image.open(selfie_image)
+
+            # Convert to RGB if necessary
+            if license_face.mode != 'RGB':
+                license_face = license_face.convert('RGB')
+            if selfie_face.mode != 'RGB':
+                selfie_face = selfie_face.convert('RGB')
+
+            # Convert to numpy arrays
+            license_np = np.array(license_face)
+            selfie_np = np.array(selfie_face)
+
+            # Get face encodings
+            license_encoding = face_recognition.face_encodings(license_np)
+            selfie_encoding = face_recognition.face_encodings(selfie_np)
+
+            if not license_encoding or not selfie_encoding:
+                return {
+                    "success": False,
+                    "error": "Could not detect faces in one or both images",
+                    "details": {
+                        "license_face_found": bool(license_encoding),
+                        "selfie_face_found": bool(selfie_encoding)
                     }
-
-            # Validate issuing authority if provided
-            if issuing_authority and not re.search(
-                re.escape(issuing_authority), extracted_text, re.IGNORECASE
-            ):
-                return {
-                    "success": False,
-                    "error": "Could not verify issuing authority on license",
                 }
 
-            # Check for license expiration
-            if (
-                license_info.get("expiry_date")
-                and license_info["expiry_date"] < datetime.now().date()
-            ):
-                return {
-                    "success": False,
-                    "error": "License has expired",
-                    "expiry_date": license_info["expiry_date"].isoformat(),
-                }
+            # Compare faces
+            match = face_recognition.compare_faces(
+                [license_encoding[0]], selfie_encoding[0], tolerance=threshold
+            )[0]
 
-            # Successful verification
+            # Get face distance for confidence score
+            face_distance = face_recognition.face_distance(
+                [license_encoding[0]], selfie_encoding[0]
+            )[0]
+
+            # Convert distance to similarity score (0-1)
+            confidence = 1 - face_distance
+
             return {
                 "success": True,
-                "license_number": license_info.get("license_number"),
-                "license_expiry": license_info.get("expiry_date"),
-                "extracted_text": extracted_text,
-                "verification_timestamp": datetime.now().isoformat(),
+                "match": bool(match),
+                "confidence": float(confidence),
+                "details": {
+                    "distance_score": float(face_distance),
+                    "threshold_used": threshold
+                }
             }
 
         except Exception as e:
-            logger.error(f"License verification failed: {str(e)}", exc_info=True)
-            return {"success": False, "error": str(e)}
+            logger.error(f"Face verification error: {str(e)}")
+            return {
+                "success": False,
+                "error": "Error processing face verification",
+                "details": {"error_message": str(e)}
+            }
 
-    def verify_face_match(self, license_image, selfie_image, threshold=0.7):
-        """
-        Compare face in license with selfie using enhanced security measures
-
-        Args:
-            license_image: The license image containing the face
-            selfie_image: The selfie image to verify against
-            threshold: Confidence threshold for face matching (0.7 = 70% confidence required)
-        """
-        try:
-            # Input validation
-            if not all(
-                isinstance(img, InMemoryUploadedFile)
-                for img in [license_image, selfie_image]
-            ):
-                return {"success": False, "error": "Invalid image format"}
-
-            # Convert images to PIL format
-            license_bytes = license_image.read()
-            selfie_bytes = selfie_image.read()
-
-            try:
-                license_img = Image.open(io.BytesIO(license_bytes))
-                selfie_img = Image.open(io.BytesIO(selfie_bytes))
-            except Exception as e:
-                return {"success": False, "error": f"Error opening images: {str(e)}"}
-
-            # Verify image dimensions and size
-            for img, name in [(license_img, "license"), (selfie_img, "selfie")]:
-                if not self._verify_image_requirements(img, name):
-                    return {
-                        "success": False,
-                        "error": f"Invalid {name} image dimensions or size",
-                    }
-
-            # Save temporary files for DeepFace
-            license_path = "temp_license.jpg"
-            selfie_path = "temp_selfie.jpg"
-
-            try:
-                license_img.save(license_path)
-                selfie_img.save(selfie_path)
-
-                # Detect faces first
-                if not self._verify_face_present(cv2.imread(license_path)):
-                    return {
-                        "success": False,
-                        "error": "No face detected in license photo",
-                    }
-                if not self._verify_face_present(cv2.imread(selfie_path)):
-                    return {"success": False, "error": "No face detected in selfie"}
-
-                # Perform face verification with enhanced parameters
-                result = DeepFace.verify(
-                    img1_path=license_path,
-                    img2_path=selfie_path,
-                    enforce_detection=True,
-                    detector_backend="opencv",
-                    model_name="VGG-Face",
-                    distance_metric="cosine",
-                    align=True,
-                )
-
-                verified = result.get("verified", False)
-                confidence = 1 - result.get(
-                    "distance", 1.0
-                )  # Convert distance to confidence
-
-                # Apply stricter threshold
-                if confidence < threshold:
-                    return {
-                        "success": True,
-                        "match": False,
-                        "confidence": confidence,
-                        "error": "Face match confidence below threshold",
-                        "details": result,
-                    }
-
-                return {
-                    "success": True,
-                    "match": verified,
-                    "confidence": confidence,
-                    "details": result,
-                }
-
-            finally:
-                # Ensure cleanup
-                try:
-                    Path(license_path).unlink(missing_ok=True)
-                    Path(selfie_path).unlink(missing_ok=True)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary files: {str(e)}")
-
-        except Exception as e:
-            logger.error(f"Face verification failed: {str(e)}", exc_info=True)
-            return {"success": False, "error": str(e)}
-
-    def _verify_face_present(self, image):
-        """Verify that exactly one face is present in the image"""
-        try:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            faces = self.face_detector.detectMultiScale(
-                gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
-            )
-            return len(faces) == 1
-        except Exception as e:
-            logger.error(f"Face detection error: {str(e)}")
-            return False
-
-    def _verify_image_requirements(self, img, image_type):
-        """Verify image meets minimum requirements"""
-        try:
-            # Check dimensions
-            min_width = 300
-            min_height = 300
-            max_dimension = 4000
-            width, height = img.size
-
-            if width < min_width or height < min_height:
-                logger.warning(f"{image_type} image too small: {width}x{height}")
-                return False
-
-            if width > max_dimension or height > max_dimension:
-                logger.warning(f"{image_type} image too large: {width}x{height}")
-                return False
-
-            # Verify aspect ratio is reasonable (not extremely skewed)
-            aspect_ratio = width / height
-            if aspect_ratio < 0.5 or aspect_ratio > 2.0:
-                logger.warning(
-                    f"Unusual aspect ratio in {image_type} image: {aspect_ratio}"
-                )
-                return False
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error checking image requirements: {str(e)}")
-            return False
-
-    def _verify_license_number_match(self, detected_number, provided_number):
-        """
-        Compare detected license number with provided number using fuzzy matching
-        to account for OCR variations
-        """
-        # Remove all non-alphanumeric characters for comparison
-        clean_detected = re.sub(r"[^a-zA-Z0-9]", "", detected_number)
-        clean_provided = re.sub(r"[^a-zA-Z0-9]", "", provided_number)
-
-        # Case-insensitive comparison
-        return clean_detected.lower() == clean_provided.lower()
-
-    def _extract_license_info(self, text):
-        """Extract license information from text using regex patterns"""
-        # Common patterns for license numbers and dates
-        license_patterns = [
-            r"License[:\s]+([A-Z0-9-]+)",
-            r"Registration[:\s]+([A-Z0-9-]+)",
-            r"Number[:\s]+([A-Z0-9-]+)",
-            r"#([A-Z0-9-]+)",
-            r"Certificate[:\s]+([A-Z0-9-]+)",
-            r"ID[:\s]+([A-Z0-9-]+)",
-        ]
-
+    def _extract_expiry_date(self, text: str) -> str:
+        """Extract expiry date from license text"""
         date_patterns = [
-            r"Expir\w+[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
-            r"Valid[:\s]+(?:until|through)[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
-            r"(?:End|Expiry)[:\s]+Date[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
-            r"Expires[:\s]+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+            r'(?:Expir(?:es|y|ation)(?:\s+(?:date|on))?:?\s*)(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+            r'(?:Valid\s+(?:through|until):?\s*)(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+            r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
         ]
 
-        license_number = None
-        expiry_date = None
-
-        # Search for license number
-        for pattern in license_patterns:
-            if match := re.search(pattern, text, re.IGNORECASE):
-                license_number = match.group(1).strip()
-                break
-
-        # Search for expiry date
         for pattern in date_patterns:
-            if match := re.search(pattern, text, re.IGNORECASE):
-                date_str = match.group(1)
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
                 try:
                     # Try different date formats
-                    for fmt in [
-                        "%m/%d/%Y",
-                        "%m-%d-%Y",
-                        "%d/%m/%Y",
-                        "%d-%m/%Y",
-                        "%m/%d/%y",
-                        "%d/%m/%y",
-                    ]:
+                    for date_format in ["%m/%d/%Y", "%m-%d-%Y", "%d/%m/%Y", "%d-%m-%Y"]:
                         try:
-                            expiry_date = datetime.strptime(date_str, fmt).date()
-                            break
+                            date_obj = datetime.strptime(matches[0], date_format)
+                            return date_obj.strftime("%Y-%m-%d")
                         except ValueError:
                             continue
                 except Exception as e:
-                    logger.warning(f"Could not parse date '{date_str}': {str(e)}")
-                break
+                    logger.error(f"Error parsing date: {str(e)}")
 
-        return {"license_number": license_number, "expiry_date": expiry_date}
+        return None

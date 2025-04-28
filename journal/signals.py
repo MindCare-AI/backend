@@ -85,7 +85,14 @@ def analyze_journal_entry(sender, instance, created, **kwargs):
         try:
             # Analyze journal patterns
             analysis = predictive_service.analyze_journal_patterns(instance.user)
-            
+            # Ensure analysis is a dict; if it's a string, try to parse it as JSON
+            if isinstance(analysis, str):
+                import json
+                try:
+                    analysis = json.loads(analysis)
+                except Exception as ex:
+                    logger.error(f"Failed to parse analysis string: {analysis}")
+                    analysis = {}
             # If concerning themes are found, create an insight
             if analysis.get('concerns'):
                 AIInsight.objects.create(

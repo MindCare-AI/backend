@@ -6,7 +6,9 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from datetime import timedelta, datetime, time
 import uuid
-
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from messaging.models.one_to_one import OneToOneConversation
 
 class Appointment(models.Model):
     STATUS_CHOICES = [
@@ -238,3 +240,19 @@ class WaitingListEntry(models.Model):
 
     def __str__(self):
         return f"Waiting list entry for {self.patient} with {self.therapist} on {self.requested_date}"
+
+
+@receiver(post_save, sender=Appointment)
+def create_or_use_chat_conversation(sender, instance, created, **kwargs):
+    # Check if the appointment is confirmed (either on creation or update)
+    if instance.status == "confirmed":
+        patient_user = instance.patient.user
+        therapist_user = instance.therapist.user
+        conversation = OneToOneConversation.objects.filter(participants=patient_user).filter(participants=therapist_user).first()
+        if not conversation:
+            conversation = OneToOneConversation.objects.create()
+            conversation.participants.add(patient_user, therapist_user)
+            # Mark that a new conversation was created
+            instance.conversation_created = True
+        else:
+            instance.conversation_created = False

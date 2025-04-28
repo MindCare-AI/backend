@@ -1,0 +1,11 @@
+{
+    "patient": 2,
+    "therapist": 4,
+    "appointment_date": "2025-07-07 14:00",
+    "status": "scheduled",
+    "notes": "",
+    "duration": "60",
+    "cancelled_by": null,
+    "cancellation_reason": "",
+    "pain_level": null
+}

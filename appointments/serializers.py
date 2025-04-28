@@ -312,6 +312,7 @@ class AppointmentConfirmationSerializer(serializers.ModelSerializer):
     status = serializers.CharField(read_only=True)
     confirmed_by = serializers.SerializerMethodField()
     confirmation_date = serializers.SerializerMethodField()
+    conversation_created = serializers.SerializerMethodField()  # New field added
     
     class Meta:
         model = Appointment
@@ -323,6 +324,7 @@ class AppointmentConfirmationSerializer(serializers.ModelSerializer):
             "confirmed_by",
             "confirmation_date",
             "video_session_link",
+            "conversation_created",  # Expose the new flag
         ]
         read_only_fields = fields
     
@@ -334,3 +336,6 @@ class AppointmentConfirmationSerializer(serializers.ModelSerializer):
     
     def get_confirmation_date(self, obj):
         return timezone.now()
+    
+    def get_conversation_created(self, obj):
+        return getattr(obj, "conversation_created", False)

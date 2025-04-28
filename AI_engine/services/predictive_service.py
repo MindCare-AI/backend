@@ -21,8 +21,8 @@ class PredictiveAnalysisService:
 
         # Get historical mood data
         mood_logs = MoodLog.objects.filter(
-            user=user, timestamp__gte=timezone.now() - timedelta(days=timeframe_days)
-        ).order_by("timestamp")
+            user=user, logged_at__gte=timezone.now() - timedelta(days=timeframe_days)
+        ).order_by("logged_at")
 
         if not mood_logs.exists():
             return {"risk_level": "unknown", "confidence": 0, "factors": []}
@@ -32,7 +32,7 @@ class PredictiveAnalysisService:
             {
                 "rating": log.mood_rating,
                 "activities": log.activities,
-                "timestamp": log.timestamp.isoformat(),
+                "timestamp": log.logged_at.isoformat(),  # Keep using 'timestamp' in the data structure 
             }
             for log in mood_logs
         ]

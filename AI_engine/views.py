@@ -165,33 +165,67 @@ class AIInsightViewSet(viewsets.ViewSet):
             )
 
 
-class TherapyRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
+class TherapyRecommendationViewSet(viewsets.ViewSet):
+    """
+    A viewset for handling therapy recommendations.
+    
+    Instead of using ReadOnlyModelViewSet which causes schema generation issues,
+    we're using a basic ViewSet and implementing only the methods we need.
+    """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TherapyRecommendationSerializer
 
     def get_queryset(self):
-        return TherapyRecommendation.objects.filter(user=self.request.user)
+        """Get therapy recommendations for the authenticated user"""
+        return TherapyRecommendation.objects.filter(user=self.request.user).order_by('-created_at')
 
-    @action(detail=True, methods=["post"])
-    def rate_effectiveness(self, request, pk=None):
-        """Rate the effectiveness of a recommendation"""
-        recommendation = self.get_object()
-        rating = request.data.get("rating")
-        if rating is not None and 1 <= rating <= 5:
-            recommendation.effectiveness_rating = rating
-            recommendation.save()
-            serializer = self.get_serializer(recommendation)
+    def get_object(self):
+        """Get a specific recommendation"""
+        queryset = self.get_queryset()
+        obj = queryset.get(pk=self.kwargs["pk"])
+        return obj
+        
+    def list(self, request):
+        """List all recommendations for the user"""
+        queryset = self.get_queryset()
+        serializer = TherapyRecommendationSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def retrieve(self, request, pk=None):
+        """Retrieve a specific recommendation"""
+        try:
+            instance = self.get_object()
+            serializer = TherapyRecommendationSerializer(instance)
             return Response(serializer.data)
-        return Response(
-            {"error": "Invalid rating. Must be between 1 and 5"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        except TherapyRecommendation.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=True, methods=["post"])
     def mark_implemented(self, request, pk=None):
         """Mark a recommendation as implemented"""
-        recommendation = self.get_object()
-        recommendation.is_implemented = True
-        recommendation.save()
-        serializer = self.get_serializer(recommendation)
-        return Response(serializer.data)
+        try:
+            recommendation = self.get_object()
+            recommendation.is_implemented = True
+            recommendation.save()
+            serializer = TherapyRecommendationSerializer(recommendation)
+            return Response(serializer.data)
+        except TherapyRecommendation.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=["post"])
+    def rate_effectiveness(self, request, pk=None):
+        """Rate the effectiveness of a recommendation"""
+        try:
+            recommendation = self.get_object()
+            rating = request.data.get("rating")
+            if rating is not None and 1 <= rating <= 5:
+                recommendation.effectiveness_rating = rating
+                recommendation.save()
+                serializer = TherapyRecommendationSerializer(recommendation)
+                return Response(serializer.data)
+            return Response(
+                {"error": "Invalid rating. Must be between 1 and 5"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except TherapyRecommendation.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)

@@ -139,12 +139,29 @@ class ConversationConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming WebSocket messages"""
         try:
+            logger.info(f"Received message: {text_data}")
             data = json.loads(text_data)
             message_type = data.get("type")
-            logger.debug(f"Received WebSocket message type: {message_type}")
-
+            
+            if message_type == "chat":
+                # Send message to conversation group
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        "type": "conversation_message",
+                        "message": {
+                            "type": "chat",
+                            "content": data.get("content"),
+                            "sender_id": self.scope["user"].id,
+                            "sender_name": self.scope["user"].username,
+                            "conversation_id": self.conversation_id,
+                            "timestamp": timezone.now().isoformat()
+                        }
+                    }
+                )
+            
             # Handle read receipts
-            if message_type == "mark_read":
+            elif message_type == "mark_read":
                 message_id = data.get("message_id")
                 if message_id:
                     success = await self.mark_message_as_read(message_id)
@@ -196,39 +213,28 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Send message to WebSocket"""
         try:
             message_data = event.get("message", {})
-            event_type = message_data.get("event_type", "message_created")
-
-            # Standardize message type
-            await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": event_type,
-                        "message": {
-                            "id": message_data.get("id"),
-                            "content": message_data.get("content"),
-                            "sender_id": message_data.get("sender_id"),
-                            "sender_name": message_data.get("sender_name"),
-                            "conversation_id": message_data.get("conversation_id"),
-                            "timestamp": message_data.get("timestamp"),
-                            "message_type": message_data.get("message_type", "text"),
-                        },
-                    }
-                )
-            )
+            
+            # Keep the original message type from the sender
+            await self.send(text_data=json.dumps({
+                "type": message_data.get("type", "chat"),  # Use original type
+                "message": {
+                    "content": message_data.get("content"),
+                    "sender_id": message_data.get("sender_id"),
+                    "sender_name": message_data.get("sender_name"),
+                    "conversation_id": message_data.get("conversation_id"),
+                    "timestamp": message_data.get("timestamp"),
+                }
+            }))
 
             logger.debug(
-                f"Sent {event_type} message to client: {message_data.get('id')}"
+                f"Sent message to client in conversation {message_data.get('conversation_id')}"
             )
         except Exception as e:
             logger.error(f"Error sending conversation message: {str(e)}", exc_info=True)
-            await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": "error",
-                        "message": "Failed to deliver message. Please try again later.",
-                    }
-                )
-            )
+            await self.send(text_data=json.dumps({
+                "type": "error",
+                "message": "Failed to deliver message"
+            }))
 
     async def read_receipt(self, event):
         """Send read receipt to WebSocket"""

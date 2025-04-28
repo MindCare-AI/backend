@@ -1,5 +1,4 @@
-"""Command to initialize AI models and verify setup"""
-
+#AI_engine/management/commands/initialize_ai.py
 import requests
 import json
 import sys

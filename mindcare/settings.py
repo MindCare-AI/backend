@@ -563,7 +563,17 @@ LOGGING = {
 }
 
 # Gemini API Configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Clean and normalize the API key from environment
+raw_api_key = os.environ.get("GEMINI_API_KEY", "")
+if isinstance(raw_api_key, str):
+    GEMINI_API_KEY = raw_api_key.strip().replace('"', '').replace("'", "")
+    # Check if the key seems valid (basic check)
+    if len(GEMINI_API_KEY) < 10:
+        print("WARNING: GEMINI_API_KEY seems too short or invalid!")
+else:
+    print("WARNING: GEMINI_API_KEY is not set properly!")
+    GEMINI_API_KEY = ""
+
 GEMINI_API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 )

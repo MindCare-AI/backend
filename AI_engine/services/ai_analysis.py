@@ -1,4 +1,5 @@
-from typing import Dict, Any
+#AI_engine/services/ai_analysis.py
+from typing import Dict, Any, List
 import logging
 from django.conf import settings
 import requests
@@ -27,9 +28,7 @@ class AIAnalysisService:
             start_date = end_date - timedelta(days=date_range)
 
             # Get mood logs
-            mood_logs = MoodLog.objects.filter(
-                user=user, timestamp__range=(start_date, end_date)
-            ).order_by("-timestamp")
+            mood_logs = self._get_mood_data(user, date_range)
 
             # Get journal entries
             journal_entries = JournalEntry.objects.filter(
@@ -41,14 +40,7 @@ class AIAnalysisService:
 
             # Prepare data for analysis
             data = {
-                "mood_logs": [
-                    {
-                        "mood": log.mood_rating,
-                        "activities": log.activities,
-                        "timestamp": log.timestamp.isoformat(),
-                    }
-                    for log in mood_logs
-                ],
+                "mood_logs": mood_logs,
                 "journal_entries": [
                     {
                         "content": entry.content,
@@ -92,6 +84,24 @@ class AIAnalysisService:
         except Exception as e:
             logger.error(f"Error analyzing user data: {str(e)}")
             return self._create_default_analysis()
+
+    def _get_mood_data(self, user, days: int) -> List[Dict]:
+        """Get user's mood data for analysis"""
+        end_date = timezone.now()
+        start_date = end_date - timedelta(days=days)
+
+        mood_logs = MoodLog.objects.filter(
+            user=user, logged_at__range=(start_date, end_date)
+        ).order_by("-logged_at")
+
+        return [
+            {
+                "mood": log.mood_rating,
+                "activities": log.activities,
+                "timestamp": log.logged_at.isoformat(),
+            }
+            for log in mood_logs
+        ]
 
     def _analyze_with_ollama(self, data: Dict) -> Dict:
         """Analyze data using Ollama"""

@@ -13,8 +13,18 @@ class ChatbotService:
     """Service for handling chatbot interactions using Gemini"""
 
     def __init__(self):
-        self.api_key = settings.GEMINI_API_KEY
-        self.base_url = settings.GEMINI_API_URL
+        # Clean the API key by stripping whitespace and quotes
+        raw_api_key = settings.GEMINI_API_KEY
+        if isinstance(raw_api_key, str):
+            self.api_key = raw_api_key.strip().replace('"', '').replace("'", "")
+            logger.debug(f"API key initialized. Length: {len(self.api_key)}")
+        else:
+            self.api_key = None
+            logger.error("GEMINI_API_KEY is not a string or is missing")
+            
+        # Update to use Gemini 2.0 Flash model
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+        
         self.timeout = settings.CHATBOT_SETTINGS["RESPONSE_TIMEOUT"]
         self.max_retries = settings.CHATBOT_SETTINGS["MAX_RETRIES"]
         self.history_limit = settings.CHATBOT_SETTINGS["MAX_HISTORY_MESSAGES"]
@@ -43,6 +53,7 @@ class ChatbotService:
                 "response": response["response"],
                 "context_used": context,
                 "analysis": user_analysis,
+                "user_id": user.id,  # Add the user ID to the response
             }
 
         except Exception as e:
@@ -116,26 +127,57 @@ User's message: {message}"""
     def _make_api_request(self, prompt: str) -> Dict[str, any]:
         """Make request to Gemini API"""
         try:
+            if not self.api_key:
+                logger.error("Missing Gemini API key")
+                return self._error_response("API key configuration error")
+                
+            # Log API request details (without the full API key)
+            logger.debug(f"Making request to {self.base_url}")
+            logger.debug(f"API key starts with: {self.api_key[:4]}...{self.api_key[-4:] if len(self.api_key) > 8 else ''}")
+            logger.debug(f"API key length: {len(self.api_key)}")
+            
+            # Construct the URL with API key as query parameter
+            url = f"{self.base_url}?key={self.api_key}"
+            
+            # Set headers for the request
             headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
             }
 
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            # Format the payload according to Gemini API requirements
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            }
 
             response = requests.post(
-                self.base_url, headers=headers, json=payload, timeout=self.timeout
+                url, headers=headers, json=payload, timeout=self.timeout
             )
 
+            # Log response status and details
+            logger.debug(f"Gemini API response status: {response.status_code}")
+            
             if response.status_code == 200:
                 result = response.json()
                 return {
                     "success": True,
                     "response": result["candidates"][0]["content"]["parts"][0]["text"],
                 }
+            elif response.status_code == 401:
+                logger.error(f"Gemini API authentication error: Invalid API key")
+                logger.error(f"Response details: {response.text}")
+                return self._error_response("API authentication failed - check your API key")
             else:
                 logger.error(f"Gemini API error: {response.status_code}")
-                return self._error_response("API request failed")
+                logger.error(f"Response details: {response.text}")
+                return self._error_response(f"API request failed with status {response.status_code}")
 
         except requests.exceptions.Timeout:
             logger.error("Gemini API timeout")

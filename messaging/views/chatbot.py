@@ -29,6 +29,10 @@ class ChatbotConversationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ChatbotConversation.objects.filter(user=self.request.user)
 
+    def perform_create(self, serializer):
+        """Ensure the authenticated user is set as the conversation user"""
+        serializer.save(user=self.request.user)
+
     @action(detail=True, methods=["post"])
     def send_message(self, request, pk=None):
         """Send a message in a chatbot conversation"""

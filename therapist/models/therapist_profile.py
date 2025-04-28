@@ -39,6 +39,7 @@ class TherapistProfile(models.Model):
         validators=[MinValueValidator(0)]
     )
     profile_completion = models.FloatField(default=0)
+    video_session_link = models.URLField(max_length=500, blank=True, null=True)
 
     # Verification Status
     is_verified = models.BooleanField(default=False)
@@ -154,6 +155,7 @@ class TherapistProfile(models.Model):
             "accepts_insurance": bool(self.accepts_insurance),
             "insurance_providers": bool(self.insurance_providers),
             "session_duration": bool(self.session_duration),
+            "video_session_link": bool(self.video_session_link),
         }
 
         completed = sum(required_fields.values())

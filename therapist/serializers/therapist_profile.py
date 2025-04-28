@@ -109,10 +109,6 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True,
     )
-    available_days = DayTimeSlotField(
-        required=False,
-        help_text="Dictionary mapping days (lowercase) to lists of time slots [{'start': 'HH:MM', 'end': 'HH:MM'}, ...]",
-    )
     languages = serializers.MultipleChoiceField(
         choices=LANGUAGE_CHOICES,
         required=False,
@@ -135,7 +131,6 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             "years_of_experience",
             "license_number",
             "license_expiry",
-            "available_days",
             "profile_picture",
             "treatment_approaches",
             "languages",
@@ -145,6 +140,10 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             "profile_completion",
             "is_verified",
             "verification_status",
+            "hourly_rate",
+            "accepts_insurance",
+            "insurance_providers",
+            "session_duration"
         ]
         read_only_fields = [
             "id",
@@ -168,12 +167,6 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             for attr, value in user_data.items():
                 setattr(user, attr, value)
             user.save()
-
-        if "available_days" in validated_data:
-            new_days = validated_data.pop("available_days")
-            current_days = instance.available_days or {}
-            current_days.update(new_days)
-            setattr(instance, "available_days", current_days)
 
         for attr, value in validated_data.items():
             if isinstance(value, set):
@@ -272,3 +265,14 @@ class VerificationStatusSerializer(serializers.ModelSerializer):
         if instance.is_verified:
             data['days_until_expiry'] = (instance.verification_expiry - timezone.now().date()).days if instance.verification_expiry else None
         return data
+
+class TherapistAvailabilitySerializer(serializers.ModelSerializer):
+    """Serializer for therapist availability information only"""
+    class Meta:
+        model = TherapistProfile
+        fields = [
+            "available_days",
+            "video_session_link",
+            "languages",
+        ]
+        read_only_fields = fields

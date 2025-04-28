@@ -60,6 +60,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "last_rescheduled",
             "rescheduled_by",
             "rescheduled_by_name",
+            "pain_level",
         ]
         read_only_fields = [
             "appointment_id",

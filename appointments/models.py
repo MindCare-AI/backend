@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from datetime import timedelta, datetime, time
@@ -61,6 +62,13 @@ class Appointment(models.Model):
         default=dict,
         blank=True,
         help_text="AI-generated recommendations for the therapy session"
+    )
+
+    pain_level = models.PositiveSmallIntegerField(
+        null=True, 
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        help_text="Patient's pain level (0-10) reported during appointment"
     )
 
     class Meta:

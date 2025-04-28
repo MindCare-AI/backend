@@ -4,12 +4,11 @@ from rest_framework import viewsets, status, permissions, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from appointments.models import Appointment
 from therapist.models.therapist_profile import TherapistProfile
-from appointments.serializers import AppointmentSerializer
 from therapist.serializers.therapist_profile import TherapistProfileSerializer
 from therapist.serializers.verification import TherapistVerificationSerializer, VerificationStatusSerializer
-from therapist.permissions.therapist_permissions import IsPatient, IsSuperUserOrSelf
+from therapist.serializers.availability import TherapistAvailabilitySerializer
+from therapist.permissions.therapist_permissions import IsSuperUserOrSelf, IsVerifiedTherapist
 import logging
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -20,10 +19,9 @@ from therapist.services.therapist_verification_service import (
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
-from django.core.exceptions import ValidationError
 from django.core.cache import cache
-import magic
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ logger = logging.getLogger(__name__)
 class TherapistProfileViewSet(viewsets.ModelViewSet):
     queryset = TherapistProfile.objects.all()
     serializer_class = TherapistProfileSerializer
-    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf]
+    permission_classes = [permissions.IsAuthenticated, IsSuperUserOrSelf, IsVerifiedTherapist]
     http_method_names = ["get", "post", "put", "patch", "delete"]
 
     def get_queryset(self):
@@ -59,6 +57,8 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             if self.request.method == 'GET':
                 return VerificationStatusSerializer
             return TherapistVerificationSerializer
+        elif self.action in ['availability', 'update_availability']:
+            return TherapistAvailabilitySerializer
         return TherapistProfileSerializer
 
     def create(self, request, *args, **kwargs):
@@ -123,120 +123,27 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
     @extend_schema(
-        description="Check therapist availability details",
-        summary="Check Therapist Availability",
-        tags=["Appointments"],
+        description="Get or update therapist availability details",
+        summary="Therapist Availability",
+        tags=["Therapist"],
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get", "post", "patch"], url_path="availability")
     def availability(self, request, pk=None):
-        try:
-            therapist = self.get_object()
-            return Response(
-                {
-                    "available_days": therapist.available_days,
-                    "video_session_link": therapist.video_session_link,
-                    "languages": therapist.languages_spoken,
-                }
-            )
-        except Exception as e:
-            logger.error(f"Error checking availability: {str(e)}", exc_info=True)
-            return Response(
-                {"error": "Could not fetch availability"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @extend_schema(
-        description="Book an appointment with a therapist",
-        summary="Book Appointment",
-        tags=["Appointments"],
-        request=AppointmentSerializer,
-        responses={
-            201: AppointmentSerializer,
-            400: {"description": "Bad request - invalid data"},
-            403: {"description": "Forbidden - not authorized"},
-            404: {"description": "Not found - therapist profile does not exist"},
-        },
-    )
-    @action(detail=True, methods=["post"], permission_classes=[IsPatient])
-    def book_appointment(self, request, pk=None, **kwargs):
-        """Book an appointment with a therapist."""
-        try:
-            therapist_profile = self.get_object()
-            if not therapist_profile.is_verified:
-                return Response(
-                    {"error": "Therapist's profile is not verified"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            if request.user == therapist_profile.user:
-                return Response(
-                    {"error": "You cannot book an appointment with yourself"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            appointment_data = {
-                "therapist": therapist_profile.id,
-                "patient": request.user.patient_profile.id,
-                "appointment_date": request.data.get("appointment_date"),
-                "duration": timedelta(
-                    minutes=int(request.data.get("duration_minutes", 60))
-                ),
-                "notes": request.data.get("notes", ""),
-                "status": "scheduled",
-            }
-
-            serializer = AppointmentSerializer(data=appointment_data)
-            if not serializer.is_valid():
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-            with transaction.atomic():
-                appointment = serializer.save()
-                logger.info(
-                    f"Appointment booked - Therapist: {therapist_profile.user.username}, "
-                    f"Patient: {request.user.username}, "
-                    f"Time: {appointment.appointment_date}, "
-                    f"Duration: {appointment.duration}"
-                )
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        except TherapistProfile.DoesNotExist:
-            return Response(
-                {"error": "Therapist profile not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except (DjangoValidationError, DRFValidationError) as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error booking appointment: {str(e)}", exc_info=True)
-            return Response(
-                {"error": "Could not book appointment"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @extend_schema(
-        description="List all appointments for the therapist",
-        summary="List Appointments",
-        tags=["Appointments"],
-        responses={
-            200: AppointmentSerializer(many=True),
-            500: {"description": "Internal server error"},
-        },
-    )
-    @action(detail=True, methods=["get"])
-    def appointments(self, request, pk=None, **kwargs):
-        try:
-            therapist_profile = self.get_object()
-            appointments = Appointment.objects.filter(
-                therapist=therapist_profile
-            ).order_by("appointment_date")
-            serializer = AppointmentSerializer(appointments, many=True)
+        therapist = self.get_object()  # permission checks etc.
+        
+        if request.method == "GET":
+            # Format for display in the browsable API
+            serializer = TherapistAvailabilitySerializer(therapist)
             return Response(serializer.data)
-        except Exception as e:
-            logger.error(f"Error fetching appointments: {str(e)}", exc_info=True)
-            return Response(
-                {"error": "Could not fetch appointments"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        else:  # POST or PATCH
+            serializer = TherapistAvailabilitySerializer(
+                therapist,
+                data=request.data,
+                partial=(request.method == "PATCH")
             )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
 
     @extend_schema(
         description="Update therapist availability schedule",
@@ -269,23 +176,22 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
     def update_availability(self, request, pk=None):
         try:
             profile = self.get_object()
-
             if not (schedule := request.data.get("available_days")):
                 return Response(
                     {"error": "available_days is required"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            profile.available_days = self._validate_schedule(schedule)
-            profile.save()
+            # Validate schedule with serializer
+            serializer = self.get_serializer(profile, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
 
-            return Response(
-                {
-                    "message": "Availability updated successfully",
-                    "available_days": profile.available_days,
-                }
-            )
-        except ValidationError as e:
+            return Response({
+                "message": "Availability updated successfully",
+                "availability": serializer.data
+            })
+        except (ValidationError, DRFValidationError) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Error updating availability: {str(e)}", exc_info=True)
@@ -293,43 +199,6 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
                 {"error": "Could not update availability"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-    def _validate_schedule(self, schedule):
-        if isinstance(schedule, str):
-            try:
-                schedule = json.loads(schedule)
-            except json.JSONDecodeError:
-                raise ValidationError("Invalid JSON format")
-
-        if not isinstance(schedule, dict):
-            raise ValidationError("Schedule must be a dictionary")
-
-        valid_days = {
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-        }
-
-        for day, slots in schedule.items():
-            if day.lower() not in valid_days:
-                raise ValidationError(f"Invalid day: {day}")
-
-            if not isinstance(slots, list):
-                raise ValidationError(f"Schedule for {day} must be a list")
-
-            for slot in slots:
-                if (
-                    not isinstance(slot, dict)
-                    or "start" not in slot
-                    or "end" not in slot
-                ):
-                    raise ValidationError(f"Invalid time slot in {day}")
-
-        return schedule
 
     @extend_schema(
         description="Verify therapist license and identity or check verification status",
@@ -497,6 +366,31 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             logger.error(f"Verification failed: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Verification process failed. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        description="Get therapist's appointments",
+        summary="Get Appointments",
+        tags=["Therapist"],
+    )
+    @action(detail=True, methods=["get"])
+    def appointments(self, request, pk=None):
+        """List all appointments for the therapist - redirects to appointments app"""
+        from appointments.models import Appointment
+        from appointments.serializers import AppointmentSerializer
+
+        try:
+            therapist_profile = self.get_object()
+            appointments = Appointment.objects.filter(
+                therapist=therapist_profile
+            ).order_by("appointment_date")
+            serializer = AppointmentSerializer(appointments, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error fetching appointments: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Could not fetch appointments"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

@@ -75,23 +75,6 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
         return self.update(request, *args, **kwargs)
 
     @extend_schema(
-        description="Retrieve appointment details from a patient profile.",
-        summary="Get Appointments",
-        responses=OpenApiResponse(response=PatientProfileSerializer),
-        tags=["Patient Profile"],
-    )
-    @action(detail=True, methods=["get"])
-    def appointments(self, request, pk=None):
-        profile = self.get_object()
-        return Response(
-            {
-                "last_appointment": profile.last_appointment,
-                "next_appointment": profile.next_appointment,
-                "has_upcoming": bool(profile.next_appointment),
-            }
-        )
-
-    @extend_schema(
         description="Upload a file associated with the patient profile.",
         summary="Upload File",
         request=OpenApiParameter(

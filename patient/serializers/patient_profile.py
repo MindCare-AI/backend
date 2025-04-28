@@ -11,9 +11,6 @@ logger = logging.getLogger(__name__)
 
 class PatientProfileSerializer(serializers.ModelSerializer):
     blood_type = serializers.CharField(max_length=3, required=False, allow_null=True)
-    pain_level = serializers.IntegerField(
-        min_value=0, max_value=10, required=False, allow_null=True
-    )
     user_name = serializers.SerializerMethodField()
     first_name = serializers.CharField(source="user.first_name", required=False)
     last_name = serializers.CharField(source="user.last_name", required=False)
@@ -34,9 +31,6 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             "blood_type",
             "gender",
             "emergency_contact",
-            "last_appointment",
-            "next_appointment",
-            "pain_level",
             "created_at",
             "updated_at",
         ]

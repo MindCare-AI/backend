@@ -6,6 +6,7 @@ from patient.views.patient_profile_views import (
     PatientProfileViewSet,
     PublicPatientListView,
 )
+from patient.views.client_feedback_views import ClientFeedbackViewSet
 
 urlpatterns = [
     path(
@@ -24,11 +25,6 @@ urlpatterns = [
             }
         ),
         name="patient-profile-detail",
-    ),
-    path(
-        "profiles/<int:pk>/appointments/",  # Changed accordingly
-        PatientProfileViewSet.as_view({"get": "appointments"}),
-        name="patient-appointments",
     ),
     path(
         "health-metrics/",
@@ -55,4 +51,21 @@ urlpatterns = [
         name="medical-history-detail",
     ),
     path("profiles/all/", PublicPatientListView.as_view(), name="public-patient-list"),
+    path(
+        "feedback/",
+        ClientFeedbackViewSet.as_view({"get": "list", "post": "create"}),
+        name="client-feedback-list",
+    ),
+    path(
+        "feedback/<int:pk>/",
+        ClientFeedbackViewSet.as_view(
+            {
+                "get": "retrieve", 
+                "put": "update", 
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
+        name="client-feedback-detail",
+    ),
 ]

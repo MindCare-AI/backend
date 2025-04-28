@@ -45,9 +45,6 @@ class PatientProfile(Profile):
         upload_to="patient_profile_pics/%Y/%m/", null=True, blank=True
     )
 
-    last_appointment = models.DateTimeField(blank=True, null=True)
-    next_appointment = models.DateTimeField(blank=True, null=True)
-
     created_at = models.DateTimeField(editable=False, null=True)
     updated_at = models.DateTimeField()
 

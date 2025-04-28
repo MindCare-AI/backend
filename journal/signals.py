@@ -80,8 +80,11 @@ def handle_journal_entry_delete(sender, instance, **kwargs):
 
 @receiver(post_save, sender=JournalEntry)
 def analyze_journal_entry(sender, instance, created, **kwargs):
-    """Trigger AI analysis when new journal entry is created"""
-    if created or instance.content_changed:
+    """Trigger AI analysis when new journal entry is created or content changed"""
+    # Check if this is a new entry or if content was modified
+    update_fields = kwargs.get('update_fields', []) or []  # Handle None case
+    
+    if created or (not created and 'content' in update_fields):
         try:
             # Analyze journal patterns
             analysis = predictive_service.analyze_journal_patterns(instance.user)
@@ -93,8 +96,13 @@ def analyze_journal_entry(sender, instance, created, **kwargs):
                 except Exception as ex:
                     logger.error(f"Failed to parse analysis string: {analysis}")
                     analysis = {}
-            # If concerning themes are found, create an insight
-            if analysis.get('concerns'):
+            
+            # If analysis is None, initialize as empty dict
+            if analysis is None:
+                analysis = {}
+                
+            # If concerns exist AND they are not None/empty, create an insight
+            if analysis.get('concerns') and analysis.get('concerns') not in [None, []]:
                 AIInsight.objects.create(
                     user=instance.user,
                     insight_type='journal_theme',
@@ -108,7 +116,7 @@ def analyze_journal_entry(sender, instance, created, **kwargs):
             # Update therapy predictions if themes indicate significant changes
             if analysis.get('sentiment_trend') in ['improving', 'declining']:
                 therapy_prediction = predictive_service.predict_therapy_outcomes(instance.user)
-                if therapy_prediction.get('predicted_outcome') == 'declining':
+                if therapy_prediction and therapy_prediction.get('predicted_outcome') == 'declining':
                     AIInsight.objects.create(
                         user=instance.user,
                         insight_type='therapy_adjustment',

@@ -58,7 +58,13 @@ class AIAnalysisViewSet(viewsets.ModelViewSet):
         )
 
 
-class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
+class AIInsightViewSet(viewsets.ViewSet):
+    """
+    A viewset for viewing AI insights.
+    
+    Instead of using ReadOnlyModelViewSet which causes schema generation issues,
+    we're using a basic ViewSet and implementing only the methods we need.
+    """
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = AIInsightSerializer
 
@@ -66,39 +72,26 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
         """Get insights for the authenticated user"""
         return AIInsight.objects.filter(user=self.request.user).order_by('-created_at')
 
-    def list(self, request, *args, **kwargs):
+    def get_object(self):
+        """Get a specific insight"""
+        queryset = self.get_queryset()
+        obj = queryset.get(pk=self.kwargs["pk"])
+        return obj
+
+    def list(self, request):
         """List all insights for the user"""
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = self.get_serializer(queryset, many=True)
+        queryset = self.get_queryset()
+        serializer = AIInsightSerializer(queryset, many=True)
         return Response(serializer.data)
     
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request, pk=None):
         """Retrieve a specific insight"""
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-        
-    def create(self, request, *args, **kwargs):
-        """Create a new insight manually (admin only)"""
-        # Only allow staff users to manually create insights
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Only staff users can create insights manually"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-            
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
-        
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        try:
+            instance = self.get_object()
+            serializer = AIInsightSerializer(instance)
+            return Response(serializer.data)
+        except AIInsight.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=True, methods=["post"])
     def mark_addressed(self, request, pk=None):
@@ -106,7 +99,7 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
         insight = self.get_object()
         insight.is_addressed = True
         insight.save()
-        serializer = self.get_serializer(insight)
+        serializer = AIInsightSerializer(insight)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"])
@@ -158,13 +151,7 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response(
                     {
                         "status": "success",
-                        "analysis": {
-                            "mood_score": analysis.mood_score,
-                            "sentiment_score": analysis.sentiment_score,
-                            "dominant_emotions": analysis.dominant_emotions,
-                            "topics_of_concern": analysis.topics_of_concern,
-                            "suggested_activities": analysis.suggested_activities,
-                        },
+                        "analysis": analysis,
                     }
                 )
             return Response(
@@ -174,46 +161,7 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             logger.error(f"Error in analyze_user: {str(e)}")
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=["get"])
-    def unaddressed(self, request):
-        """Get all unaddressed insights"""
-        insights = AIInsight.objects.filter(
-            user=request.user, is_addressed=False
-        ).order_by("-priority", "-created_at")
-        serializer = self.get_serializer(insights, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["post"])
-    def generate_insights(self, request):
-        """Generate new insights based on user data"""
-        try:
-            analysis = ai_service.analyze_user_data(request.user)
-            if analysis and analysis.get("needs_attention"):
-                insight = AIInsight.objects.create(
-                    user=request.user,
-                    insight_type="ai_generated",
-                    insight_data={
-                        "analysis": analysis,
-                        "generated_at": timezone.now().isoformat(),
-                    },
-                    priority="medium",
-                    is_addressed=False,
-                )
-                serializer = self.get_serializer(insight)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                return Response(
-                    {"message": "No insights generated from current data"},
-                    status=status.HTTP_200_OK,
-                )
-        except Exception as e:
-            logger.error(f"Error generating insights: {str(e)}", exc_info=True)
-            return Response(
-                {"error": "Failed to generate insights"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

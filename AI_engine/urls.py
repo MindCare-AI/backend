@@ -3,23 +3,21 @@ from django.urls import path
 from .views import AIInsightViewSet, TherapyRecommendationViewSet
 
 urlpatterns = [
-    # AI Insights endpoints
+    # AI Insights endpoints with explicitly defined actions
     path(
         "insights/",
-        AIInsightViewSet.as_view({"get": "list", "post": "create"}),
+        AIInsightViewSet.as_view({"get": "list"}),
         name="ai-insights-list",
     ),
     path(
         "insights/<int:pk>/",
-        AIInsightViewSet.as_view(
-            {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }
-        ),
+        AIInsightViewSet.as_view({"get": "retrieve"}),
         name="ai-insights-detail",
+    ),
+    path(
+        "insights/<int:pk>/mark-addressed/",
+        AIInsightViewSet.as_view({"post": "mark_addressed"}),
+        name="ai-insights-mark-addressed",
     ),
     path(
         "insights/chatbot-context/",
@@ -31,6 +29,7 @@ urlpatterns = [
         AIInsightViewSet.as_view({"post": "analyze_user"}),
         name="ai-insights-analyze-user",
     ),
+    
     # Therapy Recommendations endpoints
     path(
         "recommendations/",

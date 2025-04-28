@@ -136,6 +136,12 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
 
     sender_name = serializers.CharField(source="sender.username", read_only=True)
 
+    media = serializers.FileField(
+        required=False,
+        allow_null=True,
+        help_text="Upload media files (images, videos, PDFs, etc.)",
+    )
+
     class Meta:
         model = OneToOneMessage
         fields = [
@@ -146,6 +152,7 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
             "sender",
             "sender_name",
             "timestamp",
+            "media",
         ]
         read_only_fields = ["id", "sender", "sender_name", "timestamp"]
 

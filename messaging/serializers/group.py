@@ -96,6 +96,12 @@ class GroupMessageSerializer(serializers.ModelSerializer):
 
     edit_history = serializers.ListField(child=serializers.CharField(), default=list)
 
+    media = serializers.FileField(
+        required=False,
+        allow_null=True,
+        help_text="Upload media files (images, videos, PDFs, etc.)",
+    )
+
     class Meta:
         model = GroupMessage
         fields = [
@@ -106,5 +112,6 @@ class GroupMessageSerializer(serializers.ModelSerializer):
             "sender",
             "timestamp",
             "edit_history",
+            "media",
         ]
         read_only_fields = ["id", "sender", "timestamp"]

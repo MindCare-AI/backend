@@ -12,6 +12,7 @@ from django.views.decorators.cache import cache_page
 
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
@@ -420,6 +421,15 @@ class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet
     serializer_class = GroupMessageSerializer
     permission_classes = [IsParticipantOrModerator]
     renderer_classes = [JSONRenderer, BrowsableAPIRenderer]
+
+    def perform_create(self, serializer):
+        """Handle media uploads during message creation."""
+        request = self.request
+        if not request.user:
+            raise serializers.ValidationError("Authenticated user is required.")
+
+        # Pass the authenticated user as the sender
+        serializer.save(sender=request.user)
 
     @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
     def list(self, request, *args, **kwargs):

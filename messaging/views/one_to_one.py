@@ -1,5 +1,5 @@
 # messaging/views/one_to_one.py
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Count, Max, Q, Prefetch
@@ -409,3 +409,12 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
             {"detail": "This feature is not implemented yet."},
             status=status.HTTP_501_NOT_IMPLEMENTED,
         )
+
+    def perform_create(self, serializer):
+        """Handle media uploads during message creation."""
+        request = self.request
+        if not request.user:
+            raise serializers.ValidationError("Authenticated user is required.")
+
+        # Pass the authenticated user as the sender
+        serializer.save(sender=request.user)

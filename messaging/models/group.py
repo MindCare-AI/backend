@@ -23,6 +23,18 @@ class GroupMessage(BaseMessage):
     message_type = models.CharField(
         max_length=10, choices=[("text", "Text"), ("system", "System")], default="text"
     )
+    media = models.FileField(
+        upload_to="uploads/group/",
+        blank=True,
+        null=True,
+        help_text="Upload media files (images, videos, PDFs, etc.)",
+    )
+
+    def clean(self):
+        super().clean()
+        if self.media:
+            from media_handler.utils import validate_file_extension
+            validate_file_extension(self.media.name, [".jpg", ".png", ".mp4", ".pdf"])
 
     def __str__(self):
         return f"Message by {self.sender} in {self.conversation}"

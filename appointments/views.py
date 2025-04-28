@@ -8,7 +8,7 @@ from drf_spectacular.types import OpenApiTypes
 from django.core.exceptions import ValidationError
 from datetime import datetime
 from .models import Appointment, WaitingListEntry
-from .serializers import AppointmentSerializer, WaitingListEntrySerializer
+from .serializers import AppointmentSerializer, WaitingListEntrySerializer, AppointmentConfirmationSerializer
 from therapist.permissions.therapist_permissions import IsVerifiedTherapist
 from core.permissions import IsPatientOrTherapist
 from notifications.models import Notification
@@ -140,20 +140,48 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             403: OpenApiTypes.OBJECT,
         },
     )
-    @action(detail=True, methods=["post"], permission_classes=[IsVerifiedTherapist])
+    @action(detail=True, methods=["get", "post"], permission_classes=[IsVerifiedTherapist])
     def confirm(self, request, pk=None):
         appointment = self.get_object()
-
-        if appointment.status != "pending":
+        
+        if request.method == "GET":
+            # Return appointment details with confirmation status
+            if appointment.status in ["pending", "scheduled"]:
+                serializer = AppointmentConfirmationSerializer(appointment, context={"request": request})
+                return Response({
+                    "appointment": serializer.data,
+                    "can_confirm": True,
+                    "message": "Please confirm this appointment."
+                })
+            elif appointment.status == "confirmed":
+                serializer = AppointmentConfirmationSerializer(appointment, context={"request": request})
+                return Response({
+                    "appointment": serializer.data,
+                    "can_confirm": False,
+                    "message": "This appointment is already confirmed."
+                })
+            else:
+                return Response(
+                    {"error": f"Cannot confirm appointment with status: {appointment.status}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+                
+        # Handle POST request for confirming the appointment
+        if appointment.status not in ["pending", "scheduled"]:
             return Response(
-                {"error": "Can only confirm pending appointments"},
+                {"error": "Can only confirm pending or scheduled appointments"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         appointment.status = "confirmed"
         appointment.save()
-
-        return Response({"message": "Appointment confirmed successfully"})
+        
+        # Return detailed confirmation response with the custom serializer
+        serializer = AppointmentConfirmationSerializer(appointment, context={"request": request})
+        return Response({
+            "message": "Appointment confirmed successfully",
+            "appointment": serializer.data
+        })
 
     @extend_schema(
         description="Mark an appointment as completed (therapist only)",

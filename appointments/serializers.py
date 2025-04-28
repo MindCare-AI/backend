@@ -302,3 +302,34 @@ class WaitingListEntrySerializer(serializers.ModelSerializer):
         if value < timezone.now().date():
             raise serializers.ValidationError("Requested date must be in the future")
         return value
+
+
+class AppointmentConfirmationSerializer(serializers.ModelSerializer):
+    appointment_id = serializers.CharField(read_only=True)
+    appointment_date = serializers.DateTimeField(read_only=True, format='%Y-%m-%d %H:%M')
+    patient_name = serializers.CharField(source="patient.user.get_full_name", read_only=True)
+    status = serializers.CharField(read_only=True)
+    confirmed_by = serializers.SerializerMethodField()
+    confirmation_date = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Appointment
+        fields = [
+            "appointment_id",
+            "appointment_date",
+            "patient_name",
+            "status",
+            "confirmed_by",
+            "confirmation_date",
+            "video_session_link",
+        ]
+        read_only_fields = fields
+    
+    def get_confirmed_by(self, obj):
+        request = self.context.get("request")
+        if request and request.user:
+            return request.user.get_full_name() or request.user.username
+        return None
+    
+    def get_confirmation_date(self, obj):
+        return timezone.now()

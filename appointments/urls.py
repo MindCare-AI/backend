@@ -27,7 +27,7 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/confirm/",
-        AppointmentViewSet.as_view({"post": "confirm"}),
+        AppointmentViewSet.as_view({"get": "confirm", "post": "confirm"}),
         name="appointment-confirm",
     ),
     path(

@@ -140,6 +140,11 @@ urlpatterns = [
         GroupConversationViewSet.as_view({"post": "create_anonymous"}),
         name="create-anonymous-group",
     ),
+    path(
+        "groups/search_messages/",
+        GroupConversationViewSet.as_view({"get": "search_messages"}),
+        name="group-search-messages",
+    ),
 
     # Chatbot
     path(
@@ -156,5 +161,12 @@ urlpatterns = [
         "chatbot/<int:pk>/send_message/",
         ChatbotConversationViewSet.as_view({"post": "send_message"}),
         name="chatbot-send-message",
+    ),
+
+    # Unified Search
+    path(
+        "search/",
+        GroupConversationViewSet.as_view({"get": "search_all"}),
+        name="search-all-conversations",
     ),
 ]

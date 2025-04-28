@@ -73,16 +73,19 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     throttle_classes = [GroupMessageThrottle]
 
     def get_queryset(self):
+        """Fetch all groups the user is involved in."""
         user = self.request.user
-        if not user.is_authenticated:
-            return self.queryset.none()
-        return (
-            self.queryset.filter(participants=user)
-            .prefetch_related("participants", "moderators")
-            .annotate(
-                participant_count=Count("participants"), message_count=Count("messages")
-            )
-        )
+        logger.debug(f"Fetching groups for user: {user.id}")
+        groups = GroupConversation.objects.filter(participants=user)
+        logger.debug(f"Groups found: {groups.count()}")
+        return groups
+
+    def get_serializer_class(self):
+        """Return the appropriate serializer class based on the action."""
+        if self.action == "add_participant":
+            from ..serializers.group import AddParticipantSerializer
+            return AddParticipantSerializer
+        return super().get_serializer_class()
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -211,10 +214,10 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "ID of the user to add as participant.",
+                    "description": "ID of the user to add as participant."
                 }
             },
-            "required": ["user_id"],
+            "required": ["user_id"]
         },
         responses={
             200: OpenApiResponse(
@@ -227,9 +230,9 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 description="Forbidden – only moderators can add participants."
             ),
         },
-        tags=["Group Conversation"],
+        tags=["Group Conversation"]
     )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="add_participant")
     def add_participant(self, request, pk=None):
         """Add participant to group"""
         try:
@@ -239,10 +242,16 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             if not group.moderators.filter(id=request.user.id).exists():
                 return Response(
                     {"error": "Only moderators can add participants"},
-                    status=status.HTTP_403_FORBIDDEN,
+                    status=status.HTTP_403_FORBIDDEN
                 )
 
             user_id = request.data.get("user_id")
+            if not user_id:
+                return Response(
+                    {"error": "user_id is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             user = get_object_or_404(get_user_model(), id=user_id)
 
             if (
@@ -251,30 +260,27 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             ):
                 return Response(
                     {"error": "Maximum participant limit reached"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_400_BAD_REQUEST
                 )
 
             # Check if user is already a participant
             if group.participants.filter(id=user_id).exists():
                 return Response(
                     {"message": f"{user.username} is already a member of this group"},
-                    status=status.HTTP_200_OK,
+                    status=status.HTTP_200_OK
                 )
 
             group.participants.add(user)
-            # Invalidate conversation cache since participants changed
-            cache_key = f'group_conversation_{pk}'
-            cache.delete(cache_key)
             return Response(
                 {"message": f"Added {user.username} to group"},
-                status=status.HTTP_200_OK,
+                status=status.HTTP_200_OK
             )
 
         except Exception as e:
             logger.error(f"Error adding participant: {str(e)}")
             return Response(
                 {"error": "Failed to add participant"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @extend_schema(
@@ -414,6 +420,63 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         # Cache the response for 30 minutes (groups change more often than 1-1 chats)
         cache.set(cache_key, response.data, timeout=1800)
         return response
+
+    @action(detail=False, methods=["get"], url_path="search_messages")
+    def search_messages(self, request):
+        """Search group messages by content with partial matching."""
+        query = request.query_params.get("query", "").strip()
+        if not query:
+            return Response(
+                {"error": "Query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        messages = GroupMessage.objects.filter(content__icontains=query)
+        serializer = GroupMessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="search_groups")
+    def search_groups(self, request):
+        """Search group conversations by name with partial matching."""
+        query = request.query_params.get("query", "").strip()
+        if not query:
+            return Response(
+                {"error": "Query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        groups = GroupConversation.objects.filter(name__icontains=query)
+        serializer = GroupConversationSerializer(groups, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="search_all")
+    def search_all(self, request):
+        """Unified search for group conversations and one-to-one conversations by name."""
+        query = request.query_params.get("query", "").strip()
+        if not query:
+            return Response(
+                {"error": "Query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Search group conversations
+        group_results = GroupConversation.objects.filter(name__icontains=query)
+        group_serializer = GroupConversationSerializer(group_results, many=True)
+
+        # Search one-to-one conversations
+        from ..models.one_to_one import OneToOneConversation
+        from ..serializers.one_to_one import OneToOneConversationSerializer
+
+        one_to_one_results = OneToOneConversation.objects.filter(participants__username__icontains=query).distinct()
+        one_to_one_serializer = OneToOneConversationSerializer(one_to_one_results, many=True)
+
+        return Response(
+            {
+                "groups": group_serializer.data,
+                "one_to_one": one_to_one_serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet):

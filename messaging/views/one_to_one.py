@@ -374,18 +374,30 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        """Get message with cache handling"""
+        """Get message with cache handling and debug logging."""
         message_id = kwargs.get('pk')
-        cache_key = f'one_to_one_message_{message_id}'
-        
+        logger.debug(f"Attempting to retrieve message with ID: {message_id}")
+
+        # Check if the message exists in the queryset
+        try:
+            message = self.get_queryset().get(id=message_id)
+            logger.debug(f"Message found: {message}")
+        except OneToOneMessage.DoesNotExist:
+            logger.error(f"Message with ID {message_id} does not exist or is not accessible.")
+            return Response(
+                {"detail": "No OneToOneMessage matches the given query."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         # Try to get from cache first
+        cache_key = f'one_to_one_message_{message_id}'
         cached_message = cache.get(cache_key)
         if cached_message:
+            logger.debug(f"Returning cached message for ID: {message_id}")
             return Response(cached_message)
-            
+
+        # Serialize and cache the response
         response = super().retrieve(request, *args, **kwargs)
-        
-        # Cache the response for 1 hour
         cache.set(cache_key, response.data, timeout=3600)
         return response
 
@@ -418,3 +430,11 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
 
         # Pass the authenticated user as the sender
         serializer.save(sender=request.user)
+
+    def get_serializer(self, *args, **kwargs):
+        """Customize serializer to exclude unnecessary fields for specific actions."""
+        serializer_class = self.get_serializer_class()
+        if self.action in ["list", "retrieve"]:
+            kwargs["context"] = self.get_serializer_context()
+            kwargs["exclude"] = ["conversation"]  # Exclude conversation field
+        return serializer_class(*args, **kwargs)

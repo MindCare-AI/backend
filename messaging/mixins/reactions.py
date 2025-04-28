@@ -180,20 +180,12 @@ class ReactionMixin:
             500: {"description": "Internal Server Error"},
         },
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], url_path="reactions")
     def reactions(self, request, pk=None):
-        """Get all reactions for a message"""
+        """Get all reactions for a message."""
         try:
-            try:
-                message = self.get_object()
-            except Http404:
-                return Response(
-                    {"error": f"Message with ID {pk} not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            return Response(message.reactions or {})
-
+            message = self.get_object()
+            return Response(message.reactions or {}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error fetching reactions: {str(e)}", exc_info=True)
             return Response(

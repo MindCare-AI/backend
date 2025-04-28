@@ -63,7 +63,42 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AIInsightSerializer
 
     def get_queryset(self):
-        return AIInsight.objects.filter(user=self.request.user)
+        """Get insights for the authenticated user"""
+        return AIInsight.objects.filter(user=self.request.user).order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        """List all insights for the user"""
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Retrieve a specific insight"""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+        
+    def create(self, request, *args, **kwargs):
+        """Create a new insight manually (admin only)"""
+        # Only allow staff users to manually create insights
+        if not request.user.is_staff:
+            return Response(
+                {"error": "Only staff users can create insights manually"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+        
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     @action(detail=True, methods=["post"])
     def mark_addressed(self, request, pk=None):
@@ -142,6 +177,45 @@ class AIInsightViewSet(viewsets.ReadOnlyModelViewSet):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    @action(detail=False, methods=["get"])
+    def unaddressed(self, request):
+        """Get all unaddressed insights"""
+        insights = AIInsight.objects.filter(
+            user=request.user, is_addressed=False
+        ).order_by("-priority", "-created_at")
+        serializer = self.get_serializer(insights, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["post"])
+    def generate_insights(self, request):
+        """Generate new insights based on user data"""
+        try:
+            analysis = ai_service.analyze_user_data(request.user)
+            if analysis and analysis.get("needs_attention"):
+                insight = AIInsight.objects.create(
+                    user=request.user,
+                    insight_type="ai_generated",
+                    insight_data={
+                        "analysis": analysis,
+                        "generated_at": timezone.now().isoformat(),
+                    },
+                    priority="medium",
+                    is_addressed=False,
+                )
+                serializer = self.get_serializer(insight)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                return Response(
+                    {"message": "No insights generated from current data"},
+                    status=status.HTTP_200_OK,
+                )
+        except Exception as e:
+            logger.error(f"Error generating insights: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Failed to generate insights"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class TherapyRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -164,3 +238,12 @@ class TherapyRecommendationViewSet(viewsets.ReadOnlyModelViewSet):
             {"error": "Invalid rating. Must be between 1 and 5"},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    @action(detail=True, methods=["post"])
+    def mark_implemented(self, request, pk=None):
+        """Mark a recommendation as implemented"""
+        recommendation = self.get_object()
+        recommendation.is_implemented = True
+        recommendation.save()
+        serializer = self.get_serializer(recommendation)
+        return Response(serializer.data)

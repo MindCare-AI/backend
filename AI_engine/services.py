@@ -12,6 +12,7 @@ from journal.models import JournalEntry
 
 logger = logging.getLogger(__name__)
 
+
 class OllamaModelManager:
     def __init__(self):
         self.base_url = "http://localhost:11434/api"
@@ -22,8 +23,12 @@ class OllamaModelManager:
         try:
             response = requests.get(f"{self.base_url}/tags")
             if response.status_code == 200:
-                installed_models = [model['name'] for model in response.json()['models']]
-                return {model: model in installed_models for model in self.required_models}
+                installed_models = [
+                    model["name"] for model in response.json()["models"]
+                ]
+                return {
+                    model: model in installed_models for model in self.required_models
+                }
             return {model: False for model in self.required_models}
         except Exception as e:
             logger.error(f"Error checking model status: {str(e)}")
@@ -32,10 +37,7 @@ class OllamaModelManager:
     def install_model(self, model_name: str) -> bool:
         """Install a specific model"""
         try:
-            response = requests.post(
-                f"{self.base_url}/pull",
-                json={"name": model_name}
-            )
+            response = requests.post(f"{self.base_url}/pull", json={"name": model_name})
             return response.status_code == 200
         except Exception as e:
             logger.error(f"Error installing model {model_name}: {str(e)}")
@@ -45,25 +47,26 @@ class OllamaModelManager:
         """Check and install missing models"""
         status = self.check_model_status()
         success = True
-        
+
         for model, installed in status.items():
             if not installed:
                 logger.info(f"Installing missing model: {model}")
                 if not self.install_model(model):
                     success = False
                     logger.error(f"Failed to install model: {model}")
-        
+
         return success
+
 
 class AIAnalysisService:
     def __init__(self):
         self.base_url = settings.OLLAMA_URL
         self.default_model = "mistral"
         self.initialized = False
-        self.batch_size = settings.AI_ENGINE_SETTINGS['ANALYSIS_BATCH_SIZE']
-        self.max_period = settings.AI_ENGINE_SETTINGS['MAX_ANALYSIS_PERIOD']
-        self.min_data_points = settings.AI_ENGINE_SETTINGS['MIN_DATA_POINTS']
-        self.risk_threshold = settings.AI_ENGINE_SETTINGS['RISK_THRESHOLD']
+        self.batch_size = settings.AI_ENGINE_SETTINGS["ANALYSIS_BATCH_SIZE"]
+        self.max_period = settings.AI_ENGINE_SETTINGS["MAX_ANALYSIS_PERIOD"]
+        self.min_data_points = settings.AI_ENGINE_SETTINGS["MIN_DATA_POINTS"]
+        self.risk_threshold = settings.AI_ENGINE_SETTINGS["RISK_THRESHOLD"]
 
     def initialize(self) -> bool:
         """Initialize the AI service and ensure required models are available"""
@@ -75,10 +78,16 @@ class AIAnalysisService:
                 return False
 
             # Check if required model is available
-            model_response = requests.get(f"{self.base_url}/api/show", params={"name": self.default_model})
+            model_response = requests.get(
+                f"{self.base_url}/api/show", params={"name": self.default_model}
+            )
             if model_response.status_code == 404:
-                logger.info(f"Model {self.default_model} not found, attempting to pull...")
-                pull_response = requests.post(f"{self.base_url}/api/pull", json={"name": self.default_model})
+                logger.info(
+                    f"Model {self.default_model} not found, attempting to pull..."
+                )
+                pull_response = requests.post(
+                    f"{self.base_url}/api/pull", json={"name": self.default_model}
+                )
                 if pull_response.status_code != 200:
                     logger.error(f"Failed to pull model {self.default_model}")
                     return False
@@ -101,31 +110,31 @@ class AIAnalysisService:
             # Get user data
             mood_data = self._get_mood_data(user, date_range)
             journal_data = self._get_journal_data(user, date_range)
-            
+
             if not mood_data and not journal_data:
                 return self._create_default_analysis()
 
             # Analyze using Ollama
             analysis = self._analyze_with_ollama(mood_data, journal_data)
-            
+
             # Create analysis record
             user_analysis = UserAnalysis.objects.create(
                 user=user,
-                mood_score=analysis.get('mood_score', 0),
-                sentiment_score=analysis.get('sentiment_score', 0),
-                dominant_emotions=analysis.get('emotions', []),
-                topics_of_concern=analysis.get('topics', []),
-                suggested_activities=analysis.get('activities', []),
-                risk_factors=analysis.get('risks', {}),
-                improvement_metrics=analysis.get('improvements', {})
+                mood_score=analysis.get("mood_score", 0),
+                sentiment_score=analysis.get("sentiment_score", 0),
+                dominant_emotions=analysis.get("emotions", []),
+                topics_of_concern=analysis.get("topics", []),
+                suggested_activities=analysis.get("activities", []),
+                risk_factors=analysis.get("risks", {}),
+                improvement_metrics=analysis.get("improvements", {}),
             )
-            
+
             # Generate insights if needed
-            if analysis.get('needs_attention'):
+            if analysis.get("needs_attention"):
                 self._generate_insights(user, analysis)
-                
+
             return user_analysis
-            
+
         except Exception as e:
             logger.error(f"Error analyzing user data: {str(e)}")
             return None
@@ -134,36 +143,42 @@ class AIAnalysisService:
         """Get user's mood data for analysis"""
         end_date = timezone.now()
         start_date = end_date - timedelta(days=days)
-        
+
         mood_logs = MoodLog.objects.filter(
-            user=user,
-            timestamp__range=(start_date, end_date)
-        ).order_by('-timestamp')
-        
-        return [{
-            'mood': log.mood_rating,
-            'activities': log.activities,
-            'timestamp': log.timestamp.isoformat()
-        } for log in mood_logs]
+            user=user, timestamp__range=(start_date, end_date)
+        ).order_by("-timestamp")
+
+        return [
+            {
+                "mood": log.mood_rating,
+                "activities": log.activities,
+                "timestamp": log.timestamp.isoformat(),
+            }
+            for log in mood_logs
+        ]
 
     def _get_journal_data(self, user, days: int) -> List[Dict]:
         """Get user's journal data for analysis"""
         end_date = timezone.now()
         start_date = end_date - timedelta(days=days)
-        
-        entries = JournalEntry.objects.filter(
-            user=user,
-            created_at__range=(start_date, end_date)
-        ).order_by('-created_at')
-        
-        return [{
-            'content': entry.content,
-            'mood': entry.mood,
-            'activities': entry.activities,
-            'timestamp': entry.created_at.isoformat()
-        } for entry in entries]
 
-    def _analyze_with_ollama(self, mood_data: List[Dict], journal_data: List[Dict]) -> Dict:
+        entries = JournalEntry.objects.filter(
+            user=user, created_at__range=(start_date, end_date)
+        ).order_by("-created_at")
+
+        return [
+            {
+                "content": entry.content,
+                "mood": entry.mood,
+                "activities": entry.activities,
+                "timestamp": entry.created_at.isoformat(),
+            }
+            for entry in entries
+        ]
+
+    def _analyze_with_ollama(
+        self, mood_data: List[Dict], journal_data: List[Dict]
+    ) -> Dict:
         """Analyze data using Ollama"""
         if not self.initialized:
             logger.error("AI service not initialized")
@@ -171,28 +186,28 @@ class AIAnalysisService:
 
         try:
             prompt = self._build_analysis_prompt(mood_data, journal_data)
-            
+
             response = requests.post(
                 f"{self.base_url}/api/generate",
-                json={
-                    "model": self.default_model,
-                    "prompt": prompt,
-                    "stream": False
-                }
+                json={"model": self.default_model, "prompt": prompt, "stream": False},
             )
-            
+
             if response.status_code == 200:
                 result = response.json()
-                return self._parse_analysis_response(result['response'])
+                return self._parse_analysis_response(result["response"])
             else:
-                logger.error(f"Ollama request failed with status {response.status_code}")
+                logger.error(
+                    f"Ollama request failed with status {response.status_code}"
+                )
                 return self._create_default_analysis()
-                
+
         except Exception as e:
             logger.error(f"Error in Ollama analysis: {str(e)}")
             return self._create_default_analysis()
 
-    def _build_analysis_prompt(self, mood_data: List[Dict], journal_data: List[Dict]) -> str:
+    def _build_analysis_prompt(
+        self, mood_data: List[Dict], journal_data: List[Dict]
+    ) -> str:
         """Build prompt for AI analysis"""
         return f"""As a mental health analysis system, analyze the following user data:
 
@@ -222,17 +237,25 @@ Format your response as a JSON object with these fields:
         """Parse and validate the AI analysis response"""
         try:
             analysis = json.loads(response)
-            
+
             # Ensure all required fields are present
-            required_fields = ['mood_score', 'sentiment_score', 'emotions', 'topics', 
-                             'activities', 'risks', 'improvements', 'needs_attention']
-            
+            required_fields = [
+                "mood_score",
+                "sentiment_score",
+                "emotions",
+                "topics",
+                "activities",
+                "risks",
+                "improvements",
+                "needs_attention",
+            ]
+
             for field in required_fields:
                 if field not in analysis:
                     analysis[field] = self._create_default_analysis()[field]
-            
+
             return analysis
-            
+
         except json.JSONDecodeError:
             logger.error("Failed to parse AI analysis response as JSON")
             return self._create_default_analysis()
@@ -250,21 +273,22 @@ Format your response as a JSON object with these fields:
             "activities": ["relaxation"],
             "risks": {"general": "low"},
             "improvements": {"overall": 0},
-            "needs_attention": False
+            "needs_attention": False,
         }
 
     def _generate_insights(self, user, analysis: Dict):
         """Generate insights based on analysis"""
-        if analysis.get('needs_attention'):
+        if analysis.get("needs_attention"):
             AIInsight.objects.create(
                 user=user,
-                insight_type='risk_alert',
+                insight_type="risk_alert",
                 insight_data={
-                    'risk_factors': analysis['risks'],
-                    'suggested_actions': analysis['activities']
+                    "risk_factors": analysis["risks"],
+                    "suggested_actions": analysis["activities"],
                 },
-                priority='high'
+                priority="high",
             )
+
 
 # Create singleton instance
 ai_service = AIAnalysisService()

@@ -29,7 +29,11 @@ urlpatterns = [
     path(
         "profiles/<int:pk>/availability/",
         TherapistProfileViewSet.as_view(
-            {"get": "availability", "post": "update_availability", "patch": "availability"}
+            {
+                "get": "availability",
+                "post": "update_availability",
+                "patch": "availability",
+            }
         ),
         name="therapist-availability",
     ),

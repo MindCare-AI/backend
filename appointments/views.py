@@ -1,5 +1,4 @@
 from django.utils import timezone
-from django.db import transaction
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,7 +7,11 @@ from drf_spectacular.types import OpenApiTypes
 from django.core.exceptions import ValidationError
 from datetime import datetime
 from .models import Appointment, WaitingListEntry
-from .serializers import AppointmentSerializer, WaitingListEntrySerializer, AppointmentConfirmationSerializer
+from .serializers import (
+    AppointmentSerializer,
+    WaitingListEntrySerializer,
+    AppointmentConfirmationSerializer,
+)
 from therapist.permissions.therapist_permissions import IsVerifiedTherapist
 from core.permissions import IsPatientOrTherapist
 from notifications.models import Notification
@@ -80,7 +83,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             qs = qs.filter(appointment_date__gt=timezone.now())
 
         # Filter by therapist's available day if patient has a therapist
-        if hasattr(user, "patient_profile") and hasattr(user.patient_profile, "therapist"):
+        if hasattr(user, "patient_profile") and hasattr(
+            user.patient_profile, "therapist"
+        ):
             therapist = user.patient_profile.therapist
             qs = qs.filter(date=therapist.available_day)
 
@@ -92,7 +97,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if hasattr(user, "patient_profile"):
             serializer.save(patient_profile=user.patient_profile, rescheduled_by=None)
         else:
-            serializer.save(rescheduled_by=None)  # Fallback if no patient_profile attribute
+            serializer.save(
+                rescheduled_by=None
+            )  # Fallback if no patient_profile attribute
 
     @extend_schema(
         description="Cancel an appointment",
@@ -140,32 +147,44 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             403: OpenApiTypes.OBJECT,
         },
     )
-    @action(detail=True, methods=["get", "post"], permission_classes=[IsVerifiedTherapist])
+    @action(
+        detail=True, methods=["get", "post"], permission_classes=[IsVerifiedTherapist]
+    )
     def confirm(self, request, pk=None):
         appointment = self.get_object()
-        
+
         if request.method == "GET":
             # Return appointment details with confirmation status
             if appointment.status in ["pending", "scheduled"]:
-                serializer = AppointmentConfirmationSerializer(appointment, context={"request": request})
-                return Response({
-                    "appointment": serializer.data,
-                    "can_confirm": True,
-                    "message": "Please confirm this appointment."
-                })
+                serializer = AppointmentConfirmationSerializer(
+                    appointment, context={"request": request}
+                )
+                return Response(
+                    {
+                        "appointment": serializer.data,
+                        "can_confirm": True,
+                        "message": "Please confirm this appointment.",
+                    }
+                )
             elif appointment.status == "confirmed":
-                serializer = AppointmentConfirmationSerializer(appointment, context={"request": request})
-                return Response({
-                    "appointment": serializer.data,
-                    "can_confirm": False,
-                    "message": "This appointment is already confirmed."
-                })
+                serializer = AppointmentConfirmationSerializer(
+                    appointment, context={"request": request}
+                )
+                return Response(
+                    {
+                        "appointment": serializer.data,
+                        "can_confirm": False,
+                        "message": "This appointment is already confirmed.",
+                    }
+                )
             else:
                 return Response(
-                    {"error": f"Cannot confirm appointment with status: {appointment.status}"},
+                    {
+                        "error": f"Cannot confirm appointment with status: {appointment.status}"
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-                
+
         # Handle POST request for confirming the appointment
         if appointment.status not in ["pending", "scheduled"]:
             return Response(
@@ -175,13 +194,17 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
         appointment.status = "confirmed"
         appointment.save()
-        
+
         # Return detailed confirmation response with the custom serializer
-        serializer = AppointmentConfirmationSerializer(appointment, context={"request": request})
-        return Response({
-            "message": "Appointment confirmed successfully",
-            "appointment": serializer.data
-        })
+        serializer = AppointmentConfirmationSerializer(
+            appointment, context={"request": request}
+        )
+        return Response(
+            {
+                "message": "Appointment confirmed successfully",
+                "appointment": serializer.data,
+            }
+        )
 
     @extend_schema(
         description="Mark an appointment as completed (therapist only)",

@@ -7,7 +7,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("appointments", "0005_alter_appointment_rescheduled_by"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

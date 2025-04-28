@@ -7,19 +7,25 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 @receiver(post_save, sender=MoodLog)
 def trigger_mood_analysis(sender, instance, created, **kwargs):
     """Trigger AI analysis when a new mood log is created"""
     if created:
         try:
             service = AIAnalysisService()
-            analysis = service.analyze_user_data(instance.user, date_range=7)  # Analyze last week
-            
+            analysis = service.analyze_user_data(
+                instance.user, date_range=7
+            )  # Analyze last week
+
             if analysis:
-                logger.info(f"Generated new AI analysis for user {instance.user.id} after mood log")
-            
+                logger.info(
+                    f"Generated new AI analysis for user {instance.user.id} after mood log"
+                )
+
         except Exception as e:
             logger.error(f"Error triggering mood analysis: {str(e)}", exc_info=True)
+
 
 @receiver(post_save, sender=JournalEntry)
 def trigger_journal_analysis(sender, instance, created, **kwargs):
@@ -27,10 +33,14 @@ def trigger_journal_analysis(sender, instance, created, **kwargs):
     if created:
         try:
             service = AIAnalysisService()
-            analysis = service.analyze_user_data(instance.user, date_range=7)  # Analyze last week
-            
+            analysis = service.analyze_user_data(
+                instance.user, date_range=7
+            )  # Analyze last week
+
             if analysis:
-                logger.info(f"Generated new AI analysis for user {instance.user.id} after journal entry")
-            
+                logger.info(
+                    f"Generated new AI analysis for user {instance.user.id} after journal entry"
+                )
+
         except Exception as e:
             logger.error(f"Error triggering journal analysis: {str(e)}", exc_info=True)

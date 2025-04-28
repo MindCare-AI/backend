@@ -9,8 +9,6 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mindcare.settings")
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),
-        "websocket": UnifiedWebSocketAuthMiddleware(
-            URLRouter(websocket_urlpatterns)
-        ),
+        "websocket": UnifiedWebSocketAuthMiddleware(URLRouter(websocket_urlpatterns)),
     }
 )

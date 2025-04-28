@@ -275,8 +275,8 @@ USE_I18N = True
 
 USE_TZ = True
 
-TIME_INPUT_FORMATS = ['%H:%M']
-TIME_FORMAT = 'H:i'
+TIME_INPUT_FORMATS = ["%H:%M"]
+TIME_FORMAT = "H:i"
 USE_L10N = False  # Disable localization to ensure your format is used
 
 
@@ -381,11 +381,11 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_CONTENT_NEGOTIATION_CLASS": "rest_framework.negotiation.DefaultContentNegotiation",
     # Note: For date-only fields (if any)
-    'DATE_FORMAT': '%Y-%m-%d',
+    "DATE_FORMAT": "%Y-%m-%d",
     # For time only fields
-    'TIME_FORMAT': '%H:%M',
+    "TIME_FORMAT": "%H:%M",
     # For date/time fields – 24-hour format
-    'DATETIME_FORMAT': '%Y-%m-%d %H:%M',
+    "DATETIME_FORMAT": "%Y-%m-%d %H:%M",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -570,12 +570,12 @@ GEMINI_API_URL = (
 
 # Notification Cache Settings
 NOTIFICATION_SETTINGS = {
-    'CACHE_TIMEOUT': 3600,  # 1 hour default
-    'COUNT_CACHE_TIMEOUT': 60,  # 1 minute for notification counts
-    'TYPE_CACHE_TIMEOUT': 86400,  # 24 hours for notification types
-    'PREFERENCES_CACHE_TIMEOUT': 3600,  # 1 hour for user preferences
-    'CACHE_KEY_PREFIX': 'notification',
-    'MAX_CACHED_TYPES': 100,
+    "CACHE_TIMEOUT": 3600,  # 1 hour default
+    "COUNT_CACHE_TIMEOUT": 60,  # 1 minute for notification counts
+    "TYPE_CACHE_TIMEOUT": 86400,  # 24 hours for notification types
+    "PREFERENCES_CACHE_TIMEOUT": 3600,  # 1 hour for user preferences
+    "CACHE_KEY_PREFIX": "notification",
+    "MAX_CACHED_TYPES": 100,
 }
 
 # Verification settings - consolidated and enhanced
@@ -635,9 +635,9 @@ VERIFICATION_SETTINGS = {
             "State Mental Health Board",
             "Board of Professional Counselors",
             "National Board for Certified Counselors",
-            "American Psychological Association"
-        ]
-    }
+            "American Psychological Association",
+        ],
+    },
 }
 
 GROUP_SETTINGS = {
@@ -687,12 +687,12 @@ USER_TYPE_THROTTLE_RATES = {
 
 # Redis Cache Configuration
 CACHES = {
-        "default": {
+    "default": {
         "BACKEND": "django_redis.cache.RedisCache",
         "LOCATION": os.getenv("REDIS_URL", "redis://localhost:6379/0"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
+        },
     }
 }
 
@@ -710,9 +710,9 @@ SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
 
 # Cache middleware settings
-CACHE_MIDDLEWARE_ALIAS = 'default'
+CACHE_MIDDLEWARE_ALIAS = "default"
 CACHE_MIDDLEWARE_SECONDS = 3600
-CACHE_MIDDLEWARE_KEY_PREFIX = 'mindcare'
+CACHE_MIDDLEWARE_KEY_PREFIX = "mindcare"
 
 # Cache time to live is 15 minutes
 CACHE_TTL = 60 * 15
@@ -755,7 +755,7 @@ WS_MESSAGE_TYPES = {
 }
 
 # AI and Ollama Settings
-OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 
 CHATBOT_SETTINGS = {
     "MAX_RETRIES": 3,
@@ -764,12 +764,11 @@ CHATBOT_SETTINGS = {
 }
 
 AI_ENGINE_SETTINGS = {
-    'ANALYSIS_BATCH_SIZE': 100,
-    'MAX_ANALYSIS_PERIOD': 90,  # Maximum days to analyze
-    'MIN_DATA_POINTS': 5,  # Minimum data points needed for analysis
-    'RISK_THRESHOLD': 0.7,  # Threshold for risk alerts
-    'UPDATE_FREQUENCY': 24,  # Hours between updates
-    'ENABLED_MODELS': ['sentiment', 'topic', 'risk'],
-    'CACHE_TIMEOUT': 3600,  # 1 hour cache for AI results
+    "ANALYSIS_BATCH_SIZE": 100,
+    "MAX_ANALYSIS_PERIOD": 90,  # Maximum days to analyze
+    "MIN_DATA_POINTS": 5,  # Minimum data points needed for analysis
+    "RISK_THRESHOLD": 0.7,  # Threshold for risk alerts
+    "UPDATE_FREQUENCY": 24,  # Hours between updates
+    "ENABLED_MODELS": ["sentiment", "topic", "risk"],
+    "CACHE_TIMEOUT": 3600,  # 1 hour cache for AI results
 }
-

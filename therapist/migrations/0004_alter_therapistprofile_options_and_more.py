@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("therapist", "0003_alter_therapistprofile_license_expiry_and_more"),
     ]

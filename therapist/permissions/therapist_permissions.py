@@ -55,29 +55,29 @@ class IsTherapistOrReadOnly(BasePermission):
     Custom permission to only allow therapists to create/edit notes.
     Read-only access is provided to patients for their own notes.
     """
-    
+
     def has_permission(self, request, view):
         # Allow read access for authenticated users
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
+        if request.method in ["GET", "HEAD", "OPTIONS"]:
             return request.user.is_authenticated
-        
+
         # Write permissions only for therapists
         return request.user.is_authenticated and request.user.user_type == "therapist"
-    
+
     def has_object_permission(self, request, view, obj):
         # Read permissions are allowed to any authenticated user
-        if request.method in ['GET', 'HEAD', 'OPTIONS']:
+        if request.method in ["GET", "HEAD", "OPTIONS"]:
             # For therapists - allow if they created the note
             if request.user.user_type == "therapist":
                 return obj.therapist == request.user  # Compare with user directly
-            
+
             # For patients - allow if the note is about them
             elif request.user.user_type == "patient":
                 return obj.patient == request.user  # Compare with user directly
-            
+
             # For admins - allow access
             return request.user.is_staff
-        
+
         # Write permissions only for therapists who created the note
         return request.user.user_type == "therapist" and obj.therapist == request.user
 

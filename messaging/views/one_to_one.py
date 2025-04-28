@@ -375,7 +375,7 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         """Get message with cache handling and debug logging."""
-        message_id = kwargs.get('pk')
+        message_id = kwargs.get("pk")
         logger.debug(f"Attempting to retrieve message with ID: {message_id}")
 
         # Check if the message exists in the queryset
@@ -383,14 +383,16 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
             message = self.get_queryset().get(id=message_id)
             logger.debug(f"Message found: {message}")
         except OneToOneMessage.DoesNotExist:
-            logger.error(f"Message with ID {message_id} does not exist or is not accessible.")
+            logger.error(
+                f"Message with ID {message_id} does not exist or is not accessible."
+            )
             return Response(
                 {"detail": "No OneToOneMessage matches the given query."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         # Try to get from cache first
-        cache_key = f'one_to_one_message_{message_id}'
+        cache_key = f"one_to_one_message_{message_id}"
         cached_message = cache.get(cache_key)
         if cached_message:
             logger.debug(f"Returning cached message for ID: {message_id}")
@@ -407,10 +409,10 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
         response = super().add_reaction(request, pk)
         if response.status_code == 200:
             # Invalidate message cache
-            cache_key = f'one_to_one_message_{pk}'
+            cache_key = f"one_to_one_message_{pk}"
             cache.delete(cache_key)
             # Invalidate reactions cache
-            cache_key = f'message_reactions_{pk}'
+            cache_key = f"message_reactions_{pk}"
             cache.delete(cache_key)
         return response
 

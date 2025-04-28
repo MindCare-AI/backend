@@ -15,6 +15,7 @@ DEFAULT_NOTIFICATION_TYPES = [
     ("security_alert", "Security-related notifications"),
 ]
 
+
 @receiver(post_migrate)
 def create_default_notification_types(sender, **kwargs):
     """Create default notification types with cache handling"""
@@ -36,13 +37,14 @@ def create_default_notification_types(sender, **kwargs):
                     )
             except Exception as e:
                 logger.error(f"Error processing notification type {name}: {str(e)}")
-                
+
         if types_to_create:
             NotificationType.objects.bulk_create(types_to_create)
-            
+
             # Invalidate notification type cache after bulk create
             cache.delete_pattern("notification_type_*")
             cache.delete("all_notification_types")
+
 
 def receive_notification(sender, **kwargs):
     notification = kwargs.get("notification")

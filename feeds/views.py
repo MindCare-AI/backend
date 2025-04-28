@@ -290,7 +290,7 @@ class CommentViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 # Set the author to the current user
                 comment = serializer.save(author=self.request.user)
-                
+
                 # If this is a root comment on a post, directly create notification here
                 # for better performance (avoid signal overhead)
                 if not comment.parent and comment.post.author != self.request.user:
@@ -298,32 +298,34 @@ class CommentViewSet(viewsets.ModelViewSet):
                     notification_type = NotificationType.objects.get_or_create(
                         id=2,
                         defaults={
-                            'name': 'post_comment',
-                            'description': 'Comment on your post',
-                            'default_enabled': True,
-                            'is_global': True
-                        }
+                            "name": "post_comment",
+                            "description": "Comment on your post",
+                            "default_enabled": True,
+                            "is_global": True,
+                        },
                     )[0]
-                    
+
                     # Create notification with correct field names
                     Notification.objects.create(
                         user=comment.post.author,
                         notification_type=notification_type,
                         title=f"{self.request.user.get_full_name() or self.request.user.username} commented on your post",
-                        message=comment.content[:100],  # Use 'message' instead of 'content'
+                        message=comment.content[
+                            :100
+                        ],  # Use 'message' instead of 'content'
                         read=False,  # Use 'read' instead of 'is_read'
                     )
-                    
+
                     # Clear cache
-                    cache.delete(f'user_notifications_{comment.post.author.id}')
-                    
+                    cache.delete(f"user_notifications_{comment.post.author.id}")
+
                     # Update post comment count cache
                     cache.set(
-                        f"post_{comment.post.id}_comment_count", 
+                        f"post_{comment.post.id}_comment_count",
                         Comment.objects.filter(post=comment.post, parent=None).count(),
-                        timeout=3600
+                        timeout=3600,
                     )
-                    
+
         except Exception as e:
             logger.error(f"Error creating comment: {e}", exc_info=True)
             raise serializers.ValidationError({"detail": str(e)})
@@ -334,7 +336,9 @@ class CommentViewSet(viewsets.ModelViewSet):
                 user=post.author,
                 notification_type_id=2,
                 title=f"{self.request.user.get_full_name() or self.request.user.username} commented on your post",
-                message=serializer.validated_data.get("content", "")[:100],  # Changed from 'content' to 'message'
+                message=serializer.validated_data.get("content", "")[
+                    :100
+                ],  # Changed from 'content' to 'message'
                 read=False,  # Changed from 'is_read' to 'read'
             )
 
@@ -344,7 +348,9 @@ class CommentViewSet(viewsets.ModelViewSet):
                 user=parent.author,
                 notification_type_id=3,
                 title=f"{self.request.user.get_full_name() or self.request.user.username} replied to your comment",
-                message=serializer.validated_data.get("content", "")[:100],  # Changed from 'content' to 'message'
+                message=serializer.validated_data.get("content", "")[
+                    :100
+                ],  # Changed from 'content' to 'message'
                 read=False,  # Changed from 'is_read' to 'read'
             )
 

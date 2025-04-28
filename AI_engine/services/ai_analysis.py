@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 import logging
 from django.conf import settings
 import requests
@@ -10,76 +10,81 @@ from journal.models import JournalEntry
 
 logger = logging.getLogger(__name__)
 
+
 class AIAnalysisService:
     def __init__(self):
         self.base_url = settings.OLLAMA_URL
         self.model = "mistral"
-        self.batch_size = settings.AI_ENGINE_SETTINGS['ANALYSIS_BATCH_SIZE']
-        self.max_period = settings.AI_ENGINE_SETTINGS['MAX_ANALYSIS_PERIOD']
-        self.min_data_points = settings.AI_ENGINE_SETTINGS['MIN_DATA_POINTS']
-        self.risk_threshold = settings.AI_ENGINE_SETTINGS['RISK_THRESHOLD']
+        self.batch_size = settings.AI_ENGINE_SETTINGS["ANALYSIS_BATCH_SIZE"]
+        self.max_period = settings.AI_ENGINE_SETTINGS["MAX_ANALYSIS_PERIOD"]
+        self.min_data_points = settings.AI_ENGINE_SETTINGS["MIN_DATA_POINTS"]
+        self.risk_threshold = settings.AI_ENGINE_SETTINGS["RISK_THRESHOLD"]
 
     def analyze_user_data(self, user, date_range=30) -> Dict[str, Any]:
         """Analyze user's data using Ollama for insights"""
         try:
             end_date = timezone.now()
             start_date = end_date - timedelta(days=date_range)
-            
+
             # Get mood logs
             mood_logs = MoodLog.objects.filter(
-                user=user,
-                timestamp__range=(start_date, end_date)
-            ).order_by('-timestamp')
-            
+                user=user, timestamp__range=(start_date, end_date)
+            ).order_by("-timestamp")
+
             # Get journal entries
             journal_entries = JournalEntry.objects.filter(
-                user=user,
-                created_at__range=(start_date, end_date)
-            ).order_by('-created_at')
-            
+                user=user, created_at__range=(start_date, end_date)
+            ).order_by("-created_at")
+
             if not mood_logs and not journal_entries:
                 return self._create_default_analysis()
 
             # Prepare data for analysis
             data = {
-                'mood_logs': [{
-                    'mood': log.mood_rating,
-                    'activities': log.activities,
-                    'timestamp': log.timestamp.isoformat()
-                } for log in mood_logs],
-                'journal_entries': [{
-                    'content': entry.content,
-                    'mood': entry.mood,
-                    'activities': entry.activities,
-                    'timestamp': entry.created_at.isoformat()
-                } for entry in journal_entries]
+                "mood_logs": [
+                    {
+                        "mood": log.mood_rating,
+                        "activities": log.activities,
+                        "timestamp": log.timestamp.isoformat(),
+                    }
+                    for log in mood_logs
+                ],
+                "journal_entries": [
+                    {
+                        "content": entry.content,
+                        "mood": entry.mood,
+                        "activities": entry.activities,
+                        "timestamp": entry.created_at.isoformat(),
+                    }
+                    for entry in journal_entries
+                ],
             }
 
             # Get analysis from Ollama
             analysis = self._analyze_with_ollama(data)
-            
+
             # Save analysis results
             user_analysis = UserAnalysis.objects.create(
                 user=user,
-                mood_score=analysis.get('mood_score', 0),
-                sentiment_score=analysis.get('sentiment_score', 0),
-                dominant_emotions=analysis.get('emotions', []),
-                topics_of_concern=analysis.get('topics', []),
-                suggested_activities=analysis.get('activities', []),
-                risk_factors=analysis.get('risks', {}),
-                improvement_metrics=analysis.get('improvements', {})
+                mood_score=analysis.get("mood_score", 0),
+                sentiment_score=analysis.get("sentiment_score", 0),
+                dominant_emotions=analysis.get("emotions", []),
+                topics_of_concern=analysis.get("topics", []),
+                suggested_activities=analysis.get("activities", []),
+                risk_factors=analysis.get("risks", {}),
+                improvement_metrics=analysis.get("improvements", {}),
             )
 
             # Generate insights if needed
-            if analysis.get('needs_attention'):
+            if analysis.get("needs_attention"):
                 AIInsight.objects.create(
                     user=user,
-                    insight_type='risk_alert',
+                    insight_type="risk_alert",
                     insight_data={
-                        'risk_factors': analysis['risks'],
-                        'suggested_actions': analysis['activities']
+                        "risk_factors": analysis["risks"],
+                        "suggested_actions": analysis["activities"],
                     },
-                    priority='high'
+                    priority="high",
                 )
 
             return analysis
@@ -92,21 +97,19 @@ class AIAnalysisService:
         """Analyze data using Ollama"""
         try:
             prompt = self._build_analysis_prompt(data)
-            
+
             response = requests.post(
                 f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "stream": False
-                }
+                json={"model": self.model, "prompt": prompt, "stream": False},
             )
-            
+
             if response.status_code == 200:
                 result = response.json()
-                return self._parse_analysis_response(result['response'])
+                return self._parse_analysis_response(result["response"])
             else:
-                logger.error(f"Ollama request failed with status {response.status_code}")
+                logger.error(
+                    f"Ollama request failed with status {response.status_code}"
+                )
                 return self._create_default_analysis()
 
         except Exception as e:
@@ -136,20 +139,27 @@ Analyze this data and provide insights in JSON format with these fields:
         """Parse and validate Ollama's analysis response"""
         try:
             import json
+
             analysis = json.loads(response)
-            
+
             required_fields = [
-                'mood_score', 'sentiment_score', 'emotions', 'topics',
-                'activities', 'risks', 'improvements', 'needs_attention'
+                "mood_score",
+                "sentiment_score",
+                "emotions",
+                "topics",
+                "activities",
+                "risks",
+                "improvements",
+                "needs_attention",
             ]
-            
+
             # Ensure all required fields exist
             for field in required_fields:
                 if field not in analysis:
                     analysis[field] = self._create_default_analysis()[field]
-            
+
             return analysis
-            
+
         except json.JSONDecodeError:
             logger.error("Failed to parse Ollama analysis response as JSON")
             return self._create_default_analysis()
@@ -167,8 +177,9 @@ Analyze this data and provide insights in JSON format with these fields:
             "activities": ["relaxation"],
             "risks": {"general": "low"},
             "improvements": {"overall": 0},
-            "needs_attention": False
+            "needs_attention": False,
         }
+
 
 # Create singleton instance
 ai_service = AIAnalysisService()

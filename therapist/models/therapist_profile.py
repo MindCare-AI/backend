@@ -20,7 +20,9 @@ class TherapistProfile(models.Model):
     )
     bio = models.TextField(blank=True)
     specializations = models.JSONField(default=list)
-    education = models.JSONField(default=list, help_text="List of educational qualifications")
+    education = models.JSONField(
+        default=list, help_text="List of educational qualifications"
+    )
     experience = models.JSONField(default=list)
     years_of_experience = models.PositiveIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
@@ -32,11 +34,11 @@ class TherapistProfile(models.Model):
         default=dict, help_text="Dictionary of available days and time slots"
     )
     hourly_rate = models.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(0)]
+        validators=[MinValueValidator(0)],
     )
     profile_completion = models.FloatField(default=0)
     video_session_link = models.URLField(max_length=500, blank=True, null=True)
@@ -70,11 +72,13 @@ class TherapistProfile(models.Model):
     )
     therapy_types = models.JSONField(default=list, help_text="Types of therapy offered")
     accepts_insurance = models.BooleanField(default=False)
-    insurance_providers = models.JSONField(default=list, help_text="List of accepted insurance providers")
+    insurance_providers = models.JSONField(
+        default=list, help_text="List of accepted insurance providers"
+    )
     session_duration = models.PositiveIntegerField(
         default=60,
         help_text="Default session duration in minutes",
-        validators=[MinValueValidator(15), MaxValueValidator(180)]
+        validators=[MinValueValidator(15), MaxValueValidator(180)],
     )
 
     def __str__(self):
@@ -120,10 +124,14 @@ class TherapistProfile(models.Model):
                             raise ValidationError(f"Invalid time slot format in {day}")
 
                         try:
-                            start_time = datetime.strptime(slot["start"], "%H:%M").time()
+                            start_time = datetime.strptime(
+                                slot["start"], "%H:%M"
+                            ).time()
                             end_time = datetime.strptime(slot["end"], "%H:%M").time()
                             if start_time >= end_time:
-                                raise ValidationError(f"Start time must be before end time in {day}")
+                                raise ValidationError(
+                                    f"Start time must be before end time in {day}"
+                                )
                         except ValueError:
                             raise ValidationError(
                                 f"Invalid time format in {day}. Use HH:MM format"
@@ -187,17 +195,28 @@ class TherapistProfile(models.Model):
         if not is_slot_available:
             return False
 
-        requested_start_datetime = timezone.make_aware(datetime.combine(requested_date, requested_start_time))
-        requested_end_datetime = timezone.make_aware(datetime.combine(requested_date, requested_end_time))
+        requested_start_datetime = timezone.make_aware(
+            datetime.combine(requested_date, requested_start_time)
+        )
+        requested_end_datetime = timezone.make_aware(
+            datetime.combine(requested_date, requested_end_time)
+        )
 
-        conflicting_appointments = Appointment.objects.filter(
-            therapist=self,
-            appointment_date__date=requested_date,
-            status__in=["scheduled", "confirmed"],
-        ).filter(
-            Q(appointment_date__lt=requested_end_datetime) &
-            Q(appointment_date__gte=requested_start_datetime - timedelta(minutes=duration))
-        ).exists()
+        conflicting_appointments = (
+            Appointment.objects.filter(
+                therapist=self,
+                appointment_date__date=requested_date,
+                status__in=["scheduled", "confirmed"],
+            )
+            .filter(
+                Q(appointment_date__lt=requested_end_datetime)
+                & Q(
+                    appointment_date__gte=requested_start_datetime
+                    - timedelta(minutes=duration)
+                )
+            )
+            .exists()
+        )
 
         return not conflicting_appointments
 

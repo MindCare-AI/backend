@@ -74,8 +74,9 @@ class Notification(models.Model):
     def mark_read(self):
         """Mark notification as read with cache invalidation"""
         from django.core.cache import cache
+
         self.read = True
         self.save()
         # Invalidate relevant caches
-        cache.delete(f'user_notifications_{self.user.id}')
-        cache.delete(f'notification_count_{self.user.id}')
+        cache.delete(f"user_notifications_{self.user.id}")
+        cache.delete(f"notification_count_{self.user.id}")

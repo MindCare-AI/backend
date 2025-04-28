@@ -24,16 +24,15 @@ logger = logging.getLogger(__name__)
     ),
     analytics=extend_schema(
         summary="Mood analytics",
-        description="Returns mood analytics and trends aggregated data."
+        description="Returns mood analytics and trends aggregated data.",
     ),
     export=extend_schema(
-        summary="Export mood logs",
-        description="Exports mood logs in CSV format."
+        summary="Export mood logs", description="Exports mood logs in CSV format."
     ),
     bulk_create=extend_schema(
         summary="Bulk create mood logs",
-        description="Creates multiple mood logs at once."
-    )
+        description="Creates multiple mood logs at once.",
+    ),
 )
 class MoodLogViewSet(viewsets.ModelViewSet):
     queryset = MoodLog.objects.all()

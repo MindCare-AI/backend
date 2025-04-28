@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("therapist", "0006_therapistprofile_accepts_insurance_and_more"),
     ]

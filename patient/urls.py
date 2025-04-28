@@ -60,8 +60,8 @@ urlpatterns = [
         "feedback/<int:pk>/",
         ClientFeedbackViewSet.as_view(
             {
-                "get": "retrieve", 
-                "put": "update", 
+                "get": "retrieve",
+                "put": "update",
                 "patch": "partial_update",
                 "delete": "destroy",
             }

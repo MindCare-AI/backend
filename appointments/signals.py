@@ -172,36 +172,39 @@ def appointment_reminder_handler(sender, instance, **kwargs):
 @receiver(post_save, sender=Appointment)
 def analyze_appointment_data(sender, instance, created, **kwargs):
     """Analyze appointment data and generate insights"""
-    if instance.status == 'completed':
+    if instance.status == "completed":
         try:
             # Analyze session notes if they exist
-            if hasattr(instance, 'session_notes'):
-                analysis = therapy_analysis.analyze_session_notes(instance.session_notes)
-                
-                if analysis.get('risk_factors'):
+            if hasattr(instance, "session_notes"):
+                analysis = therapy_analysis.analyze_session_notes(
+                    instance.session_notes
+                )
+
+                if analysis.get("risk_factors"):
                     # Create high-priority insight for identified risks
                     from AI_engine.models import AIInsight
+
                     AIInsight.objects.create(
                         user=instance.patient,
-                        insight_type='therapy_risk',
+                        insight_type="therapy_risk",
                         insight_data={
-                            'analysis': analysis,
-                            'appointment_id': str(instance.id)
+                            "analysis": analysis,
+                            "appointment_id": str(instance.id),
                         },
-                        priority='high'
+                        priority="high",
                     )
 
             # Update therapy outcome predictions
             prediction = predictive_service.predict_therapy_outcomes(instance.patient)
-            if prediction.get('predicted_outcome') == 'declining':
+            if prediction.get("predicted_outcome") == "declining":
                 AIInsight.objects.create(
                     user=instance.patient,
-                    insight_type='therapy_outcome',
+                    insight_type="therapy_outcome",
                     insight_data={
-                        'prediction': prediction,
-                        'context': 'Post-session analysis'
+                        "prediction": prediction,
+                        "context": "Post-session analysis",
                     },
-                    priority='medium'
+                    priority="medium",
                 )
 
         except Exception as e:
@@ -211,10 +214,10 @@ def analyze_appointment_data(sender, instance, created, **kwargs):
 @receiver(pre_save, sender=Appointment)
 def prepare_session_recommendations(sender, instance, **kwargs):
     """Generate AI recommendations before therapy session"""
-    if instance.status == 'scheduled' and not instance.ai_recommendations:
+    if instance.status == "scheduled" and not instance.ai_recommendations:
         try:
             recommendations = therapy_analysis.recommend_session_focus(instance.patient)
             instance.ai_recommendations = recommendations
-            
+
         except Exception as e:
             logger.error(f"Error generating session recommendations: {str(e)}")

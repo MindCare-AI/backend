@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("patient", "0004_remove_patientprofile_last_appointment_and_more"),
     ]

@@ -34,6 +34,7 @@ class GroupMessage(BaseMessage):
         super().clean()
         if self.media:
             from media_handler.utils import validate_file_extension
+
             validate_file_extension(self.media.name, [".jpg", ".png", ".mp4", ".pdf"])
 
     def __str__(self):

@@ -53,20 +53,20 @@ def handle_message_reaction(sender, instance, created, **kwargs):
     try:
         if hasattr(instance, "reactions"):
             cache_key = f"message_reactions_{instance.id}"
-            
+
             if not created:
                 # Update reactions cache when message is modified
                 cache.set(cache_key, instance.reactions, timeout=3600)
             else:
                 # Initialize empty reactions cache for new messages
                 cache.set(cache_key, [], timeout=3600)
-                
+
             # Get reactions from cache for validation
             cached_reactions = cache.get(cache_key)
             if cached_reactions is None:
                 # If cache miss, repopulate from instance
                 cache.set(cache_key, instance.reactions, timeout=3600)
                 logger.info(f"Repopulated reactions cache for message {instance.id}")
-                
+
     except Exception as e:
         logger.error(f"Error handling message reaction: {str(e)}", exc_info=True)

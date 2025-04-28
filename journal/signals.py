@@ -82,50 +82,56 @@ def handle_journal_entry_delete(sender, instance, **kwargs):
 def analyze_journal_entry(sender, instance, created, **kwargs):
     """Trigger AI analysis when new journal entry is created or content changed"""
     # Check if this is a new entry or if content was modified
-    update_fields = kwargs.get('update_fields', []) or []  # Handle None case
-    
-    if created or (not created and 'content' in update_fields):
+    update_fields = kwargs.get("update_fields", []) or []  # Handle None case
+
+    if created or (not created and "content" in update_fields):
         try:
             # Analyze journal patterns
             analysis = predictive_service.analyze_journal_patterns(instance.user)
             # Ensure analysis is a dict; if it's a string, try to parse it as JSON
             if isinstance(analysis, str):
                 import json
+
                 try:
                     analysis = json.loads(analysis)
-                except Exception as ex:
+                except Exception:
                     logger.error(f"Failed to parse analysis string: {analysis}")
                     analysis = {}
-            
+
             # If analysis is None, initialize as empty dict
             if analysis is None:
                 analysis = {}
-                
+
             # If concerns exist AND they are not None/empty, create an insight
-            if analysis.get('concerns') and analysis.get('concerns') not in [None, []]:
+            if analysis.get("concerns") and analysis.get("concerns") not in [None, []]:
                 AIInsight.objects.create(
                     user=instance.user,
-                    insight_type='journal_theme',
+                    insight_type="journal_theme",
                     insight_data={
-                        'analysis': analysis,
-                        'journal_entry_id': str(instance.id)
+                        "analysis": analysis,
+                        "journal_entry_id": str(instance.id),
                     },
-                    priority='medium'
+                    priority="medium",
                 )
 
             # Update therapy predictions if themes indicate significant changes
-            if analysis.get('sentiment_trend') in ['improving', 'declining']:
-                therapy_prediction = predictive_service.predict_therapy_outcomes(instance.user)
-                if therapy_prediction and therapy_prediction.get('predicted_outcome') == 'declining':
+            if analysis.get("sentiment_trend") in ["improving", "declining"]:
+                therapy_prediction = predictive_service.predict_therapy_outcomes(
+                    instance.user
+                )
+                if (
+                    therapy_prediction
+                    and therapy_prediction.get("predicted_outcome") == "declining"
+                ):
                     AIInsight.objects.create(
                         user=instance.user,
-                        insight_type='therapy_adjustment',
+                        insight_type="therapy_adjustment",
                         insight_data={
-                            'prediction': therapy_prediction,
-                            'context': 'Journal sentiment change'
+                            "prediction": therapy_prediction,
+                            "context": "Journal sentiment change",
                         },
-                        priority='high'
+                        priority="high",
                     )
-                    
+
         except Exception as e:
             logger.error(f"Error analyzing journal patterns: {str(e)}")

@@ -7,7 +7,12 @@ from django.core.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from django.core.cache import cache
 from .models import Notification, NotificationType
-from .serializers import NotificationSerializer, NotificationTypeSerializer, NotificationUpdateSerializer, BulkDeleteNotificationSerializer
+from .serializers import (
+    NotificationSerializer,
+    NotificationTypeSerializer,
+    NotificationUpdateSerializer,
+    BulkDeleteNotificationSerializer,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,13 +21,19 @@ logger = logging.getLogger(__name__)
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ["get", "post", "patch", "head", "options"]  # Ensure "post" is included
+    http_method_names = [
+        "get",
+        "post",
+        "patch",
+        "head",
+        "options",
+    ]  # Ensure "post" is included
 
     def get_queryset(self):
         """Get notifications for the current user with type information and caching."""
-        cache_key = f'user_notifications_{self.request.user.id}'
+        cache_key = f"user_notifications_{self.request.user.id}"
         queryset = cache.get(cache_key)
-        
+
         if queryset is None:
             queryset = (
                 Notification.objects.filter(user=self.request.user)
@@ -30,13 +41,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 .order_by("-created_at")
             )
             cache.set(cache_key, queryset, timeout=300)  # Cache for 5 minutes
-        
+
         # Add filtering for read/unread
-        read_param = self.request.query_params.get('read', None)
+        read_param = self.request.query_params.get("read", None)
         if read_param is not None:
-            is_read = read_param.lower() == 'true'
+            is_read = read_param.lower() == "true"
             queryset = queryset.filter(read=is_read)
-            
+
         return queryset
 
     @extend_schema(
@@ -51,8 +62,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 response = super().partial_update(request, *args, **kwargs)
                 if response.status_code == 200:
                     # Invalidate caches
-                    cache.delete(f'user_notifications_{request.user.id}')
-                    cache.delete(f'notification_count_{request.user.id}')
+                    cache.delete(f"user_notifications_{request.user.id}")
+                    cache.delete(f"notification_count_{request.user.id}")
                 return response
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -79,21 +90,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def count(self, request):
         """Return counts of notifications"""
         user = request.user
-        
+
         # Get counts - using 'user' instead of 'recipient'
-        unread_count = self.get_queryset().filter(
-            user=user, 
-            read=False
-        ).count()
-        
-        total_count = self.get_queryset().filter(
-            user=user
-        ).count()
-        
-        return Response({
-            'unread_count': unread_count,
-            'total_count': total_count
-        })
+        unread_count = self.get_queryset().filter(user=user, read=False).count()
+
+        total_count = self.get_queryset().filter(user=user).count()
+
+        return Response({"unread_count": unread_count, "total_count": total_count})
 
     @extend_schema(
         description="Mark all unread notifications as read",
@@ -112,10 +115,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Mark all notifications as read with cache invalidation"""
         try:
             with transaction.atomic():
-                updated = request.user.notifications.filter(read=False).update(read=True)
+                updated = request.user.notifications.filter(read=False).update(
+                    read=True
+                )
                 # Invalidate user's notification cache
-                cache.delete(f'user_notifications_{request.user.id}')
-                cache.delete(f'notification_count_{request.user.id}')
+                cache.delete(f"user_notifications_{request.user.id}")
+                cache.delete(f"notification_count_{request.user.id}")
                 return Response({"status": "success", "count": updated})
         except Exception as e:
             logger.error(f"Error marking notifications as read: {str(e)}")
@@ -151,45 +156,45 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def bulk_delete(self, request):
         """Delete multiple notifications at once"""
         # For GET requests, just return the form - don't return 405
-        if request.method == 'GET':
+        if request.method == "GET":
             serializer = BulkDeleteNotificationSerializer()
             return Response({"notification_ids": []})
-        
+
         serializer = BulkDeleteNotificationSerializer(
-            data=request.data,
-            context={'request': request}
+            data=request.data, context={"request": request}
         )
-        
+
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        notification_ids = serializer.validated_data['notification_ids']
-        
+
+        notification_ids = serializer.validated_data["notification_ids"]
+
         try:
             with transaction.atomic():
                 notifications = Notification.objects.filter(
-                    user=request.user,
-                    id__in=notification_ids
+                    user=request.user, id__in=notification_ids
                 )
-                
+
                 count = notifications.count()
                 notifications.delete()
-                
+
                 # Cache invalidation
-                cache.delete(f'user_notifications_{request.user.id}')
-                cache.delete(f'notification_count_{request.user.id}')
-                
-                return Response({
-                    'message': f'{count} notifications deleted successfully',
-                    'deleted_count': count,
-                    'notification_ids': notification_ids
-                }, status=status.HTTP_200_OK)
-                
+                cache.delete(f"user_notifications_{request.user.id}")
+                cache.delete(f"notification_count_{request.user.id}")
+
+                return Response(
+                    {
+                        "message": f"{count} notifications deleted successfully",
+                        "deleted_count": count,
+                        "notification_ids": notification_ids,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
         except Exception as e:
             logger.error(f"Error bulk deleting notifications: {str(e)}", exc_info=True)
             return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 

@@ -11,6 +11,7 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class TherapistVerificationService:
     """Service for verifying therapist licenses and identity"""
 
@@ -26,10 +27,12 @@ class TherapistVerificationService:
 
             # Initialize EasyOCR with selected device
             try:
-                self.reader = easyocr.Reader(["en"], gpu=self.device=="cuda")
+                self.reader = easyocr.Reader(["en"], gpu=self.device == "cuda")
                 logger.info(f"Successfully initialized EasyOCR on {self.device}")
             except RuntimeError as e:
-                logger.warning(f"Failed to initialize EasyOCR with {self.device}, falling back to CPU: {str(e)}")
+                logger.warning(
+                    f"Failed to initialize EasyOCR with {self.device}, falling back to CPU: {str(e)}"
+                )
                 self.device = "cpu"
                 self.reader = easyocr.Reader(["en"], gpu=False)
 
@@ -37,33 +40,33 @@ class TherapistVerificationService:
             logger.error(f"Error initializing verification service: {str(e)}")
             raise
 
-    def verify_license(self, license_image, expected_number: str, issuing_authority: str) -> Dict[str, Any]:
+    def verify_license(
+        self, license_image, expected_number: str, issuing_authority: str
+    ) -> Dict[str, Any]:
         """Verify license details using OCR"""
         try:
             # Convert InMemoryUploadedFile to numpy array
             image = Image.open(license_image)
             # Convert to RGB if necessary
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
+            if image.mode != "RGB":
+                image = image.convert("RGB")
             # Convert to numpy array
             image_np = np.array(image)
 
             # Use EasyOCR to read text
             results = self.reader.readtext(image_np)
-            
+
             # Extract text from results
             text = " ".join([result[1] for result in results])
-            
+
             # Look for license number
             license_found = any(
-                expected_number.lower() in result[1].lower() 
-                for result in results
+                expected_number.lower() in result[1].lower() for result in results
             )
-            
+
             # Look for issuing authority
             authority_found = any(
-                issuing_authority.lower() in result[1].lower() 
-                for result in results
+                issuing_authority.lower() in result[1].lower() for result in results
             )
 
             # Look for expiry date
@@ -75,22 +78,21 @@ class TherapistVerificationService:
                     "license_number": expected_number,
                     "issuing_authority": issuing_authority,
                     "license_expiry": expiry_date,
-                    "confidence": "high" if expiry_date else "medium"
+                    "confidence": "high" if expiry_date else "medium",
                 }
             else:
                 return {
                     "success": False,
-                    "error": "Could not verify license number or issuing authority"
+                    "error": "Could not verify license number or issuing authority",
                 }
 
         except Exception as e:
             logger.error(f"License verification error: {str(e)}")
-            return {
-                "success": False,
-                "error": "Error processing license image"
-            }
+            return {"success": False, "error": "Error processing license image"}
 
-    def verify_face_match(self, license_image, selfie_image, threshold: float = 0.6) -> Dict[str, Any]:
+    def verify_face_match(
+        self, license_image, selfie_image, threshold: float = 0.6
+    ) -> Dict[str, Any]:
         """Verify face match between license and selfie"""
         try:
             # Convert InMemoryUploadedFile objects to numpy arrays
@@ -98,10 +100,10 @@ class TherapistVerificationService:
             selfie_face = Image.open(selfie_image)
 
             # Convert to RGB if necessary
-            if license_face.mode != 'RGB':
-                license_face = license_face.convert('RGB')
-            if selfie_face.mode != 'RGB':
-                selfie_face = selfie_face.convert('RGB')
+            if license_face.mode != "RGB":
+                license_face = license_face.convert("RGB")
+            if selfie_face.mode != "RGB":
+                selfie_face = selfie_face.convert("RGB")
 
             # Convert to numpy arrays
             license_np = np.array(license_face)
@@ -117,8 +119,8 @@ class TherapistVerificationService:
                     "error": "Could not detect faces in one or both images",
                     "details": {
                         "license_face_found": bool(license_encoding),
-                        "selfie_face_found": bool(selfie_encoding)
-                    }
+                        "selfie_face_found": bool(selfie_encoding),
+                    },
                 }
 
             # Compare faces
@@ -140,8 +142,8 @@ class TherapistVerificationService:
                 "confidence": float(confidence),
                 "details": {
                     "distance_score": float(face_distance),
-                    "threshold_used": threshold
-                }
+                    "threshold_used": threshold,
+                },
             }
 
         except Exception as e:
@@ -149,15 +151,15 @@ class TherapistVerificationService:
             return {
                 "success": False,
                 "error": "Error processing face verification",
-                "details": {"error_message": str(e)}
+                "details": {"error_message": str(e)},
             }
 
     def _extract_expiry_date(self, text: str) -> str:
         """Extract expiry date from license text"""
         date_patterns = [
-            r'(?:Expir(?:es|y|ation)(?:\s+(?:date|on))?:?\s*)(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
-            r'(?:Valid\s+(?:through|until):?\s*)(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
-            r'(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})',
+            r"(?:Expir(?:es|y|ation)(?:\s+(?:date|on))?:?\s*)(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+            r"(?:Valid\s+(?:through|until):?\s*)(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+            r"(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
         ]
 
         for pattern in date_patterns:

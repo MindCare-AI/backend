@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 class UnifiedNotificationService:
     def __init__(self):
         self.type_cache = {}
-        self.cache_timeout = getattr(settings, 'NOTIFICATION_CACHE_TIMEOUT', 3600)
+        self.cache_timeout = getattr(settings, "NOTIFICATION_CACHE_TIMEOUT", 3600)
 
     def get_or_create_notification_type(self, type_name):
         """Get or create a notification type with caching."""
-        cache_key = f'notification_type_{type_name}'
+        cache_key = f"notification_type_{type_name}"
         notification_type = cache.get(cache_key)
-        
+
         if notification_type is None:
             try:
                 notification_type = NotificationType.objects.get(name=type_name)
@@ -32,27 +32,31 @@ class UnifiedNotificationService:
                     is_global=True,
                 )
                 logger.info(f"Created new notification type: {type_name}")
-            
+
             # Cache the notification type
             cache.set(cache_key, notification_type, timeout=self.cache_timeout)
-            
+
         return notification_type
 
     def send_notification(self, user, notification_type_name, title, message, **kwargs):
         try:
             # Get notification type using cached method
-            notification_type = self.get_or_create_notification_type(notification_type_name)
+            notification_type = self.get_or_create_notification_type(
+                notification_type_name
+            )
 
             # Get cached preferences
-            pref_cache_key = f'user_preferences_{user.id}'
+            pref_cache_key = f"user_preferences_{user.id}"
             preferences = cache.get(pref_cache_key)
-            
+
             if preferences is None:
                 preferences, _ = UserPreferences.objects.get_or_create(user=user)
                 cache.set(pref_cache_key, preferences, timeout=self.cache_timeout)
 
             if not self._check_notification_allowed(preferences, notification_type):
-                logger.debug(f"Notification {notification_type_name} not allowed for {user}")
+                logger.debug(
+                    f"Notification {notification_type_name} not allowed for {user}"
+                )
                 return None
 
             # Create notification
@@ -85,21 +89,21 @@ class UnifiedNotificationService:
     def _invalidate_user_caches(self, user_id):
         """Invalidate all caches related to a user's notifications."""
         cache_keys = [
-            f'user_notifications_{user_id}',
-            f'notification_count_{user_id}',
-            f'user_preferences_{user_id}'
+            f"user_notifications_{user_id}",
+            f"notification_count_{user_id}",
+            f"user_preferences_{user_id}",
         ]
         cache.delete_many(cache_keys)
 
     def _check_notification_allowed(self, preferences, notification_type):
         """Check if notification is allowed with caching."""
-        cache_key = f'notification_allowed_{preferences.user.id}_{notification_type.id}'
+        cache_key = f"notification_allowed_{preferences.user.id}_{notification_type.id}"
         allowed = cache.get(cache_key)
-        
+
         if allowed is None:
             allowed = preferences.in_app_notifications
             cache.set(cache_key, allowed, timeout=300)  # Cache for 5 minutes
-            
+
         return allowed
 
     def _send_email_notification(self, user, notification, preferences):

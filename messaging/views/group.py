@@ -5,7 +5,6 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 import logging
 
-from django.db.models import Count
 from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -84,6 +83,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         """Return the appropriate serializer class based on the action."""
         if self.action == "add_participant":
             from ..serializers.group import AddParticipantSerializer
+
             return AddParticipantSerializer
         return super().get_serializer_class()
 
@@ -214,10 +214,10 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             "properties": {
                 "user_id": {
                     "type": "integer",
-                    "description": "ID of the user to add as participant."
+                    "description": "ID of the user to add as participant.",
                 }
             },
-            "required": ["user_id"]
+            "required": ["user_id"],
         },
         responses={
             200: OpenApiResponse(
@@ -230,7 +230,7 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 description="Forbidden – only moderators can add participants."
             ),
         },
-        tags=["Group Conversation"]
+        tags=["Group Conversation"],
     )
     @action(detail=True, methods=["post"], url_path="add_participant")
     def add_participant(self, request, pk=None):
@@ -242,14 +242,13 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             if not group.moderators.filter(id=request.user.id).exists():
                 return Response(
                     {"error": "Only moderators can add participants"},
-                    status=status.HTTP_403_FORBIDDEN
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
             user_id = request.data.get("user_id")
             if not user_id:
                 return Response(
-                    {"error": "user_id is required"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST
                 )
 
             user = get_object_or_404(get_user_model(), id=user_id)
@@ -260,27 +259,27 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             ):
                 return Response(
                     {"error": "Maximum participant limit reached"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Check if user is already a participant
             if group.participants.filter(id=user_id).exists():
                 return Response(
                     {"message": f"{user.username} is already a member of this group"},
-                    status=status.HTTP_200_OK
+                    status=status.HTTP_200_OK,
                 )
 
             group.participants.add(user)
             return Response(
                 {"message": f"Added {user.username} to group"},
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
 
         except Exception as e:
             logger.error(f"Error adding participant: {str(e)}")
             return Response(
                 {"error": "Failed to add participant"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
@@ -407,16 +406,16 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         """Get group conversation with cache handling"""
-        conversation_id = kwargs.get('pk')
-        cache_key = f'group_conversation_{conversation_id}'
-        
+        conversation_id = kwargs.get("pk")
+        cache_key = f"group_conversation_{conversation_id}"
+
         # Try to get from cache first
         cached_conversation = cache.get(cache_key)
         if cached_conversation:
             return Response(cached_conversation)
-            
+
         response = super().retrieve(request, *args, **kwargs)
-        
+
         # Cache the response for 30 minutes (groups change more often than 1-1 chats)
         cache.set(cache_key, response.data, timeout=1800)
         return response
@@ -467,8 +466,12 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         from ..models.one_to_one import OneToOneConversation
         from ..serializers.one_to_one import OneToOneConversationSerializer
 
-        one_to_one_results = OneToOneConversation.objects.filter(participants__username__icontains=query).distinct()
-        one_to_one_serializer = OneToOneConversationSerializer(one_to_one_results, many=True)
+        one_to_one_results = OneToOneConversation.objects.filter(
+            participants__username__icontains=query
+        ).distinct()
+        one_to_one_serializer = OneToOneConversationSerializer(
+            one_to_one_results, many=True
+        )
 
         return Response(
             {
@@ -501,28 +504,28 @@ class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet
 
     def retrieve(self, request, *args, **kwargs):
         """Get group message with cache handling"""
-        message_id = kwargs.get('pk')
-        cache_key = f'group_message_{message_id}'
-        
+        message_id = kwargs.get("pk")
+        cache_key = f"group_message_{message_id}"
+
         # Try to get from cache first
         cached_message = cache.get(cache_key)
         if cached_message:
             return Response(cached_message)
-            
+
         response = super().retrieve(request, *args, **kwargs)
-        
+
         # Cache the response for 1 hour
         cache.set(cache_key, response.data, timeout=3600)
         return response
-        
+
     def add_reaction(self, request, pk=None):
         """Add reaction with cache invalidation"""
         response = super().add_reaction(request, pk)
         if response.status_code == 200:
             # Invalidate message cache
-            cache_key = f'group_message_{pk}'
+            cache_key = f"group_message_{pk}"
             cache.delete(cache_key)
             # Invalidate reactions cache
-            cache_key = f'message_reactions_{pk}'
+            cache_key = f"message_reactions_{pk}"
             cache.delete(cache_key)
         return response

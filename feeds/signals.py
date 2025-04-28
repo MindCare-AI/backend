@@ -12,24 +12,24 @@ logger = logging.getLogger(__name__)
 
 def get_or_create_notification_type(type_id, type_name, description=""):
     """Helper function to get or create notification types with caching"""
-    cache_key = f'notification_type_{type_id}'
+    cache_key = f"notification_type_{type_id}"
     notification_type = cache.get(cache_key)
-    
+
     if notification_type is None:
         notification_type, created = NotificationType.objects.get_or_create(
             id=type_id,
             defaults={
-                'name': type_name,
-                'description': description,
-                'default_enabled': True,
-                'is_global': True
-            }
+                "name": type_name,
+                "description": description,
+                "default_enabled": True,
+                "is_global": True,
+            },
         )
         cache.set(cache_key, notification_type, timeout=3600)  # Cache for 1 hour
-        
+
         if created:
             logger.info(f"Created new notification type: {type_name}")
-            
+
     return notification_type
 
 
@@ -49,7 +49,7 @@ def notify_on_new_post(sender, instance, created, **kwargs):
             # notification_type = get_or_create_notification_type(
             #     4, "new_post", "New post from followed user"
             # )
-            # 
+            #
             # for follower in instance.author.followers.all():
             #     try:
             #         Notification.objects.create(
@@ -79,18 +79,20 @@ def notify_on_comment(sender, instance, created, **kwargs):
                 comment_notification_type = get_or_create_notification_type(
                     2, "post_comment", "Comment on your post"
                 )
-                
+
                 Notification.objects.create(
                     user=instance.post.author,
                     notification_type=comment_notification_type,
                     title=f"{instance.author.get_full_name() or instance.author.username} commented on your post",
-                    message=instance.content[:100],  # Changed from 'content' to 'message'
+                    message=instance.content[
+                        :100
+                    ],  # Changed from 'content' to 'message'
                     read=False,  # Changed from 'is_read' to 'read'
                 )
-                
+
                 # Clear cache for notification count
-                cache.delete(f'user_notifications_{instance.post.author.id}')
-                cache.delete(f'notification_count_{instance.post.author.id}')
+                cache.delete(f"user_notifications_{instance.post.author.id}")
+                cache.delete(f"notification_count_{instance.post.author.id}")
 
             # If this is a reply, notify the parent comment author
             if instance.parent and instance.parent.author != instance.author:
@@ -98,21 +100,25 @@ def notify_on_comment(sender, instance, created, **kwargs):
                 reply_notification_type = get_or_create_notification_type(
                     3, "comment_reply", "Reply to your comment"
                 )
-                
+
                 Notification.objects.create(
                     user=instance.parent.author,
                     notification_type=reply_notification_type,
                     title=f"{instance.author.get_full_name() or instance.author.username} replied to your comment",
-                    message=instance.content[:100],  # Changed from 'content' to 'message'
+                    message=instance.content[
+                        :100
+                    ],  # Changed from 'content' to 'message'
                     read=False,  # Changed from 'is_read' to 'read'
                 )
-                
+
                 # Clear cache for notification count
-                cache.delete(f'user_notifications_{instance.parent.author.id}')
-                cache.delete(f'notification_count_{instance.parent.author.id}')
+                cache.delete(f"user_notifications_{instance.parent.author.id}")
+                cache.delete(f"notification_count_{instance.parent.author.id}")
 
         except Exception as e:
-            logger.error(f"Error creating comment notification: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error creating comment notification: {str(e)}", exc_info=True
+            )
 
 
 @receiver(post_save, sender=Reaction)
@@ -154,11 +160,11 @@ def notify_on_reaction(sender, instance, created, **kwargs):
                     "read": False,
                 },
             )
-            
+
             # Clear cache for notification count
-            cache.delete(f'user_notifications_{author.id}')
-            cache.delete(f'notification_count_{author.id}')
-            
+            cache.delete(f"user_notifications_{author.id}")
+            cache.delete(f"notification_count_{author.id}")
+
     except Exception as e:
         logger.error(f"Error creating reaction notification: {str(e)}", exc_info=True)
 
@@ -190,13 +196,15 @@ def notify_on_poll_vote(sender, instance, created, **kwargs):
                 read=False,
                 metadata={
                     "poll_option_id": instance.poll_option.id,
-                    "post_id": post.id
-                }
+                    "post_id": post.id,
+                },
             )
-            
+
             # Clear cache for notification count
-            cache.delete(f'user_notifications_{post.author.id}')
-            cache.delete(f'notification_count_{post.author.id}')
-            
+            cache.delete(f"user_notifications_{post.author.id}")
+            cache.delete(f"notification_count_{post.author.id}")
+
         except Exception as e:
-            logger.error(f"Error creating poll vote notification: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error creating poll vote notification: {str(e)}", exc_info=True
+            )

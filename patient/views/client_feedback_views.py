@@ -34,16 +34,19 @@ logger = logging.getLogger(__name__)
 )
 class ClientFeedbackViewSet(viewsets.ModelViewSet):
     """ViewSet for managing client feedback"""
+
     queryset = ClientFeedback.objects.all()
     serializer_class = ClientFeedbackSerializer
     permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ['get', 'post', 'put', 'patch', 'delete']  # Added put and patch
+    http_method_names = ["get", "post", "put", "patch", "delete"]  # Added put and patch
 
     def get_queryset(self):
         """Filter feedback based on user role"""
         user = self.request.user
-        queryset = ClientFeedback.objects.select_related('therapist', 'patient', 'appointment')
-        
+        queryset = ClientFeedback.objects.select_related(
+            "therapist", "patient", "appointment"
+        )
+
         if user.user_type == "therapist":
             return queryset.filter(therapist=user)
         elif user.user_type == "patient":
@@ -55,64 +58,58 @@ class ClientFeedbackViewSet(viewsets.ModelViewSet):
         if request.user.user_type != "patient":
             return Response(
                 {"error": "Only patients can submit feedback"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         try:
             with transaction.atomic():
                 serializer = self.get_serializer(data=request.data)
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
-                
+
                 headers = self.get_success_headers(serializer.data)
                 return Response(
-                    serializer.data, 
-                    status=status.HTTP_201_CREATED, 
-                    headers=headers
+                    serializer.data, status=status.HTTP_201_CREATED, headers=headers
                 )
         except Exception as e:
             logger.error(f"Error creating feedback: {str(e)}", exc_info=True)
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):
         """Update feedback"""
         instance = self.get_object()
-        
+
         # Only allow patients to update their own feedback
         if request.user.user_type != "patient" or instance.patient != request.user:
             return Response(
                 {"error": "You can only update your own feedback"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         try:
             with transaction.atomic():
-                partial = kwargs.pop('partial', False)
-                serializer = self.get_serializer(instance, data=request.data, partial=partial)
+                partial = kwargs.pop("partial", False)
+                serializer = self.get_serializer(
+                    instance, data=request.data, partial=partial
+                )
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
                 return Response(serializer.data)
         except Exception as e:
             logger.error(f"Error updating feedback: {str(e)}", exc_info=True)
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, *args, **kwargs):
         """Delete feedback"""
         instance = self.get_object()
-        
+
         # Only allow patients to delete their own feedback
         if request.user.user_type != "patient" or instance.patient != request.user:
             return Response(
                 {"error": "You can only delete your own feedback"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         try:
             self.perform_destroy(instance)
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -120,5 +117,5 @@ class ClientFeedbackViewSet(viewsets.ModelViewSet):
             logger.error(f"Error deleting feedback: {str(e)}", exc_info=True)
             return Response(
                 {"error": "Could not delete feedback"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -7,7 +7,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("patient", "0002_initial"),
         ("therapist", "0002_initial"),

@@ -11,16 +11,20 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     other_participant = serializers.SerializerMethodField()
     other_user_name = serializers.SerializerMethodField()
-    participant_id = serializers.IntegerField(write_only=True, required=False, help_text="ID of the participant for the conversation")
+    participant_id = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        help_text="ID of the participant for the conversation",
+    )
 
     def __init__(self, *args, **kwargs):
         """Dynamically adjust fields based on the request method."""
         super().__init__(*args, **kwargs)
-        request = self.context.get('request')
-        if request and request.method == 'POST':
-            self.fields['participant_id'].required = True
+        request = self.context.get("request")
+        if request and request.method == "POST":
+            self.fields["participant_id"].required = True
         else:
-            self.fields.pop('participant_id', None)
+            self.fields.pop("participant_id", None)
 
     class Meta:
         model = OneToOneConversation
@@ -130,21 +134,26 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Handle creation of a one-to-one conversation."""
-        participant_id = validated_data.pop('participant_id', None)
+        participant_id = validated_data.pop("participant_id", None)
         if not participant_id:
-            raise serializers.ValidationError({"participant_id": "This field is required."})
+            raise serializers.ValidationError(
+                {"participant_id": "This field is required."}
+            )
 
         # Fetch the participant user
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
         try:
             participant = User.objects.get(id=participant_id)
         except User.DoesNotExist:
-            raise serializers.ValidationError({"participant_id": "User does not exist."})
+            raise serializers.ValidationError(
+                {"participant_id": "User does not exist."}
+            )
 
         # Create the conversation
         conversation = OneToOneConversation.objects.create()
-        conversation.participants.add(self.context['request'].user, participant)
+        conversation.participants.add(self.context["request"].user, participant)
         return conversation
 
 
@@ -161,7 +170,7 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
     conversation = serializers.PrimaryKeyRelatedField(
         queryset=OneToOneConversation.objects.all(),
         help_text="Select the conversation",
-        required=False  # Make conversation optional for updates
+        required=False,  # Make conversation optional for updates
     )
 
     message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
@@ -177,14 +186,14 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         """Dynamically adjust fields based on the request method."""
         super().__init__(*args, **kwargs)
-        request = self.context.get('request')
+        request = self.context.get("request")
         if request:
-            if request.method == 'POST':
+            if request.method == "POST":
                 # Ensure `conversation` is included for POST requests
-                self.fields['conversation'].required = True
-            elif request.method in ['GET', 'PATCH', 'PUT']:
+                self.fields["conversation"].required = True
+            elif request.method in ["GET", "PATCH", "PUT"]:
                 # Exclude `conversation` for other methods
-                self.fields.pop('conversation', None)
+                self.fields.pop("conversation", None)
 
     class Meta:
         model = OneToOneMessage
@@ -215,7 +224,9 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """Update the message content and other fields."""
         instance.content = validated_data.get("content", instance.content)
-        instance.message_type = validated_data.get("message_type", instance.message_type)
+        instance.message_type = validated_data.get(
+            "message_type", instance.message_type
+        )
         instance.media = validated_data.get("media", instance.media)
         instance.save()
         return instance

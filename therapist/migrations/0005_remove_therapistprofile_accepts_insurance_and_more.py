@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("therapist", "0004_alter_therapistprofile_options_and_more"),
     ]

@@ -45,33 +45,39 @@ logger = logging.getLogger(__name__)
 )
 class SessionNoteViewSet(viewsets.ModelViewSet):
     """ViewSet for managing therapy session notes"""
+
     serializer_class = SessionNoteSerializer
     permission_classes = [permissions.IsAuthenticated, IsTherapistOrReadOnly]
-    
+
     def get_queryset(self):
         """Filter session notes based on user role"""
         user = self.request.user
-        
+
         if user.user_type == "therapist":
             # For therapist, show only their notes
-            return SessionNote.objects.filter(therapist=user)  # Use user instead of therapist_profile
+            return SessionNote.objects.filter(
+                therapist=user
+            )  # Use user instead of therapist_profile
         elif user.user_type == "patient":
             # For patients, show only notes about them
-            return SessionNote.objects.filter(patient=user)  # Use user instead of patient_profile
+            return SessionNote.objects.filter(
+                patient=user
+            )  # Use user instead of patient_profile
         elif user.is_staff:
             # For admins, show all notes
             return SessionNote.objects.all()
-        
+
         # Default: return empty queryset
         return SessionNote.objects.none()
-    
+
     def perform_create(self, serializer):
         """Set the therapist when creating a note"""
         try:
             with transaction.atomic():
                 serializer.save(
                     therapist=self.request.user,  # Use user instead of therapist_profile
-                    session_date=serializer.validated_data.get('session_date') or timezone.now().date()
+                    session_date=serializer.validated_data.get("session_date")
+                    or timezone.now().date(),
                 )
         except Exception as e:
             logger.error(f"Error creating session note: {str(e)}", exc_info=True)
@@ -83,7 +89,9 @@ class SessionNoteViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 # Ensure only the therapist who created the note can update it
                 instance = self.get_object()
-                if instance.therapist != self.request.user:  # Compare directly with request.user
+                if (
+                    instance.therapist != self.request.user
+                ):  # Compare directly with request.user
                     raise permissions.PermissionDenied(
                         "You can only update your own session notes"
                     )
@@ -91,12 +99,14 @@ class SessionNoteViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error updating session note: {str(e)}", exc_info=True)
             raise
-            
+
     def perform_destroy(self, instance):
         """Delete a session note"""
         try:
             # Ensure only the therapist who created the note can delete it
-            if instance.therapist != self.request.user:  # Compare directly with request.user
+            if (
+                instance.therapist != self.request.user
+            ):  # Compare directly with request.user
                 raise permissions.PermissionDenied(
                     "You can only delete your own session notes"
                 )

@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("appointments", "0005_alter_appointment_rescheduled_by"),
     ]

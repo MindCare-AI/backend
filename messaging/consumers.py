@@ -14,9 +14,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 from messaging.exceptions import (
-    WebSocketAuthenticationError,
     WebSocketMessageError,
-    ConversationAccessError,
 )
 
 User = get_user_model()
@@ -30,28 +28,36 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         try:
             # Get conversation ID from URL route
             self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
-            logger.info(f"Attempting connection to conversation: {self.conversation_id}")
-            
+            logger.info(
+                f"Attempting connection to conversation: {self.conversation_id}"
+            )
+
             # Log the full scope for debugging
-            headers = dict(self.scope.get('headers', {}))
+            headers = dict(self.scope.get("headers", {}))
             logger.debug(f"WebSocket headers: {headers}")
-            logger.debug(f"WebSocket query string: {self.scope.get('query_string', b'').decode()}")
-            
+            logger.debug(
+                f"WebSocket query string: {self.scope.get('query_string', b'').decode()}"
+            )
+
             # Get user from scope (set by middleware)
             user = self.scope.get("user")
-            logger.info(f"User from scope: {getattr(user, 'username', 'AnonymousUser')} (ID: {getattr(user, 'id', 'None')})")
-            
+            logger.info(
+                f"User from scope: {getattr(user, 'username', 'AnonymousUser')} (ID: {getattr(user, 'id', 'None')})"
+            )
+
             if not user or user.is_anonymous:
-                logger.warning("Anonymous user attempted to connect - rejecting connection")
+                logger.warning(
+                    "Anonymous user attempted to connect - rejecting connection"
+                )
                 await self.close(code=4003)
                 return
 
             logger.info(f"Authenticated user: {user.username} (ID: {user.id})")
-            
+
             # Check conversation participant
             is_participant = await self.is_conversation_participant()
             logger.info(f"Is participant check result: {is_participant}")
-            
+
             if not is_participant:
                 logger.warning(
                     f"User {user.username} is not a participant in conversation {self.conversation_id}"
@@ -59,20 +65,26 @@ class ConversationConsumer(AsyncWebsocketConsumer):
                 await self.close(code=4004)
                 return
 
-            logger.info(f"User {user.username} is confirmed participant in conversation {self.conversation_id}")
+            logger.info(
+                f"User {user.username} is confirmed participant in conversation {self.conversation_id}"
+            )
 
             # Set up the channel group
             self.group_name = f"conversation_{self.conversation_id}"
             logger.info(f"Adding user to channel group: {self.group_name}")
             await self.channel_layer.group_add(self.group_name, self.channel_name)
-            
+
             # Accept the connection and send handshake
             await self.accept()
-            await self.send(text_data=json.dumps({
-                "type": "connection_established",
-                "message": "Connected successfully",
-                "conversation_id": self.conversation_id,
-            }))
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "connection_established",
+                        "message": "Connected successfully",
+                        "conversation_id": self.conversation_id,
+                    }
+                )
+            )
             logger.info(f"WebSocket handshake sent to user {user.username}")
 
             # Update online presence (errors should not close connection)
@@ -142,7 +154,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             logger.info(f"Received message: {text_data}")
             data = json.loads(text_data)
             message_type = data.get("type")
-            
+
             if message_type == "chat":
                 # Send message to conversation group
                 await self.channel_layer.group_send(
@@ -155,11 +167,11 @@ class ConversationConsumer(AsyncWebsocketConsumer):
                             "sender_id": self.scope["user"].id,
                             "sender_name": self.scope["user"].username,
                             "conversation_id": self.conversation_id,
-                            "timestamp": timezone.now().isoformat()
-                        }
-                    }
+                            "timestamp": timezone.now().isoformat(),
+                        },
+                    },
                 )
-            
+
             # Handle read receipts
             elif message_type == "mark_read":
                 message_id = data.get("message_id")
@@ -213,28 +225,33 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Send message to WebSocket"""
         try:
             message_data = event.get("message", {})
-            
+
             # Keep the original message type from the sender
-            await self.send(text_data=json.dumps({
-                "type": message_data.get("type", "chat"),  # Use original type
-                "message": {
-                    "content": message_data.get("content"),
-                    "sender_id": message_data.get("sender_id"),
-                    "sender_name": message_data.get("sender_name"),
-                    "conversation_id": message_data.get("conversation_id"),
-                    "timestamp": message_data.get("timestamp"),
-                }
-            }))
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": message_data.get("type", "chat"),  # Use original type
+                        "message": {
+                            "content": message_data.get("content"),
+                            "sender_id": message_data.get("sender_id"),
+                            "sender_name": message_data.get("sender_name"),
+                            "conversation_id": message_data.get("conversation_id"),
+                            "timestamp": message_data.get("timestamp"),
+                        },
+                    }
+                )
+            )
 
             logger.debug(
                 f"Sent message to client in conversation {message_data.get('conversation_id')}"
             )
         except Exception as e:
             logger.error(f"Error sending conversation message: {str(e)}", exc_info=True)
-            await self.send(text_data=json.dumps({
-                "type": "error",
-                "message": "Failed to deliver message"
-            }))
+            await self.send(
+                text_data=json.dumps(
+                    {"type": "error", "message": "Failed to deliver message"}
+                )
+            )
 
     async def read_receipt(self, event):
         """Send read receipt to WebSocket"""
@@ -277,7 +294,7 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         """Validate JWT token and get user"""
         try:
             access_token = AccessToken(token)
-            user_id = access_token.get('user_id')
+            user_id = access_token.get("user_id")
             return User.objects.get(id=user_id)
         except (TokenError, InvalidToken, User.DoesNotExist) as e:
             logger.warning(f"Invalid token or user not found: {str(e)}")

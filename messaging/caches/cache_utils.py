@@ -2,22 +2,32 @@ from django.core.cache import cache
 from django.conf import settings
 
 # Cache timeout settings (in seconds)
-REACTION_CACHE_TIMEOUT = getattr(settings, 'REACTION_CACHE_TIMEOUT', 3600)  # 1 hour
-EDIT_HISTORY_CACHE_TIMEOUT = getattr(settings, 'EDIT_HISTORY_CACHE_TIMEOUT', 3600 * 24)  # 24 hours
-PARTICIPANTS_CACHE_TIMEOUT = getattr(settings, 'PARTICIPANTS_CACHE_TIMEOUT', 3600)  # 1 hour
-READ_RECEIPTS_CACHE_TIMEOUT = getattr(settings, 'READ_RECEIPTS_CACHE_TIMEOUT', 1800)  # 30 minutes
+REACTION_CACHE_TIMEOUT = getattr(settings, "REACTION_CACHE_TIMEOUT", 3600)  # 1 hour
+EDIT_HISTORY_CACHE_TIMEOUT = getattr(
+    settings, "EDIT_HISTORY_CACHE_TIMEOUT", 3600 * 24
+)  # 24 hours
+PARTICIPANTS_CACHE_TIMEOUT = getattr(
+    settings, "PARTICIPANTS_CACHE_TIMEOUT", 3600
+)  # 1 hour
+READ_RECEIPTS_CACHE_TIMEOUT = getattr(
+    settings, "READ_RECEIPTS_CACHE_TIMEOUT", 1800
+)  # 30 minutes
+
 
 def generate_message_key(base_key: str, message_id: str) -> str:
     """Generate a cache key for message-related data"""
     return f"message:{base_key}:{message_id}"
 
+
 def generate_conversation_key(base_key: str, conversation_id: str) -> str:
     """Generate a cache key for conversation-related data"""
     return f"conversation:{base_key}:{conversation_id}"
 
+
 def generate_user_key(base_key: str, user_id: str) -> str:
     """Generate a cache key for user-related data"""
     return f"user:{base_key}:{user_id}"
+
 
 class MessageCache:
     @staticmethod
@@ -35,6 +45,7 @@ class MessageCache:
         key = generate_message_key("reactions", message_id)
         cache.delete(key)
 
+
 class EditHistoryCache:
     @staticmethod
     def get_history(message_id: str) -> list:
@@ -51,6 +62,7 @@ class EditHistoryCache:
         key = generate_message_key("edit_history", message_id)
         cache.delete(key)
 
+
 class ConversationCache:
     @staticmethod
     def get_participants(conversation_id: str) -> list:
@@ -66,6 +78,7 @@ class ConversationCache:
     def delete_participants(conversation_id: str) -> None:
         key = generate_conversation_key("participants", conversation_id)
         cache.delete(key)
+
 
 class ReadReceiptCache:
     @staticmethod

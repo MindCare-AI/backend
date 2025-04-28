@@ -13,41 +13,46 @@ urlpatterns = [
     ),
     path(
         "one_to_one/<int:pk>/",
-        OneToOneConversationViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy",
-        }),
+        OneToOneConversationViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="one-to-one-conversation-detail",
     ),
     path(
         "one_to_one/messages/",
-        OneToOneMessageViewSet.as_view({
-            "get": "list",
-            "post": "create",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy",
-        }),
+        OneToOneMessageViewSet.as_view(
+            {
+                "get": "list",
+                "post": "create",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="one-to-one-message-list",
     ),
     path(
         "one_to_one/messages/<int:pk>/",
-        OneToOneMessageViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy",
-        }),
+        OneToOneMessageViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="one-to-one-message-detail",
     ),
     path(
         "one_to_one/messages/<int:pk>/reactions/",
-        OneToOneMessageViewSet.as_view({
-            "post": "add_reaction",
-            "delete": "remove_reaction"
-        }),
+        OneToOneMessageViewSet.as_view(
+            {"post": "add_reaction", "delete": "remove_reaction"}
+        ),
         name="one-to-one-message-reactions",
     ),
     path(
@@ -65,7 +70,6 @@ urlpatterns = [
         OneToOneConversationViewSet.as_view({"get": "search"}),
         name="one-to-one-search",
     ),
-
     # Group Messaging
     path(
         "groups/",
@@ -74,12 +78,14 @@ urlpatterns = [
     ),
     path(
         "groups/<int:pk>/",
-        GroupConversationViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy",
-        }),
+        GroupConversationViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="group-conversation-detail",
     ),
     path(
@@ -89,12 +95,14 @@ urlpatterns = [
     ),
     path(
         "groups/messages/<int:pk>/",
-        GroupMessageViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy",
-        }),
+        GroupMessageViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="group-message-detail",
     ),
     path(
@@ -124,10 +132,9 @@ urlpatterns = [
     ),
     path(
         "groups/messages/<int:pk>/reactions/",
-        GroupMessageViewSet.as_view({
-            "post": "add_reaction",
-            "delete": "remove_reaction"
-        }),
+        GroupMessageViewSet.as_view(
+            {"post": "add_reaction", "delete": "remove_reaction"}
+        ),
         name="group-message-reactions",
     ),
     path(
@@ -145,7 +152,6 @@ urlpatterns = [
         GroupConversationViewSet.as_view({"get": "search_messages"}),
         name="group-search-messages",
     ),
-
     # Chatbot
     path(
         "chatbot/",
@@ -162,7 +168,6 @@ urlpatterns = [
         ChatbotConversationViewSet.as_view({"post": "send_message"}),
         name="chatbot-send-message",
     ),
-
     # Unified Search
     path(
         "search/",

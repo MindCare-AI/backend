@@ -19,7 +19,7 @@ class JournalEntrySerializer(serializers.ModelSerializer):
             "date",
             "created_at",
             "updated_at",
-            "word_count",           # Added word_count field
+            "word_count",  # Added word_count field
             "is_private",
             "shared_with_therapist",
             "weather",
@@ -55,7 +55,7 @@ class JournalEntryDetailSerializer(serializers.ModelSerializer):
             "date",
             "created_at",
             "updated_at",
-            "word_count",           # Added word_count field
+            "word_count",  # Added word_count field
             "is_private",
             "shared_with_therapist",
             "weather",

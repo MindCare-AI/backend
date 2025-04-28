@@ -10,6 +10,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from messaging.models.one_to_one import OneToOneConversation
 
+
 class Appointment(models.Model):
     STATUS_CHOICES = [
         ("scheduled", "Scheduled"),
@@ -63,14 +64,14 @@ class Appointment(models.Model):
     ai_recommendations = models.JSONField(
         default=dict,
         blank=True,
-        help_text="AI-generated recommendations for the therapy session"
+        help_text="AI-generated recommendations for the therapy session",
     )
 
     pain_level = models.PositiveSmallIntegerField(
-        null=True, 
+        null=True,
         blank=True,
         validators=[MinValueValidator(0), MaxValueValidator(10)],
-        help_text="Patient's pain level (0-10) reported during appointment"
+        help_text="Patient's pain level (0-10) reported during appointment",
     )
 
     class Meta:
@@ -103,9 +104,9 @@ class Appointment(models.Model):
         if not self.pk:  # New appointment
             self.original_date = self.appointment_date
             self.rescheduled_by = None  # Explicitly set to None for new appointments
-            
+
             # Skip validation for new appointments to avoid rescheduled_by validation issues
-            kwargs['force_insert'] = True
+            kwargs["force_insert"] = True
             super().save(*args, **kwargs)
         else:
             # Only run validation for existing appointments
@@ -140,7 +141,11 @@ class Appointment(models.Model):
             overlapping = overlapping.exclude(pk=self.pk)
             # Only validate rescheduled_by for rescheduled appointments
             if self.status == "rescheduled" and not self.rescheduled_by:
-                raise ValidationError({"rescheduled_by": "This field is required when rescheduling an appointment."})
+                raise ValidationError(
+                    {
+                        "rescheduled_by": "This field is required when rescheduling an appointment."
+                    }
+                )
 
         if overlapping.exists():
             raise ValidationError(
@@ -248,7 +253,11 @@ def create_or_use_chat_conversation(sender, instance, created, **kwargs):
     if instance.status == "confirmed":
         patient_user = instance.patient.user
         therapist_user = instance.therapist.user
-        conversation = OneToOneConversation.objects.filter(participants=patient_user).filter(participants=therapist_user).first()
+        conversation = (
+            OneToOneConversation.objects.filter(participants=patient_user)
+            .filter(participants=therapist_user)
+            .first()
+        )
         if not conversation:
             conversation = OneToOneConversation.objects.create()
             conversation.participants.add(patient_user, therapist_user)

@@ -13,15 +13,16 @@ urlpatterns = [
     ),
     path(
         "posts/<int:pk>/",
-        PostViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        PostViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="post-detail",
     ),
-    
     # Comment URLs
     path(
         "comments/",
@@ -30,15 +31,16 @@ urlpatterns = [
     ),
     path(
         "comments/<int:pk>/",
-        CommentViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy"
-        }),
+        CommentViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
         name="comment-detail",
     ),
-    
     # If you have any custom actions in your ViewSets, add them like this:
     path(
         "posts/<int:pk>/like/",

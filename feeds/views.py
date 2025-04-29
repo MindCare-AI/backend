@@ -240,6 +240,51 @@ class PostViewSet(viewsets.ModelViewSet):
         post.views_count = F("views_count") + 1
         post.save(update_fields=["views_count"])
         return Response({"detail": "View count incremented"}, status=status.HTTP_200_OK)
+    
+    @extend_schema(
+        description="Like a post (alias for react with like type)",
+        responses={201: {"description": "Post liked successfully"}},
+    )
+    @action(detail=True, methods=["post"])
+    def like(self, request, pk=None):
+        """Like a post (shorthand for react with type='like')"""
+        post = self.get_object()
+        content_type = ContentType.objects.get_for_model(Post)
+        
+        reaction, created = Reaction.objects.get_or_create(
+            user=request.user,
+            content_type=content_type,
+            object_id=post.id,
+            defaults={"reaction_type": "like"}
+        )
+        
+        if not created:
+            # If reaction exists but is not a like, update it
+            if reaction.reaction_type != "like":
+                reaction.reaction_type = "like"
+                reaction.save()
+                created = True  # Treat as new for notification purposes
+        
+        if created and post.author != request.user:
+            Notification.objects.create(
+                user=post.author,
+                notification_type_id=1,  # For reactions
+                title=f"{request.user.get_full_name() or request.user.username} liked your post",
+                content=f"{request.user.get_full_name() or request.user.username} liked your post",
+                is_read=False,
+            )
+        
+        return Response(
+            {
+                "detail": "Post liked successfully",
+                "reaction": {
+                    "type": "like",
+                    "user": {"id": request.user.id, "username": request.user.username},
+                    "created_at": reaction.created_at,
+                }
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
 
     def _paginated_response(self, queryset, serializer_class=None):
         page = self.paginate_queryset(queryset)

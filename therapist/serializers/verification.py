@@ -141,10 +141,10 @@ class VerificationStatusSerializer(serializers.ModelSerializer):
             "verification_status",
             "verification_notes",
             "verified_at",
-            "verification_expiry",
+            # Removing verification_expiry as it doesn't exist in the model
             "license_number",
             "license_expiry",
-            "issuing_authority",
+            # Removing issuing_authority as it doesn't exist in the model
             "days_until_expiry",
             "can_submit",
         ]
@@ -152,8 +152,8 @@ class VerificationStatusSerializer(serializers.ModelSerializer):
 
     def get_days_until_expiry(self, obj):
         """Calculate days until verification expires"""
-        if obj.verification_expiry:
-            delta = obj.verification_expiry - timezone.now().date()
+        if obj.license_expiry:  # Use license_expiry instead of verification_expiry
+            delta = obj.license_expiry - timezone.now().date()
             return max(0, delta.days)
         return None
 

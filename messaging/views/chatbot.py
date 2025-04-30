@@ -22,16 +22,19 @@ class ChatbotThrottle(UserRateThrottle):
 
 
 class ChatbotConversationViewSet(viewsets.ModelViewSet):
+    queryset = ChatbotConversation.objects.all()
     serializer_class = ChatbotConversationSerializer
     permission_classes = [IsAuthenticated]
     throttle_classes = [ChatbotThrottle]
 
-    def get_queryset(self):
-        return ChatbotConversation.objects.filter(user=self.request.user)
-
     def perform_create(self, serializer):
         """Ensure the authenticated user is set as the conversation user"""
-        serializer.save(user=self.request.user)
+        user = self.request.user
+        existing = ChatbotConversation.objects.filter(user=user).first()
+        if existing:
+            # Optionally, you can return or raise a custom message.
+            return existing
+        serializer.save(user=user)
 
     @action(detail=True, methods=["post"])
     def send_message(self, request, pk=None):

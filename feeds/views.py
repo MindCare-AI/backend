@@ -21,6 +21,7 @@ from feeds.serializers import (
     ReactionSerializer,
 )
 from notifications.models import Notification, NotificationType
+from .serializers import LikeToggleSerializer
 
 import logging
 
@@ -47,7 +48,9 @@ class PostViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "retrieve":
             return PostDetailSerializer
-        return super().get_serializer_class()
+        elif self.action == "like":
+            return LikeToggleSerializer
+        return PostSerializer
 
     def get_queryset(self):
         queryset = Post.objects.all()
@@ -240,51 +243,80 @@ class PostViewSet(viewsets.ModelViewSet):
         post.views_count = F("views_count") + 1
         post.save(update_fields=["views_count"])
         return Response({"detail": "View count incremented"}, status=status.HTTP_200_OK)
-    
+
     @extend_schema(
-        description="Like a post (alias for react with like type)",
-        responses={201: {"description": "Post liked successfully"}},
+        description="Toggle like for a post. GET returns the current like status and instructions. POST toggles the like.",
+        request=LikeToggleSerializer,
+        responses={
+            200: {"description": "Like status or post unliked"},
+            201: {"description": "Post liked"}
+        },
     )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["get", "post"], serializer_class=LikeToggleSerializer)
     def like(self, request, pk=None):
-        """Like a post (shorthand for react with type='like')"""
         post = self.get_object()
-        content_type = ContentType.objects.get_for_model(Post)
-        
-        reaction, created = Reaction.objects.get_or_create(
-            user=request.user,
+        user = request.user
+        content_type = ContentType.objects.get_for_model(post)
+
+        if request.method == "GET":
+            liked = Reaction.objects.filter(
+                user=user,
+                content_type=content_type,
+                object_id=post.id,
+                reaction_type="like"
+            ).exists()
+            if liked:
+                message = "Post is currently liked. Send a POST request to remove like."
+            else:
+                message = "Post is not liked yet. Send a POST request to like this post."
+            return Response({"detail": message}, status=status.HTTP_200_OK)
+
+        # POST method: Toggle like using a validated (empty) request body.
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        existing_reaction = Reaction.objects.filter(
+            user=user,
             content_type=content_type,
             object_id=post.id,
-            defaults={"reaction_type": "like"}
-        )
-        
-        if not created:
-            # If reaction exists but is not a like, update it
-            if reaction.reaction_type != "like":
-                reaction.reaction_type = "like"
-                reaction.save()
-                created = True  # Treat as new for notification purposes
-        
-        if created and post.author != request.user:
-            Notification.objects.create(
-                user=post.author,
-                notification_type_id=1,  # For reactions
-                title=f"{request.user.get_full_name() or request.user.username} liked your post",
-                content=f"{request.user.get_full_name() or request.user.username} liked your post",
-                is_read=False,
+            reaction_type="like"
+        ).first()
+
+        if existing_reaction:
+            existing_reaction.delete()
+            return Response({"message": "Post unliked"}, status=status.HTTP_200_OK)
+        else:
+            Reaction.objects.create(
+                user=user,
+                content_type=content_type,
+                object_id=post.id,
+                reaction_type="like"
             )
-        
-        return Response(
-            {
-                "detail": "Post liked successfully",
-                "reaction": {
-                    "type": "like",
-                    "user": {"id": request.user.id, "username": request.user.username},
-                    "created_at": reaction.created_at,
-                }
-            },
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        )
+            return Response({"message": "Post liked"}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def like_count(self, request, pk=None):
+        """
+        Returns the number of likes for a post.
+        """
+        post = self.get_object()
+        content_type = ContentType.objects.get_for_model(post)
+        count = Reaction.objects.filter(
+            user=request.user,   # remove user=request.user if likes are not per user
+            content_type=content_type,
+            object_id=post.id,
+            reaction_type="like"
+        ).count()
+        return Response({"like_count": count}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"])
+    def comment_count(self, request, pk=None):
+        """
+        Returns the number of comments for a post.
+        """
+        post = self.get_object()
+        count = Comment.objects.filter(post=post).count()
+        return Response({"comment_count": count}, status=status.HTTP_200_OK)
 
     def _paginated_response(self, queryset, serializer_class=None):
         page = self.paginate_queryset(queryset)

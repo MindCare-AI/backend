@@ -41,10 +41,20 @@ urlpatterns = [
         ),
         name="comment-detail",
     ),
-    # If you have any custom actions in your ViewSets, add them like this:
+    # Custom actions for posts
     path(
         "posts/<int:pk>/like/",
-        PostViewSet.as_view({"post": "like"}),
+        PostViewSet.as_view({"get": "like", "post": "like"}),
         name="post-like",
+    ),
+    path(
+        "posts/<int:pk>/like_count/",
+        PostViewSet.as_view({"get": "like_count"}),
+        name="post-like-count",
+    ),
+    path(
+        "posts/<int:pk>/comment_count/",
+        PostViewSet.as_view({"get": "comment_count"}),
+        name="post-comment-count",
     ),
 ]

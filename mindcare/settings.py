@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "media_handler",
     "corsheaders",
     "messaging",
+    "chatbot",
     "channels",
     "channels_redis",
     "therapist",

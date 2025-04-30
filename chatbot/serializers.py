@@ -1,6 +1,5 @@
-# messaging/serializers/chatbot.py
 from rest_framework import serializers
-from ..models.chatbot import ChatbotConversation, ChatbotMessage
+from .models import ChatbotConversation, ChatbotMessage
 
 
 class ChatbotConversationSerializer(serializers.ModelSerializer):

@@ -67,6 +67,7 @@ django-maintenance-mode
 django-model-utils
 django-modeltranslation
 django-mptt
+google-generativeai
 django-picklefield
 django-polymorphic
 django-pwa-webpush
@@ -189,4 +190,4 @@ ki
 opencv-python
 deepface
 easyocr
-face_recognition
+face_recognitiongoogle-generativeai

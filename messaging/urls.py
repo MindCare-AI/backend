@@ -2,7 +2,6 @@
 from django.urls import path
 from .views.one_to_one import OneToOneConversationViewSet, OneToOneMessageViewSet
 from .views.group import GroupConversationViewSet, GroupMessageViewSet
-from .views.chatbot import ChatbotConversationViewSet
 
 urlpatterns = [
     # One-to-One Messaging
@@ -151,22 +150,6 @@ urlpatterns = [
         "groups/search_messages/",
         GroupConversationViewSet.as_view({"get": "search_messages"}),
         name="group-search-messages",
-    ),
-    # Chatbot
-    path(
-        "chatbot/",
-        ChatbotConversationViewSet.as_view({"get": "list", "post": "create"}),
-        name="chatbot-conversation-list",
-    ),
-    path(
-        "chatbot/<int:pk>/",
-        ChatbotConversationViewSet.as_view({"get": "retrieve"}),
-        name="chatbot-conversation-detail",
-    ),
-    path(
-        "chatbot/<int:pk>/send_message/",
-        ChatbotConversationViewSet.as_view({"post": "send_message"}),
-        name="chatbot-send-message",
     ),
     # Unified Search
     path(

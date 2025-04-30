@@ -21,6 +21,31 @@ class AIAnalysisService:
         self.min_data_points = settings.AI_ENGINE_SETTINGS["MIN_DATA_POINTS"]
         self.risk_threshold = settings.AI_ENGINE_SETTINGS["RISK_THRESHOLD"]
 
+    def generate_text(self, prompt: str) -> Dict[str, Any]:
+        """Generate text response using Ollama"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/generate",
+                json={"model": self.model, "prompt": prompt, "stream": False},
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "text": result["response"],
+                    "metadata": {
+                        "model": self.model,
+                        "finish_reason": result.get("done", True),
+                    }
+                }
+            else:
+                logger.error(f"Ollama request failed with status {response.status_code}")
+                raise Exception(f"Ollama request failed with status {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Error generating text: {str(e)}")
+            raise Exception(f"Text generation failed: {str(e)}")
+
     def analyze_user_data(self, user, date_range=30) -> Dict[str, Any]:
         """Analyze user's data using Ollama for insights"""
         try:

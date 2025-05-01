@@ -18,7 +18,9 @@ class ChatbotConversation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
-    metadata = models.JSONField(default=dict, blank=True, help_text="Additional metadata for the conversation")
+    metadata = models.JSONField(
+        default=dict, blank=True, help_text="Additional metadata for the conversation"
+    )
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="participated_chatbot_conversations",  # Unique related_name

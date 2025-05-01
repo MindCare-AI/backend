@@ -415,11 +415,13 @@ class OneToOneMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelView
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["request"] = self.request  # Ensure the request is passed to the serializer
+        context["request"] = (
+            self.request
+        )  # Ensure the request is passed to the serializer
         return context
 
     def get_serializer(self, *args, **kwargs):
         """Return the serializer instance that should be used for validating and
         deserializing input, and for serializing output."""
-        kwargs['context'] = self.get_serializer_context()
+        kwargs["context"] = self.get_serializer_context()
         return self.serializer_class(*args, **kwargs)

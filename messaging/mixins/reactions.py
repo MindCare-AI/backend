@@ -29,7 +29,7 @@ class ReactionMixin:
         try:
             # Get the message
             message = self.get_object()
-            
+
             # Get the reaction from request data
             reaction_type = request.data.get("reaction")
             if not reaction_type:
@@ -48,14 +48,14 @@ class ReactionMixin:
             # Store the user who added this reaction for notification purposes
             message._last_reactor = request.user
             message._last_reaction_type = reaction_type
-            
+
             # Add the reaction
             message.add_reaction(request.user, reaction_type)
-            
+
             # Return the updated message
             serializer = self.get_serializer(message)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        
+
         except Exception as e:
             logger.error(f"Error adding reaction: {str(e)}", exc_info=True)
             return Response(
@@ -81,7 +81,7 @@ class ReactionMixin:
         try:
             # Get the message
             message = self.get_object()
-            
+
             # Get the reaction from request data
             reaction_type = request.data.get("reaction")
             if not reaction_type:
@@ -98,9 +98,12 @@ class ReactionMixin:
                 )
 
             # Remove the reaction
-            if reaction_type in message.reactions and request.user.id in message.reactions[reaction_type]:
+            if (
+                reaction_type in message.reactions
+                and request.user.id in message.reactions[reaction_type]
+            ):
                 message.remove_reaction(request.user)
-                
+
                 # Return the updated message
                 serializer = self.get_serializer(message)
                 return Response(serializer.data, status=status.HTTP_200_OK)
@@ -109,7 +112,7 @@ class ReactionMixin:
                     {"error": "Reaction not found."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-                
+
         except Exception as e:
             logger.error(f"Error removing reaction: {str(e)}", exc_info=True)
             return Response(
@@ -133,28 +136,29 @@ class ReactionMixin:
         try:
             # Get the message
             message = self.get_object()
-            
+
             # Check if message has reactions
             if not hasattr(message, "reactions"):
                 return Response(
                     {"error": "This message does not support reactions."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-                
+
             # Get the reactions
             reactions = message.reactions
-            
+
             # Enhance reaction data with user information
             enhanced_reactions = {}
             from django.contrib.auth import get_user_model
+
             User = get_user_model()
-            
+
             for reaction_type, user_ids in reactions.items():
-                users = User.objects.filter(id__in=user_ids).values('id', 'username')
+                users = User.objects.filter(id__in=user_ids).values("id", "username")
                 enhanced_reactions[reaction_type] = list(users)
-                
+
             return Response(enhanced_reactions, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             logger.error(f"Error getting reactions: {str(e)}", exc_info=True)
             return Response(

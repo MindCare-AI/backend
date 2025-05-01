@@ -48,9 +48,7 @@ class ChatbotConversationSerializer(serializers.ModelSerializer):
     latest_summary = serializers.SerializerMethodField()
     last_message_at = serializers.SerializerMethodField()
     metadata = serializers.HiddenField(default=dict)  # Hide metadata from browsable API
-    participants = serializers.PrimaryKeyRelatedField(
-        many=True, read_only=True
-    )
+    participants = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
         model = ChatbotConversation

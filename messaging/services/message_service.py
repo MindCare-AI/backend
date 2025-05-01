@@ -176,13 +176,15 @@ class MessageService:
                 message.reactions[reaction].remove(user_id)
                 if not message.reactions[reaction]:
                     del message.reactions[reaction]
-                message.save(update_fields=['reactions'])
-                
+                message.save(update_fields=["reactions"])
+
                 # Send WebSocket update
                 conversation_id = str(message.conversation_id)
                 message_dict = message.to_dict()
-                self._send_message_update(conversation_id, "reaction_removed", message_dict)
-                
+                self._send_message_update(
+                    conversation_id, "reaction_removed", message_dict
+                )
+
                 return True
             return False
         except ObjectDoesNotExist:

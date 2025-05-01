@@ -17,14 +17,15 @@ logger = logging.getLogger(__name__)
 
 class ChatbotPagination(PageNumberPagination):
     """Custom pagination for chatbot conversations"""
+
     page_size = 20
-    page_size_query_param = 'page_size'
+    page_size_query_param = "page_size"
     max_page_size = 100
 
 
 class ChatbotViewSet(viewsets.ModelViewSet):
     """ViewSet for managing chatbot conversations and messages."""
-    
+
     queryset = ChatbotConversation.objects.all()
     serializer_class = ChatbotConversationSerializer
     permission_classes = [IsAuthenticated]
@@ -35,21 +36,18 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         now = timezone.now()
         twenty_four_hours_ago = now - timedelta(hours=24)
         return ChatbotConversation.objects.filter(
-            user=self.request.user,
-            last_activity__gte=twenty_four_hours_ago
-        ).order_by('-last_activity')
+            user=self.request.user, last_activity__gte=twenty_four_hours_ago
+        ).order_by("-last_activity")
 
     def list(self, request, *args, **kwargs):
         """List conversations with their most recent messages"""
         queryset = self.get_queryset()
-        
+
         # When user opens the chatbot screen for the first time,
         # auto-create a welcome conversation with an introduction message.
         if not queryset.exists():
             conversation = ChatbotConversation.objects.create(
-                user=request.user,
-                title="welcome",
-                metadata={}
+                user=request.user, title="welcome", metadata={}
             )
             welcome_text = (
                 "Welcome to your personal chatbot companion! We're delighted to have you here. "
@@ -64,20 +62,22 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 conversation=conversation,
                 content=welcome_text,
                 is_bot=True,
-                message_type="system"
+                message_type="system",
             )
             queryset = self.get_queryset()
 
         page = self.paginate_queryset(queryset)
-        
+
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             for conversation in serializer.data:
                 # Get the last 5 messages for each conversation
                 messages = ChatMessage.objects.filter(
-                        conversation_id=str(conversation['id'])
-                ).order_by('-timestamp')[:5]
-                conversation['recent_messages'] = ChatMessageSerializer(messages, many=True).data
+                    conversation_id=str(conversation["id"])
+                ).order_by("-timestamp")[:5]
+                conversation["recent_messages"] = ChatMessageSerializer(
+                    messages, many=True
+                ).data
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
@@ -153,16 +153,15 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 "content": bot_response["content"],
                 "conversation": conversation.id,
                 "sender": None,
-                "is_bot": True
+                "is_bot": True,
             }
-            
+
             bot_message_serializer = ChatMessageSerializer(data=bot_message_data)
             if not bot_message_serializer.is_valid():
                 return Response(
-                    bot_message_serializer.errors,
-                    status=status.HTTP_400_BAD_REQUEST
+                    bot_message_serializer.errors, status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             bot_message = bot_message_serializer.save(conversation=conversation)
 
             # Update conversation's last activity
@@ -173,9 +172,9 @@ class ChatbotViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     "user_message": ChatMessageSerializer(user_message).data,
-                    "bot_response": ChatMessageSerializer(bot_message).data
+                    "bot_response": ChatMessageSerializer(bot_message).data,
                 },
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
 
         except Exception as e:

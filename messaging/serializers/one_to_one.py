@@ -2,7 +2,6 @@
 from rest_framework import serializers
 from ..models.one_to_one import OneToOneConversation, OneToOneMessage
 import logging
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +93,11 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
                 media_url = None
                 if message.media:
                     request = self.context.get("request")
-                    media_url = request.build_absolute_uri(message.media.url) if request else message.media.url
+                    media_url = (
+                        request.build_absolute_uri(message.media.url)
+                        if request
+                        else message.media.url
+                    )
                 return {
                     "id": message.id,
                     "content": message.content,
@@ -241,5 +244,9 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
         rep = super().to_representation(instance)
         if rep.get("media"):
             request = self.context.get("request")
-            rep["media"] = request.build_absolute_uri(instance.media.url) if request else instance.media.url
+            rep["media"] = (
+                request.build_absolute_uri(instance.media.url)
+                if request
+                else instance.media.url
+            )
         return rep

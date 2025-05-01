@@ -42,7 +42,7 @@ urlpatterns = [
         TherapistProfileViewSet.as_view(
             {
                 "get": "verify",  # allows GET to verify therapist
-                "post": "verify"
+                "post": "verify",
             }
         ),
         name="therapist-verify",

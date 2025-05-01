@@ -138,17 +138,19 @@ class MessagingCacheManager:
             self._build_key("conv", conversation_id, "typing"),
         ]
         self.cache.delete_many(keys)
-        
+
     # Adding required attributes for offline caching
     OFFLINE_QUEUE_PREFIX = "offline_queue_"
     CONVERSATION_TIMEOUT = 86400  # 24 hours
-    
+
     def get_offline_queue(self, user_id: str) -> List:
         """Get the offline message queue for a user"""
         key = f"{self.OFFLINE_QUEUE_PREFIX}{user_id}"
         return self.cache.get(key) or []
-    
-    def queue_offline_message(self, user_id: str, conversation_id: str, message_data: Dict) -> bool:
+
+    def queue_offline_message(
+        self, user_id: str, conversation_id: str, message_data: Dict
+    ) -> bool:
         """Queue an offline message for later delivery"""
         try:
             key = f"{self.OFFLINE_QUEUE_PREFIX}{user_id}"
@@ -159,7 +161,7 @@ class MessagingCacheManager:
         except Exception as e:
             logger.error(f"Error queuing offline message: {str(e)}")
             return False
-            
+
     def mark_offline_messages_sent(self, user_id: str, message_ids: List[str]) -> None:
         """Mark offline messages as sent"""
         key = f"{self.OFFLINE_QUEUE_PREFIX}{user_id}"
@@ -168,36 +170,38 @@ class MessagingCacheManager:
             if message.get("id") in message_ids:
                 message["status"] = "sent"
         self.cache.set(key, queue, self.CONVERSATION_TIMEOUT)
-        
+
     # Add missing methods needed by other components
     def get_cached_message(self, message_id):
         """Get a cached message by ID"""
         return self.get_message(message_id)
-        
+
     def get_cached_conversation(self, conversation_id):
         """Get a cached conversation by ID"""
         key = self._build_key("conv", conversation_id)
         return self.cache.get(key)
-        
+
     def cache_conversation(self, conversation):
         """Cache a conversation object"""
         key = self._build_key("conv", conversation.id)
         # Simple caching implementation - in real system would serialize properly
-        self.cache.set(key, {"id": conversation.id, "type": conversation.__class__.__name__})
-        
+        self.cache.set(
+            key, {"id": conversation.id, "type": conversation.__class__.__name__}
+        )
+
     def invalidate_message(self, message_id):
         """Invalidate a message in cache"""
         self.delete_message(message_id)
-        
+
     def get_cached_message_batch(self, conversation_id):
         """Get a batch of cached messages for a conversation"""
         return {}  # Simplified implementation
-        
+
     def cache_message(self, message):
         """Cache a message object"""
-        if hasattr(message, 'id'):
+        if hasattr(message, "id"):
             self.set_message(message.id, {"id": message.id})
-    
+
     def cache_message_batch(self, conversation_id, messages):
         """Cache a batch of messages"""
         # Implementation simplified for this fix

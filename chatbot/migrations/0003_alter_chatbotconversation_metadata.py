@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("chatbot", "0002_chatbotconversation_participants_and_more"),
     ]

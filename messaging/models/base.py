@@ -146,11 +146,11 @@ class BaseMessage(models.Model):
         """Add a reaction to the message"""
         if not self.reactions:
             self.reactions = {}
-        
+
         user_id = str(user.id)
         if user_id not in self.reactions:
             self.reactions[user_id] = reaction_type
-            self.save(update_fields=['reactions'])
+            self.save(update_fields=["reactions"])
 
     def remove_reaction(self, user):
         """Remove a user's reaction from the message"""
@@ -158,7 +158,7 @@ class BaseMessage(models.Model):
             user_id = str(user.id)
             if user_id in self.reactions:
                 del self.reactions[user_id]
-                self.save(update_fields=['reactions'])
+                self.save(update_fields=["reactions"])
 
     @property
     def reactions_changed(self):

@@ -483,45 +483,47 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
 class GroupMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelViewSet):
     """
     API endpoints for Group Messages.
-    
+
     Supports CRUD operations, edit history, and reactions.
     """
+
     serializer_class = GroupMessageSerializer
     permission_classes = [IsParticipantOrModerator]
     throttle_classes = [GroupMessageThrottle]
-    
+
     def get_queryset(self):
         """Filter messages to include only those in groups the user participates in."""
         user = self.request.user
-        return GroupMessage.objects.filter(
-            conversation__participants=user
-        ).order_by("-timestamp")
-        
+        return GroupMessage.objects.filter(conversation__participants=user).order_by(
+            "-timestamp"
+        )
+
     def perform_create(self, serializer):
         """Set authenticated user as sender"""
         serializer.save(sender=self.request.user)
-        
-    @action(detail=True, methods=['post'])
+
+    @action(detail=True, methods=["post"])
     def mark_as_read(self, request, pk=None):
         """Mark a message as read by the current user."""
         try:
             message = self.get_object()
             message.read_by.add(request.user)
-            
+
             # Send read receipt via WebSocket
             conversation_id = str(message.conversation.id)
             from messaging.services.message_delivery import message_delivery_service
+
             message_delivery_service.send_read_receipt(
                 conversation_id=conversation_id,
                 user_id=str(request.user.id),
                 username=request.user.username,
-                message_id=str(message.id)
+                message_id=str(message.id),
             )
-            
+
             return Response({"status": "marked as read"}, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error marking message as read: {str(e)}")
             return Response(
                 {"error": f"Failed to mark message as read: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

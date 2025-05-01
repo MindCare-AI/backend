@@ -5,7 +5,6 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from messaging.models.one_to_one import OneToOneMessage
 from messaging.models.group import GroupMessage
@@ -31,7 +30,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             # Check if user is anonymous
             if self.user.is_anonymous:
-                logger.warning(f"Anonymous user tried to connect to {self.conversation_group_name}")
+                logger.warning(
+                    f"Anonymous user tried to connect to {self.conversation_group_name}"
+                )
                 await self.close()
                 return
 
@@ -312,14 +313,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         Handle message.reaction event and send to WebSocket
         This gets called when someone adds/removes a reaction
         """
-        await self.send(text_data=json.dumps({
-            "type": "reaction",
-            "user_id": event["user_id"],
-            "username": event["username"],
-            "message_id": event["message_id"],
-            "reaction": event["reaction"],
-            "action": event["action"]
-        }))
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "reaction",
+                    "user_id": event["user_id"],
+                    "username": event["username"],
+                    "message_id": event["message_id"],
+                    "reaction": event["reaction"],
+                    "action": event["action"],
+                }
+            )
+        )
 
     async def participant_added(self, event):
         """Handle participant.added event"""
@@ -416,7 +421,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return False
 
     @database_sync_to_async
-    def create_message(self, conversation_id, content, message_type="text", metadata=None, media_id=None):
+    def create_message(
+        self,
+        conversation_id,
+        content,
+        message_type="text",
+        metadata=None,
+        media_id=None,
+    ):
         """Create a new message in the database"""
         try:
             if metadata is None:
@@ -436,6 +448,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 )
                 if media_id:
                     from media_handler.models import MediaFile
+
                     media = MediaFile.objects.get(id=media_id)
                     message.media = media.file
                     message.save()
@@ -453,6 +466,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 )
                 if media_id:
                     from media_handler.models import MediaFile
+
                     media = MediaFile.objects.get(id=media_id)
                     message.media = media.file
                     message.save()
@@ -469,7 +483,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "sender_name": message.sender.username,
                 "timestamp": message.timestamp.isoformat(),
             }
-            
+
             # Add media URL if present
             if message.media:
                 result["media_url"] = message.media.url

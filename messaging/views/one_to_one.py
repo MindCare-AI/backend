@@ -433,10 +433,12 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
         # Pass the authenticated user as the sender
         serializer.save(sender=request.user)
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = self.request  # Ensure the request is passed to the serializer
+        return context
+
     def get_serializer(self, *args, **kwargs):
         """Customize serializer to exclude unnecessary fields for specific actions."""
-        serializer_class = self.get_serializer_class()
-        if self.action in ["list", "retrieve"]:
-            kwargs["context"] = self.get_serializer_context()
-            kwargs["exclude"] = ["conversation"]  # Exclude conversation field
-        return serializer_class(*args, **kwargs)
+        kwargs["context"] = self.get_serializer_context()
+        return self.get_serializer_class()(*args, **kwargs)

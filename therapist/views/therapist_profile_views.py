@@ -27,6 +27,7 @@ from datetime import timedelta
 from django.core.cache import cache
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ValidationError
+from rest_framework.permissions import AllowAny
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,11 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
         elif self.action in ["availability", "update_availability"]:
             return TherapistAvailabilitySerializer
         return TherapistProfileSerializer
+
+    def get_permissions(self):
+        if self.action == "verify":
+            return [AllowAny()]
+        return super().get_permissions()
 
     def create(self, request, *args, **kwargs):
         try:

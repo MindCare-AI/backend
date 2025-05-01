@@ -6,68 +6,64 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class BaseMessageThrottle(UserRateThrottle):
-    """Base throttle class for messaging rate limits"""
-
-    def get_cache_key(self, request, view):
-        """Get cache key with enhanced staff and premium user handling"""
-        user = request.user
-
-        # No throttling for staff or premium users
-        if user.is_staff or getattr(user, "is_premium", False):
-            return None
-
-        # Get custom rate for user type if defined
-        if hasattr(user, "user_type"):
-            custom_rate = settings.USER_TYPE_THROTTLE_RATES.get(user.user_type)
-            if custom_rate:
-                self.rate = custom_rate
-
-        return super().get_cache_key(request, view)
-
-    def allow_request(self, request, view):
-        """Enhanced allowance check with logging"""
-        allowed = super().allow_request(request, view)
-
-        if not allowed:
-            logger.warning(
-                f"Rate limit exceeded for user {request.user.id} "
-                f"in scope {self.scope}"
-            )
-
-        return allowed
+class UserRateThrottle(UserRateThrottle):
+    """
+    Throttle for API requests by authenticated users.
+    Default rate: 60/minute
+    """
+    scope = 'user'
+    rate = getattr(settings, 'API_THROTTLE_RATE_USER', '60/minute')
 
 
-class MessageRateThrottle(BaseMessageThrottle):
-    """General message rate throttling"""
-
-    scope = "message_default"
-    rate = settings.THROTTLE_RATES.get("message_default", "60/minute")
-
-
-class TypingIndicatorThrottle(BaseMessageThrottle):
-    """Throttle for typing indicator updates"""
-
-    scope = "typing"
-    rate = settings.THROTTLE_RATES.get("typing", "30/minute")
+class MessageRateThrottle(UserRateThrottle):
+    """
+    Stricter throttle for message creation.
+    Default rate: 30/minute
+    """
+    scope = 'message'
+    rate = getattr(settings, 'API_THROTTLE_RATE_MESSAGE', '30/minute')
 
 
-class GroupMessageThrottle(BaseMessageThrottle):
-    """Group message rate throttling"""
-
-    scope = "group_message"
-    rate = settings.THROTTLE_RATES.get("group_message", "10/min")
-
-
-class OneToOneMessageThrottle(BaseMessageThrottle):
-    """One-to-one message rate throttling"""
-
-    scope = "one_to_one_message"
-    rate = settings.THROTTLE_RATES.get("one_to_one_message", "200/hour")
+class GroupMessageThrottle(UserRateThrottle):
+    """
+    Throttle for group messaging with reasonable limits.
+    Default rate: 20/minute
+    """
+    scope = 'group_message'
+    rate = getattr(settings, 'API_THROTTLE_RATE_GROUP_MESSAGE', '20/minute')
 
 
-class BurstMessageThrottle(BaseMessageThrottle):
-    """Burst message prevention"""
+class ReadReceiptThrottle(UserRateThrottle):
+    """
+    Throttle for read receipts to prevent flooding.
+    Default rate: 50/minute
+    """
+    scope = 'read_receipt'
+    rate = getattr(settings, 'API_THROTTLE_RATE_READ_RECEIPT', '50/minute')
 
-    scope = "burst_message"
-    rate = settings.THROTTLE_RATES.get("burst_message", "10/minute")
+
+class TypingIndicatorThrottle(UserRateThrottle):
+    """
+    Throttle for typing indicators with a higher rate because they are sent frequently.
+    Default rate: 20/10seconds
+    """
+    scope = 'typing'
+    rate = getattr(settings, 'API_THROTTLE_RATE_TYPING', '20/10second')
+
+
+class ReactionThrottle(UserRateThrottle):
+    """
+    Throttle for message reactions.
+    Default rate: 40/minute
+    """
+    scope = 'reaction'
+    rate = getattr(settings, 'API_THROTTLE_RATE_REACTION', '40/minute')
+
+
+class BurstRateThrottle(UserRateThrottle):
+    """
+    More permissive throttle for burst operations.
+    Default rate: 120/minute
+    """
+    scope = 'burst'
+    rate = getattr(settings, 'API_THROTTLE_RATE_BURST', '120/minute')

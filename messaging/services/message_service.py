@@ -172,9 +172,21 @@ class MessageService:
         # Update database
         try:
             message = BaseMessage.objects.get(id=message_id)
-            message.remove_reaction(user_id, reaction)
-            return True
+            if reaction in message.reactions and user_id in message.reactions[reaction]:
+                message.reactions[reaction].remove(user_id)
+                if not message.reactions[reaction]:
+                    del message.reactions[reaction]
+                message.save(update_fields=['reactions'])
+                
+                # Send WebSocket update
+                conversation_id = str(message.conversation_id)
+                message_dict = message.to_dict()
+                self._send_message_update(conversation_id, "reaction_removed", message_dict)
+                
+                return True
+            return False
         except ObjectDoesNotExist:
+            logger.error(f"Message {message_id} not found when removing reaction")
             return False
 
     def update_typing_status(

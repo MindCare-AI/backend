@@ -29,7 +29,7 @@ class ChatbotService:
     ]
 
     def __init__(self):
-        self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+        self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         self.api_key = settings.GEMINI_API_KEY
         self.timeout = settings.CHATBOT_SETTINGS["RESPONSE_TIMEOUT"]
         self.max_retries = settings.CHATBOT_SETTINGS["MAX_RETRIES"]

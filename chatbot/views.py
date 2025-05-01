@@ -75,7 +75,7 @@ class ChatbotViewSet(viewsets.ModelViewSet):
             for conversation in serializer.data:
                 # Get the last 5 messages for each conversation
                 messages = ChatMessage.objects.filter(
-                    conversation_id=conversation['id']
+                        conversation_id=str(conversation['id'])
                 ).order_by('-timestamp')[:5]
                 conversation['recent_messages'] = ChatMessageSerializer(messages, many=True).data
             return self.get_paginated_response(serializer.data)
@@ -95,16 +95,24 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         try:
             conversation = self.get_object()
 
-            # Validate user has access to this conversation
-            if request.user not in conversation.participants.all():
+            # Check if the conversation belongs to the current user
+            if conversation.user != request.user:
                 return Response(
                     {"error": "You do not have access to this conversation"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
+            # Get the content directly from request data
+            content = request.data.get("content")
+            if not content:
+                return Response(
+                    {"error": "Message content is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             # Validate and create the user's message
             message_data = {
-                "content": request.data.get("content"),
+                "content": content,
                 "conversation": conversation.id,
                 "sender": request.user.id,
                 "is_bot": False,
@@ -116,7 +124,8 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                     message_serializer.errors, status=status.HTTP_400_BAD_REQUEST
                 )
 
-            user_message = message_serializer.save()
+            # Attach conversation FK explicitly
+            user_message = message_serializer.save(conversation=conversation)
 
             # Get conversation history
             conversation_messages = ChatMessage.objects.filter(
@@ -154,19 +163,19 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Save and use the bot message
-            bot_message_serializer.save()
+            bot_message = bot_message_serializer.save(conversation=conversation)
 
             # Update conversation's last activity
             conversation.last_activity = timezone.now()
             conversation.save()
 
+            # Return both user message and bot response with complete serialized data
             return Response(
                 {
-                    "user_message": message_serializer.data,
-                    "bot_response": bot_message_serializer.data
+                    "user_message": ChatMessageSerializer(user_message).data,
+                    "bot_response": ChatMessageSerializer(bot_message).data
                 },
-                status=status.HTTP_201_CREATED
+                status=status.HTTP_200_OK
             )
 
         except Exception as e:

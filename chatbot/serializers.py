@@ -3,7 +3,7 @@ from .models import ChatbotConversation, ChatMessage, ConversationSummary
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
-    sender_name = serializers.SerializerMethodField()
+    sender_name = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = ChatMessage
@@ -47,7 +47,10 @@ class ChatbotConversationSerializer(serializers.ModelSerializer):
     message_count = serializers.SerializerMethodField()
     latest_summary = serializers.SerializerMethodField()
     last_message_at = serializers.SerializerMethodField()
-    metadata = serializers.JSONField(default=dict)  # Ensure default empty dict
+    metadata = serializers.HiddenField(default=dict)  # Hide metadata from browsable API
+    participants = serializers.PrimaryKeyRelatedField(
+        many=True, read_only=True
+    )
 
     class Meta:
         model = ChatbotConversation
@@ -58,12 +61,13 @@ class ChatbotConversationSerializer(serializers.ModelSerializer):
             "created_at",
             "last_activity",
             "is_active",
-            "metadata",
+            "metadata",  # Still included in the API response but hidden in browsable API
             "last_message",
             "message_count",
             "latest_summary",
             "recent_messages",
             "last_message_at",
+            "participants",
         ]
         read_only_fields = ["id", "created_at", "last_activity"]
 

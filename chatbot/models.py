@@ -11,13 +11,20 @@ class ChatbotConversation(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="chatbot_conversations",
+        related_name="owned_chatbot_conversations",  # Unique related_name
+        help_text="The user who owns this conversation",
     )
     title = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
-    metadata = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True, help_text="Additional metadata for the conversation")
+    participants = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="participated_chatbot_conversations",  # Unique related_name
+        blank=True,
+        help_text="Users participating in the conversation",
+    )
 
     class Meta:
         ordering = ["-last_activity"]

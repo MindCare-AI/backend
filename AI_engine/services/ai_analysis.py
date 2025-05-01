@@ -1,4 +1,4 @@
-#AI_engine/services/ai_analysis.py
+# AI_engine/services/ai_analysis.py
 from typing import Dict, Any, List
 import logging
 from django.conf import settings
@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class AIAnalysisService:
+    """Service for handling AI analysis of therapy sessions and user data."""
+
     def __init__(self):
+        self.api_key = getattr(settings, "AI_API_KEY", None)
+        self.api_endpoint = getattr(settings, "AI_API_ENDPOINT", None)
+        self.cache_timeout = getattr(
+            settings, "AI_CACHE_TIMEOUT", 3600
+        )  # 1 hour default
         self.base_url = settings.OLLAMA_URL
         self.model = "mistral"
         self.batch_size = settings.AI_ENGINE_SETTINGS["ANALYSIS_BATCH_SIZE"]
@@ -36,11 +43,15 @@ class AIAnalysisService:
                     "metadata": {
                         "model": self.model,
                         "finish_reason": result.get("done", True),
-                    }
+                    },
                 }
             else:
-                logger.error(f"Ollama request failed with status {response.status_code}")
-                raise Exception(f"Ollama request failed with status {response.status_code}")
+                logger.error(
+                    f"Ollama request failed with status {response.status_code}"
+                )
+                raise Exception(
+                    f"Ollama request failed with status {response.status_code}"
+                )
 
         except Exception as e:
             logger.error(f"Error generating text: {str(e)}")
@@ -60,6 +71,9 @@ class AIAnalysisService:
                 user=user, created_at__range=(start_date, end_date)
             ).order_by("-created_at")
 
+            # Get health metrics
+            health_metrics = self._get_health_metrics(user, date_range)
+
             if not mood_logs and not journal_entries:
                 return self._create_default_analysis()
 
@@ -75,13 +89,14 @@ class AIAnalysisService:
                     }
                     for entry in journal_entries
                 ],
+                "health_metrics": health_metrics,
             }
 
             # Get analysis from Ollama
             analysis = self._analyze_with_ollama(data)
 
-            # Save analysis results
-            user_analysis = UserAnalysis.objects.create(
+            # Store analysis results but don't assign to unused variable
+            UserAnalysis.objects.create(
                 user=user,
                 mood_score=analysis.get("mood_score", 0),
                 sentiment_score=analysis.get("sentiment_score", 0),
@@ -90,6 +105,7 @@ class AIAnalysisService:
                 suggested_activities=analysis.get("activities", []),
                 risk_factors=analysis.get("risks", {}),
                 improvement_metrics=analysis.get("improvements", {}),
+                health_metrics_correlation=analysis.get("health_correlations", {}),
             )
 
             # Generate insights if needed
@@ -110,6 +126,95 @@ class AIAnalysisService:
             logger.error(f"Error analyzing user data: {str(e)}")
             return self._create_default_analysis()
 
+    def _get_health_metrics(self, user, days: int) -> List[Dict]:
+        """Get user's health metrics for analysis"""
+        # Implementation placeholder - would pull from health metrics model
+        return []
+
+    def _analyze_with_ollama(self, data: Dict) -> Dict:
+        """Analyze data with Ollama model"""
+        # Create a prompt from the data
+        prompt = self._create_analysis_prompt(data)
+
+        try:
+            response = self.generate_text(prompt)
+            # Parse the response into structured analysis
+            analysis = self._parse_analysis_response(response["text"])
+            return analysis
+        except Exception as e:
+            logger.error(f"Error in AI analysis: {str(e)}")
+            return self._create_default_analysis()
+
+    def _create_analysis_prompt(self, data: Dict) -> str:
+        """Create a prompt for user data analysis"""
+        prompt = "Analyze the following user data and provide insights:\n\n"
+
+        if data.get("mood_logs"):
+            prompt += "Mood logs:\n"
+            for log in data["mood_logs"][:5]:  # Limit to 5 entries
+                prompt += f"- Mood: {log['mood']}, Date: {log['timestamp']}\n"
+
+        if data.get("journal_entries"):
+            prompt += "\nJournal entries:\n"
+            for entry in data["journal_entries"][:3]:  # Limit to 3 entries
+                prompt += (
+                    f"- Entry: {entry['content'][:100]}..., Mood: {entry['mood']}\n"
+                )
+
+        prompt += "\nProvide a structured analysis with these fields:\n"
+        prompt += "1. mood_score (0-10)\n"
+        prompt += "2. sentiment_score (-1 to 1)\n"
+        prompt += "3. emotions (list of key emotions)\n"
+        prompt += "4. topics (list of topics of concern)\n"
+        prompt += "5. activities (suggested activities)\n"
+        prompt += "6. risks (any risk factors noted)\n"
+        prompt += "7. improvements (areas showing improvement)\n"
+
+        return prompt
+
+    def _parse_analysis_response(self, response_text: str) -> Dict:
+        """Parse AI response into structured analysis"""
+        analysis = {
+            "mood_score": 5,  # Default values
+            "sentiment_score": 0,
+            "emotions": [],
+            "topics": [],
+            "activities": [],
+            "risks": {},
+            "improvements": {},
+            "needs_attention": False,
+        }
+
+        try:
+            import re
+
+            mood_match = re.search(
+                r"mood_score[:\s]*(\d+)", response_text, re.IGNORECASE
+            )
+            if mood_match:
+                analysis["mood_score"] = int(mood_match.group(1))
+        except Exception as e:
+            logger.error(f"Error parsing mood score: {str(e)}")
+            pass
+
+        # More parsing logic would go here
+
+        return analysis
+
+    def _create_default_analysis(self) -> Dict:
+        """Create a default analysis when data is insufficient"""
+        return {
+            "mood_score": 5,
+            "sentiment_score": 0,
+            "emotions": ["neutral"],
+            "topics": [],
+            "activities": ["journaling", "physical activity"],
+            "risks": {},
+            "improvements": {},
+            "health_correlations": {},
+            "needs_attention": False,
+        }
+
     def _get_mood_data(self, user, days: int) -> List[Dict]:
         """Get user's mood data for analysis"""
         end_date = timezone.now()
@@ -128,93 +233,84 @@ class AIAnalysisService:
             for log in mood_logs
         ]
 
-    def _analyze_with_ollama(self, data: Dict) -> Dict:
-        """Analyze data using Ollama"""
-        try:
-            prompt = self._build_analysis_prompt(data)
+    def analyze_session(self, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze a therapy session using AI.
 
+        Args:
+            session_data: Dictionary containing session information
+
+        Returns:
+            Dictionary containing analysis results
+        """
+        try:
+            if not self.api_key or not self.api_endpoint:
+                logger.error("AI service not properly configured")
+                return {"error": "AI service configuration missing"}
+
+            # Prepare the data for analysis
+            analysis_data = self._prepare_session_data(session_data)
+
+            # Make API request
             response = requests.post(
-                f"{self.base_url}/api/generate",
-                json={"model": self.model, "prompt": prompt, "stream": False},
+                f"{self.api_endpoint}/analyze",
+                json=analysis_data,
+                headers={"Authorization": f"Bearer {self.api_key}"},
             )
 
             if response.status_code == 200:
-                result = response.json()
-                return self._parse_analysis_response(result["response"])
+                return response.json()
             else:
-                logger.error(
-                    f"Ollama request failed with status {response.status_code}"
-                )
-                return self._create_default_analysis()
+                logger.error(f"AI analysis failed: {response.text}")
+                return {"error": "Analysis failed", "status": response.status_code}
 
         except Exception as e:
-            logger.error(f"Error in Ollama analysis: {str(e)}")
-            return self._create_default_analysis()
+            logger.error(f"Error in analyze_session: {str(e)}")
+            return {"error": str(e)}
 
-    def _build_analysis_prompt(self, data: Dict) -> str:
-        """Build prompt for Ollama analysis"""
-        return f"""As an AI analyst, analyze the following user data and provide insights:
-
-Mood History: {data['mood_logs']}
-Journal Entries: {data['journal_entries']}
-
-Analyze this data and provide insights in JSON format with these fields:
-{{
-    "mood_score": <float between -1 and 1>,
-    "sentiment_score": <float between -1 and 1>,
-    "emotions": [<list of dominant emotions>],
-    "topics": [<list of main topics or concerns>],
-    "activities": [<list of suggested activities>],
-    "risks": {{<risk factors and their levels>}},
-    "improvements": {{<improvement metrics>}},
-    "needs_attention": <boolean indicating if immediate attention is needed>
-}}"""
-
-    def _parse_analysis_response(self, response: str) -> Dict:
-        """Parse and validate Ollama's analysis response"""
-        try:
-            import json
-
-            analysis = json.loads(response)
-
-            required_fields = [
-                "mood_score",
-                "sentiment_score",
-                "emotions",
-                "topics",
-                "activities",
-                "risks",
-                "improvements",
-                "needs_attention",
-            ]
-
-            # Ensure all required fields exist
-            for field in required_fields:
-                if field not in analysis:
-                    analysis[field] = self._create_default_analysis()[field]
-
-            return analysis
-
-        except json.JSONDecodeError:
-            logger.error("Failed to parse Ollama analysis response as JSON")
-            return self._create_default_analysis()
-        except Exception as e:
-            logger.error(f"Error processing Ollama analysis: {str(e)}")
-            return self._create_default_analysis()
-
-    def _create_default_analysis(self) -> Dict:
-        """Create a default analysis when AI analysis fails"""
+    def _prepare_session_data(self, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare session data for AI analysis."""
         return {
-            "mood_score": 0,
-            "sentiment_score": 0,
-            "emotions": ["neutral"],
-            "topics": ["general"],
-            "activities": ["relaxation"],
-            "risks": {"general": "low"},
-            "improvements": {"overall": 0},
-            "needs_attention": False,
+            "session_id": session_data.get("id"),
+            "timestamp": timezone.now().isoformat(),
+            "content": session_data.get("content", ""),
+            "metadata": session_data.get("metadata", {}),
         }
 
+    def get_recommendations(self, user_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Get AI-powered recommendations for a user.
 
-# Create singleton instance
+        Args:
+            user_data: Dictionary containing user information
+
+        Returns:
+            List of recommendation dictionaries
+        """
+        try:
+            if not self.api_key or not self.api_endpoint:
+                logger.error("AI service not properly configured")
+                return []
+
+            response = requests.post(
+                f"{self.api_endpoint}/recommendations",
+                json=user_data,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+
+            if response.status_code == 200:
+                return response.json().get("recommendations", [])
+            else:
+                logger.error(f"Failed to get recommendations: {response.text}")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error in get_recommendations: {str(e)}")
+            return []
+
+
+# Create a singleton instance
 ai_service = AIAnalysisService()
+
+# Export the singleton instance
+__all__ = ["ai_service"]

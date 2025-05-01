@@ -322,13 +322,6 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             ).exists():
                 return True
 
-            from messaging.models.chatbot import ChatbotConversation
-
-            if ChatbotConversation.objects.filter(
-                id=self.conversation_id, user=user
-            ).exists():
-                return True
-
             logger.warning(
                 f"User {user.username} attempted to access conversation {self.conversation_id} but is not a participant"
             )

@@ -1,4 +1,4 @@
-#AI_engine/views.py
+# AI_engine/views.py
 import logging
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
@@ -61,16 +61,17 @@ class AIAnalysisViewSet(viewsets.ModelViewSet):
 class AIInsightViewSet(viewsets.ViewSet):
     """
     A viewset for viewing AI insights.
-    
+
     Instead of using ReadOnlyModelViewSet which causes schema generation issues,
     we're using a basic ViewSet and implementing only the methods we need.
     """
+
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = AIInsightSerializer
 
     def get_queryset(self):
         """Get insights for the authenticated user"""
-        return AIInsight.objects.filter(user=self.request.user).order_by('-created_at')
+        return AIInsight.objects.filter(user=self.request.user).order_by("-created_at")
 
     def get_object(self):
         """Get a specific insight"""
@@ -83,7 +84,7 @@ class AIInsightViewSet(viewsets.ViewSet):
         queryset = self.get_queryset()
         serializer = AIInsightSerializer(queryset, many=True)
         return Response(serializer.data)
-    
+
     def retrieve(self, request, pk=None):
         """Retrieve a specific insight"""
         try:
@@ -161,36 +162,40 @@ class AIInsightViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Error in analyze_user: {str(e)}")
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
 class TherapyRecommendationViewSet(viewsets.ViewSet):
     """
     A viewset for handling therapy recommendations.
-    
+
     Instead of using ReadOnlyModelViewSet which causes schema generation issues,
     we're using a basic ViewSet and implementing only the methods we need.
     """
+
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = TherapyRecommendationSerializer
 
     def get_queryset(self):
         """Get therapy recommendations for the authenticated user"""
-        return TherapyRecommendation.objects.filter(user=self.request.user).order_by('-created_at')
+        return TherapyRecommendation.objects.filter(user=self.request.user).order_by(
+            "-created_at"
+        )
 
     def get_object(self):
         """Get a specific recommendation"""
         queryset = self.get_queryset()
         obj = queryset.get(pk=self.kwargs["pk"])
         return obj
-        
+
     def list(self, request):
         """List all recommendations for the user"""
         queryset = self.get_queryset()
         serializer = TherapyRecommendationSerializer(queryset, many=True)
         return Response(serializer.data)
-    
+
     def retrieve(self, request, pk=None):
         """Retrieve a specific recommendation"""
         try:
@@ -211,7 +216,7 @@ class TherapyRecommendationViewSet(viewsets.ViewSet):
             return Response(serializer.data)
         except TherapyRecommendation.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-    
+
     @action(detail=True, methods=["post"])
     def rate_effectiveness(self, request, pk=None):
         """Rate the effectiveness of a recommendation"""

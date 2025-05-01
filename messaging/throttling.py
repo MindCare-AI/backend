@@ -52,13 +52,6 @@ class TypingIndicatorThrottle(BaseMessageThrottle):
     rate = settings.THROTTLE_RATES.get("typing", "30/minute")
 
 
-class ChatbotRateThrottle(BaseMessageThrottle):
-    """Chatbot-specific rate throttling"""
-
-    scope = "chatbot"
-    rate = settings.THROTTLE_RATES.get("chatbot", "30/minute")
-
-
 class GroupMessageThrottle(BaseMessageThrottle):
     """Group message rate throttling"""
 

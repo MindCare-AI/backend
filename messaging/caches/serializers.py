@@ -103,10 +103,6 @@ class MessageSerializer:
                 if hasattr(message.sender, "user_type"):
                     data["sender_type"] = message.sender.user_type
 
-            # Add chatbot-specific fields
-            if hasattr(message, "is_bot"):
-                data["is_bot"] = message.is_bot
-
             # Add edit history if present
             if hasattr(message, "edited") and message.edited:
                 data["edited"] = True
@@ -130,7 +126,7 @@ class MessageSerializer:
             if hasattr(message, "read_by"):
                 try:
                     data["read_by"] = list(message.read_by.values_list("id", flat=True))
-                except:
+                except Exception:
                     # Fallback if read_by is not a QuerySet (e.g., if it's already a list)
                     data["read_by"] = list(message.read_by)
 
@@ -209,10 +205,6 @@ class MessageSerializer:
 
             if hasattr(conversation, "is_private"):
                 data["is_private"] = conversation.is_private
-
-            # Add chatbot-specific fields
-            if hasattr(conversation, "user"):
-                data["user_id"] = conversation.user.id
 
             return data
 

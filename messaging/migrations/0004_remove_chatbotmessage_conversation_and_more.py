@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("messaging", "0003_groupmessage_media_onetoonemessage_media"),
     ]

@@ -71,6 +71,7 @@ class ReactionActionSerializer(serializers.Serializer):
 
 class LikeToggleSerializer(serializers.Serializer):
     """Serializer for toggling like action. No input is required."""
+
     pass
 
 

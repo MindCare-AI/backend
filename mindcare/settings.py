@@ -567,7 +567,7 @@ LOGGING = {
 # Clean and normalize the API key from environment
 raw_api_key = os.environ.get("GEMINI_API_KEY", "")
 if isinstance(raw_api_key, str):
-    GEMINI_API_KEY = raw_api_key.strip().replace('"', '').replace("'", "")
+    GEMINI_API_KEY = raw_api_key.strip().replace('"', "").replace("'", "")
     # Check if the key seems valid (basic check)
     if len(GEMINI_API_KEY) < 10:
         print("WARNING: GEMINI_API_KEY seems too short or invalid!")
@@ -672,12 +672,16 @@ MESSAGE_SETTINGS = {
 
 # Chatbot Settings
 CHATBOT_SETTINGS = {
+    "RESPONSE_TIMEOUT": 30,  # seconds
     "MAX_RETRIES": 3,
-    "RESPONSE_TIMEOUT": 30,
-    "MAX_HISTORY_MESSAGES": 5,
-    "MIN_MESSAGE_LENGTH": 2,
-    "MAX_MESSAGE_LENGTH": 1000,
+    "MAX_TOKENS": 1024,
+    "TEMPERATURE": 0.7,
+    "MODEL": "gemini-2.0-flash",
 }
+
+CHATBOT_JOURNAL_LIMIT = 5  # Number of recent journal entries to include
+CHATBOT_MOOD_LIMIT = 10  # Number of recent mood logs to include
+CHATBOT_LOOKBACK_DAYS = 30  # Days to look back for user data
 
 # Throttling Configuration
 THROTTLE_RATES = {

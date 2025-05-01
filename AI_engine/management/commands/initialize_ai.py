@@ -1,4 +1,4 @@
-#AI_engine/management/commands/initialize_ai.py
+# AI_engine/management/commands/initialize_ai.py
 import requests
 import json
 import sys

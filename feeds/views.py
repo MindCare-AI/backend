@@ -249,7 +249,7 @@ class PostViewSet(viewsets.ModelViewSet):
         request=LikeToggleSerializer,
         responses={
             200: {"description": "Like status or post unliked"},
-            201: {"description": "Post liked"}
+            201: {"description": "Post liked"},
         },
     )
     @action(detail=True, methods=["get", "post"], serializer_class=LikeToggleSerializer)
@@ -263,12 +263,14 @@ class PostViewSet(viewsets.ModelViewSet):
                 user=user,
                 content_type=content_type,
                 object_id=post.id,
-                reaction_type="like"
+                reaction_type="like",
             ).exists()
             if liked:
                 message = "Post is currently liked. Send a POST request to remove like."
             else:
-                message = "Post is not liked yet. Send a POST request to like this post."
+                message = (
+                    "Post is not liked yet. Send a POST request to like this post."
+                )
             return Response({"detail": message}, status=status.HTTP_200_OK)
 
         # POST method: Toggle like using a validated (empty) request body.
@@ -279,7 +281,7 @@ class PostViewSet(viewsets.ModelViewSet):
             user=user,
             content_type=content_type,
             object_id=post.id,
-            reaction_type="like"
+            reaction_type="like",
         ).first()
 
         if existing_reaction:
@@ -290,7 +292,7 @@ class PostViewSet(viewsets.ModelViewSet):
                 user=user,
                 content_type=content_type,
                 object_id=post.id,
-                reaction_type="like"
+                reaction_type="like",
             )
             return Response({"message": "Post liked"}, status=status.HTTP_201_CREATED)
 
@@ -302,10 +304,10 @@ class PostViewSet(viewsets.ModelViewSet):
         post = self.get_object()
         content_type = ContentType.objects.get_for_model(post)
         count = Reaction.objects.filter(
-            user=request.user,   # remove user=request.user if likes are not per user
+            user=request.user,  # remove user=request.user if likes are not per user
             content_type=content_type,
             object_id=post.id,
-            reaction_type="like"
+            reaction_type="like",
         ).count()
         return Response({"like_count": count}, status=status.HTTP_200_OK)
 

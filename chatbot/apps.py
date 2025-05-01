@@ -9,6 +9,7 @@ class ChatbotConfig(AppConfig):
         """Initialize app settings and signals"""
         try:
             from django.conf import settings
+
             settings.CHATBOT_SETTINGS
         except AttributeError:
             # Set default settings if not configured

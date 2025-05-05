@@ -31,6 +31,7 @@ class CustomUser(AbstractUser):
     passcode_enabled = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_online = models.BooleanField(default=False, null=False)
 
     tracker = FieldTracker(
         ["user_type", "email", "phone_number", "crisis_alert_enabled"]

@@ -77,7 +77,7 @@ class UserTypeSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     patient_profile = PatientProfileSerializer(source="patientprofile", read_only=True)
     therapist_profile = TherapistProfileSerializer(
-        source="therapistprofile", read_only=True
+        read_only=True
     )
     preferences = UserPreferencesSerializer(read_only=True)
     settings = UserSettingsSerializer(read_only=True)

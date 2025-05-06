@@ -32,6 +32,7 @@ from ..serializers.one_to_one import (
 # from ..services/firebase import push_message  # DELETE THIS LINE
 import logging
 from ..mixins.edit_history import EditHistoryMixin
+from ..mixins.reactions import ReactionMixin
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
@@ -356,7 +357,7 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
             )
 
 
-class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
+class OneToOneMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelViewSet):
     queryset = OneToOneMessage.objects.all()
     serializer_class = OneToOneMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -403,27 +404,6 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
         cache.set(cache_key, response.data, timeout=3600)
         return response
 
-    @action(detail=True, methods=["post"], url_path="add_reaction")
-    def add_reaction(self, request, pk=None):
-        """Add reaction with cache invalidation"""
-        response = super().add_reaction(request, pk)
-        if response.status_code == 200:
-            # Invalidate message cache
-            cache_key = f"one_to_one_message_{pk}"
-            cache.delete(cache_key)
-            # Invalidate reactions cache
-            cache_key = f"message_reactions_{pk}"
-            cache.delete(cache_key)
-        return response
-
-    @action(detail=True, methods=["delete"], url_path="remove_reaction")
-    def remove_reaction(self, request, pk=None):
-        """Remove a reaction from a specific message."""
-        return Response(
-            {"detail": "This feature is not implemented yet."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
-        )
-
     def perform_create(self, serializer):
         """Handle media uploads during message creation."""
         request = self.request
@@ -433,10 +413,15 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
         # Pass the authenticated user as the sender
         serializer.save(sender=request.user)
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = (
+            self.request
+        )  # Ensure the request is passed to the serializer
+        return context
+
     def get_serializer(self, *args, **kwargs):
-        """Customize serializer to exclude unnecessary fields for specific actions."""
-        serializer_class = self.get_serializer_class()
-        if self.action in ["list", "retrieve"]:
-            kwargs["context"] = self.get_serializer_context()
-            kwargs["exclude"] = ["conversation"]  # Exclude conversation field
-        return serializer_class(*args, **kwargs)
+        """Return the serializer instance that should be used for validating and
+        deserializing input, and for serializing output."""
+        kwargs["context"] = self.get_serializer_context()
+        return self.serializer_class(*args, **kwargs)

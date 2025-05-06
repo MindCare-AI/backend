@@ -2,7 +2,6 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from django.http import Http404
 from drf_spectacular.utils import extend_schema
 import logging
 
@@ -13,182 +12,156 @@ class ReactionMixin:
     """Mixin to add reaction functionality to message viewsets"""
 
     @extend_schema(
+        description="Add a reaction to a message",
         summary="Add Reaction",
-        description="Add or update a reaction to a message. Valid reactions include: like, heart, smile, thumbsup.",
-        request={
-            "type": "object",
-            "properties": {"reaction": {"type": "string", "example": "like"}},
-            "required": ["reaction"],
-        },
+        tags=["Message"],
+        request={"type": "object", "properties": {"reaction": {"type": "string"}}},
         responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "status": {"type": "string"},
-                    "message": {"type": "string"},
-                    "reactions": {"type": "object"},
-                },
-            },
+            200: {"description": "Reaction added successfully"},
             400: {"description": "Bad Request"},
             404: {"description": "Message not found"},
             500: {"description": "Internal Server Error"},
         },
     )
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], url_path="add-reaction")
     def add_reaction(self, request, pk=None):
-        """Add or update a reaction to a message"""
+        """Add a reaction to a specific message."""
         try:
-            try:
-                message = self.get_object()
-            except Http404:
-                return Response(
-                    {"error": f"Message with ID {pk} not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+            # Get the message
+            message = self.get_object()
 
+            # Get the reaction from request data
             reaction_type = request.data.get("reaction")
-
             if not reaction_type:
                 return Response(
-                    {"error": "Reaction type is required"},
+                    {"error": "Reaction type is required."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Validate reaction type
-            valid_reactions = {"like", "heart", "smile", "thumbsup"}
-            if reaction_type not in valid_reactions:
+            # Add the reaction
+            if not hasattr(message, "add_reaction"):
                 return Response(
-                    {
-                        "error": f'Invalid reaction type. Must be one of: {", ".join(valid_reactions)}'
-                    },
+                    {"error": "This message does not support reactions."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Initialize reactions dict if needed
-            if not message.reactions:
-                message.reactions = {}
-            if reaction_type not in message.reactions:
-                message.reactions[reaction_type] = []
+            # Store the user who added this reaction for notification purposes
+            message._last_reactor = request.user
+            message._last_reaction_type = reaction_type
 
-            # Store user ID as string for JSON serialization (consistent format)
-            user_id = str(request.user.id)
-            if user_id not in message.reactions[reaction_type]:
-                # Store reference to last reactor for signal notification
-                message._last_reactor = request.user
-                message.last_reaction_type = reaction_type
+            # Add the reaction
+            message.add_reaction(request.user, reaction_type)
 
-                # Add user to reaction list
-                message.reactions[reaction_type].append(user_id)
-                message.save()
-
-            return Response(
-                {
-                    "status": "success",
-                    "message": f"Added reaction {reaction_type}",
-                    "reactions": message.reactions,
-                }
-            )
+            # Return the updated message
+            serializer = self.get_serializer(message)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error(f"Error adding reaction: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Failed to add reaction"},
+                {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
+        description="Remove a reaction from a message",
         summary="Remove Reaction",
-        description="Remove a user's reaction from a message.",
-        request={
-            "type": "object",
-            "properties": {"reaction": {"type": "string", "example": "like"}},
-            "required": ["reaction"],
-        },
+        tags=["Message"],
+        request={"type": "object", "properties": {"reaction": {"type": "string"}}},
         responses={
-            200: {
-                "type": "object",
-                "properties": {
-                    "status": {"type": "string"},
-                    "message": {"type": "string"},
-                    "reactions": {"type": "object"},
-                },
-            },
+            200: {"description": "Reaction removed successfully"},
             400: {"description": "Bad Request"},
             404: {"description": "Message not found"},
             500: {"description": "Internal Server Error"},
         },
     )
-    @action(detail=True, methods=["delete"])
+    @action(detail=True, methods=["delete"], url_path="remove-reaction")
     def remove_reaction(self, request, pk=None):
-        """Remove a user's reaction from a message"""
+        """Remove a reaction from a specific message."""
         try:
-            try:
-                message = self.get_object()
-            except Http404:
-                return Response(
-                    {"error": f"Message with ID {pk} not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+            # Get the message
+            message = self.get_object()
 
+            # Get the reaction from request data
             reaction_type = request.data.get("reaction")
-
             if not reaction_type:
                 return Response(
-                    {"error": "Reaction type is required"},
+                    {"error": "Reaction type is required."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            if not message.reactions or reaction_type not in message.reactions:
+            # Check if message supports reactions
+            if not hasattr(message, "remove_reaction"):
                 return Response(
-                    {"error": "No reactions to remove"},
+                    {"error": "This message does not support reactions."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Remove user from reaction type - ensure consistent ID format
-            user_id = str(request.user.id)
-            if user_id in message.reactions[reaction_type]:
-                message.reactions[reaction_type].remove(user_id)
-                # Clean up empty reaction types
-                if not message.reactions[reaction_type]:
-                    del message.reactions[reaction_type]
-                message.save()
+            # Remove the reaction
+            if (
+                reaction_type in message.reactions
+                and request.user.id in message.reactions[reaction_type]
+            ):
+                message.remove_reaction(request.user)
 
-            return Response(
-                {
-                    "status": "success",
-                    "message": "Reaction removed",
-                    "reactions": message.reactions,
-                }
-            )
+                # Return the updated message
+                serializer = self.get_serializer(message)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"error": "Reaction not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         except Exception as e:
             logger.error(f"Error removing reaction: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Failed to remove reaction"},
+                {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @extend_schema(
-        summary="List Reactions",
-        description="Get all reactions for a message.",
+        description="Get all reactions for a message",
+        summary="Get Reactions",
+        tags=["Message"],
         responses={
-            200: {
-                "type": "object",
-                "properties": {"reactions": {"type": "object"}},
-            },
+            200: {"description": "Reactions retrieved successfully"},
             404: {"description": "Message not found"},
             500: {"description": "Internal Server Error"},
         },
     )
     @action(detail=True, methods=["get"], url_path="reactions")
-    def reactions(self, request, pk=None):
-        """Get all reactions for a message."""
+    def get_reactions(self, request, pk=None):
+        """Get all reactions for a specific message."""
         try:
+            # Get the message
             message = self.get_object()
-            return Response(message.reactions or {}, status=status.HTTP_200_OK)
+
+            # Check if message has reactions
+            if not hasattr(message, "reactions"):
+                return Response(
+                    {"error": "This message does not support reactions."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get the reactions
+            reactions = message.reactions
+
+            # Enhance reaction data with user information
+            enhanced_reactions = {}
+            from django.contrib.auth import get_user_model
+
+            User = get_user_model()
+
+            for reaction_type, user_ids in reactions.items():
+                users = User.objects.filter(id__in=user_ids).values("id", "username")
+                enhanced_reactions[reaction_type] = list(users)
+
+            return Response(enhanced_reactions, status=status.HTTP_200_OK)
+
         except Exception as e:
-            logger.error(f"Error fetching reactions: {str(e)}", exc_info=True)
+            logger.error(f"Error getting reactions: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Failed to fetch reactions"},
+                {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

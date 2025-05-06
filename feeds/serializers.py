@@ -69,6 +69,12 @@ class ReactionActionSerializer(serializers.Serializer):
     )
 
 
+class LikeToggleSerializer(serializers.Serializer):
+    """Serializer for toggling like action. No input is required."""
+
+    pass
+
+
 class CommentSerializer(serializers.ModelSerializer):
     """Serializer for comments on posts"""
 

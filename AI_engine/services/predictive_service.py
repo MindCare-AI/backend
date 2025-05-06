@@ -1,4 +1,4 @@
-#AI_engine/services/predictive_service.py
+# AI_engine/services/predictive_service.py
 import logging
 from typing import Dict, Any
 import requests
@@ -32,7 +32,7 @@ class PredictiveAnalysisService:
             {
                 "rating": log.mood_rating,
                 "activities": log.activities,
-                "timestamp": log.logged_at.isoformat(),  # Keep using 'timestamp' in the data structure 
+                "timestamp": log.logged_at.isoformat(),  # Keep using 'timestamp' in the data structure
             }
             for log in mood_logs
         ]

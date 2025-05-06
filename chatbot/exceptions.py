@@ -1,4 +1,3 @@
-# messaging/services/exceptions.py
 class ChatbotError(Exception):
     """Base exception for chatbot-related errors"""
 
@@ -6,12 +5,12 @@ class ChatbotError(Exception):
 
 
 class ChatbotConfigError(ChatbotError):
-    """Raised when there's a configuration error"""
+    """Error related to chatbot configuration"""
 
     pass
 
 
 class ChatbotAPIError(ChatbotError):
-    """Raised when there's an API-related error"""
+    """Error related to chatbot API calls"""
 
     pass

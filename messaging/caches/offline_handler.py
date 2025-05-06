@@ -9,7 +9,6 @@ from django.contrib.auth import get_user_model
 from .cache_manager import message_cache
 from ..models.one_to_one import OneToOneMessage, OneToOneConversation
 from ..models.group import GroupMessage, GroupConversation
-from ..models.chatbot import ChatbotMessage, ChatbotConversation
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -30,14 +29,12 @@ class OfflineMessageHandler:
         self.message_models = {
             "OneToOneConversation": OneToOneMessage,
             "GroupConversation": GroupMessage,
-            "ChatbotConversation": ChatbotMessage,
         }
 
         # Map conversation types to their conversation models
         self.conversation_models = {
             "OneToOneConversation": OneToOneConversation,
             "GroupConversation": GroupConversation,
-            "ChatbotConversation": ChatbotConversation,
         }
 
     def sync_offline_messages(self, user_id: int) -> Dict[str, Any]:
@@ -189,10 +186,6 @@ class OfflineMessageHandler:
                 metadata=message_data.get("metadata", {}),
                 timestamp=timezone.now(),
             )
-
-            # Set any additional fields based on the conversation type
-            if conversation_type == "ChatbotConversation":
-                message.is_bot = False
 
             message.save()
 

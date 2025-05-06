@@ -6,38 +6,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class IsPatient(BasePermission):
-    """
-    Custom permission to only allow patients to access chatbot and patient-specific features
-    """
-
-    def has_permission(self, request, view):
-        try:
-            return bool(
-                request.user
-                and request.user.is_authenticated
-                and request.user.user_type == "patient"
-            )
-        except Exception as e:
-            logger.error(f"Error checking patient permission: {str(e)}")
-            return False
-
-
 class IsTherapist(BasePermission):
     """
     Custom permission to only allow therapists to access therapy-specific features
     """
 
     def has_permission(self, request, view):
-        try:
-            return bool(
-                request.user
-                and request.user.is_authenticated
-                and request.user.user_type == "therapist"
-            )
-        except Exception as e:
-            logger.error(f"Error checking therapist permission: {str(e)}")
-            return False
+        return (
+            request.user
+            and hasattr(request.user, "user_type")
+            and request.user.user_type == "therapist"
+        )
 
 
 class IsParticipant(BasePermission):
@@ -46,24 +25,7 @@ class IsParticipant(BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        try:
-            return request.user in obj.participants.all()
-        except Exception as e:
-            logger.error(f"Error checking participant permission: {str(e)}")
-            return False
-
-
-class IsMessageOwner(BasePermission):
-    """
-    Custom permission to only allow message owners to modify their messages
-    """
-
-    def has_object_permission(self, request, view, obj):
-        try:
-            return obj.sender == request.user
-        except Exception as e:
-            logger.error(f"Error checking message owner permission: {str(e)}")
-            return False
+        return request.user in obj.participants.all()
 
 
 class IsModerator(BasePermission):
@@ -71,16 +33,12 @@ class IsModerator(BasePermission):
     Custom permission to allow moderators to manage conversations
     """
 
-    def has_object_permission(self, request, view, obj):
-        try:
-            # Check if user is a moderator and hasn't been removed
-            return (
-                request.user in obj.moderators.all()
-                and not obj.removed_moderators.filter(id=request.user.id).exists()
-            )
-        except Exception as e:
-            logger.error(f"Error checking moderator permission: {str(e)}")
-            return False
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and hasattr(request.user, "is_moderator")
+            and request.user.is_moderator
+        )
 
 
 class CanSendMessage(BasePermission):
@@ -89,77 +47,81 @@ class CanSendMessage(BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        try:
-            user = request.user
-            # Check if conversation is active and user isn't blocked
-            return (
-                not obj.is_archived
-                and user in obj.participants.all()
-                and not obj.blocked_users.filter(id=user.id).exists()
-            )
-        except Exception as e:
-            logger.error(f"Error checking message permission: {str(e)}")
+        if not request.user or not obj:
             return False
+        return request.user in obj.participants.all() and not getattr(
+            request.user, "is_muted", False
+        )
 
 
 class IsParticipantOrModerator(permissions.BasePermission):
     """
-    Custom permission to only allow participants or moderators of a conversation.
+    Permission to only allow participants or moderators of a conversation to access it.
     """
 
     def has_permission(self, request, view):
-        # Always allow GET, HEAD, OPTIONS requests
-        if request.method in permissions.SAFE_METHODS:
-            # For detail views (retrieve, update, delete)
-            if getattr(view, "detail", False) and view.kwargs.get("pk"):
-                return True  # We'll do the check in has_object_permission
-            # For list views
-            return request.user.is_authenticated
-        # For unsafe methods like POST, PUT, PATCH
-        return request.user.is_authenticated
+        # Allow all authenticated users for list/create
+        return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        # Get the conversation object directly or via the message
+        # Check if user is participant
+        if hasattr(obj, "participants"):
+            is_participant = obj.participants.filter(id=request.user.id).exists()
+
+            # For safe methods (GET, HEAD, OPTIONS) being a participant is enough
+            if request.method in permissions.SAFE_METHODS and is_participant:
+                return True
+
+            # For modify/delete methods, check if user is moderator (for group conversations)
+            if hasattr(obj, "moderators"):
+                is_moderator = obj.moderators.filter(id=request.user.id).exists()
+                return is_moderator
+
+            # For one-to-one conversations, being a participant is enough for all operations
+            return is_participant
+
+        # For message objects, check if user is participant in the conversation
         if hasattr(obj, "conversation"):
-            conversation = obj.conversation
-        else:
-            conversation = obj
+            if hasattr(obj.conversation, "participants"):
+                is_participant = obj.conversation.participants.filter(
+                    id=request.user.id
+                ).exists()
 
-        # Check if user is a participant
-        try:
-            user_is_participant = conversation.participants.filter(
-                id=request.user.id
-            ).exists()
-        except Exception as e:
-            logger.error(f"Error checking participant status: {str(e)}")
-            user_is_participant = False
+                # For safe methods, being a participant is enough
+                if request.method in permissions.SAFE_METHODS:
+                    return is_participant
 
-        # Check if user is a moderator (for group conversations)
-        try:
-            user_is_moderator = (
-                hasattr(conversation, "moderators")
-                and conversation.moderators.filter(id=request.user.id).exists()
-            )
-        except Exception as e:
-            logger.error(f"Error checking moderator status: {str(e)}")
-            user_is_moderator = False
+                # For modify/delete, check if user is sender or moderator
+                is_sender = obj.sender == request.user
 
-        # For GET requests, allow if user is a participant
+                # If group conversation, check if user is moderator
+                if hasattr(obj.conversation, "moderators"):
+                    is_moderator = obj.conversation.moderators.filter(
+                        id=request.user.id
+                    ).exists()
+                    return is_sender or is_moderator
+
+                # For one-to-one messages, only allow sender to modify
+                return is_sender
+
+        return False
+
+
+class IsMessageSender(permissions.BasePermission):
+    """
+    Permission to only allow the sender of a message to modify it.
+    """
+
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        # For safe methods, check if user is participant in the conversation
         if request.method in permissions.SAFE_METHODS:
-            return user_is_participant
+            if hasattr(obj, "conversation") and hasattr(
+                obj.conversation, "participants"
+            ):
+                return obj.conversation.participants.filter(id=request.user.id).exists()
 
-        # For PUT/PATCH/DELETE, check if it's the message owner or a moderator
-        if hasattr(obj, "sender") and request.method in ["PUT", "PATCH", "DELETE"]:
-            return obj.sender == request.user or user_is_moderator
-
-        # For conversation-level actions, check moderator status
-        if hasattr(view, "action") and view.action in [
-            "add_participant",
-            "remove_participant",
-            "add_moderator",
-            "pin_message",
-        ]:
-            return user_is_moderator
-
-        # Default: allow if participant
-        return user_is_participant
+        # For modify/delete, check if user is the sender
+        return obj.sender == request.user

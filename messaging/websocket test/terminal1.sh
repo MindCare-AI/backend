@@ -1,0 +1,1 @@
+wscat -c "ws://localhost:8000/ws/conversation/1/?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ2MTAyODg0LCJpYXQiOjE3NDYwOTkyODQsImp0aSI6IjMzMmNjNzA0MGRjOTQ4Y2FiYzFlMDExMDUwZDJjNGYyIiwidXNlcl9pZCI6Mn0.gWAIvzL0ZdJVte1yqyC3DkMIbuM9OWpIMtSrzZQZKM8"

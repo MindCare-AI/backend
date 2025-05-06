@@ -9,7 +9,6 @@ import logging
 
 from .models.one_to_one import OneToOneMessage
 from .models.group import GroupMessage
-from .models.chatbot import ChatbotMessage
 from .models.base import BaseMessage
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_delete, sender=OneToOneMessage)
 @receiver(post_delete, sender=GroupMessage)
-@receiver(post_delete, sender=ChatbotMessage)
 def update_conversation_on_message_change_delete(sender, instance, **kwargs):
     conversation = instance.conversation
     conversation.last_activity = timezone.now()

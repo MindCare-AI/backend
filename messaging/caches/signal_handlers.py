@@ -6,7 +6,6 @@ from django.utils import timezone
 
 from ..models.one_to_one import OneToOneMessage, OneToOneConversation
 from ..models.group import GroupMessage, GroupConversation
-from ..models.chatbot import ChatbotMessage, ChatbotConversation
 from .cache_manager import message_cache
 
 logger = logging.getLogger(__name__)
@@ -16,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=OneToOneMessage)
 @receiver(post_save, sender=GroupMessage)
-@receiver(post_save, sender=ChatbotMessage)
 def cache_message_on_save(sender, instance, created, **kwargs):
     """Cache a message when it's created or updated."""
     try:
@@ -40,7 +38,6 @@ def cache_message_on_save(sender, instance, created, **kwargs):
 
 @receiver(pre_save, sender=OneToOneMessage)
 @receiver(pre_save, sender=GroupMessage)
-@receiver(pre_save, sender=ChatbotMessage)
 def handle_message_edit_cache(sender, instance, **kwargs):
     """Prepare message edit history for caching."""
     try:
@@ -73,7 +70,6 @@ def handle_message_edit_cache(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=OneToOneMessage)
 @receiver(post_delete, sender=GroupMessage)
-@receiver(post_delete, sender=ChatbotMessage)
 def invalidate_message_cache(sender, instance, **kwargs):
     """Remove a message from cache when it's deleted."""
     try:
@@ -101,7 +97,6 @@ def invalidate_message_cache(sender, instance, **kwargs):
 
 @receiver(post_save, sender=OneToOneConversation)
 @receiver(post_save, sender=GroupConversation)
-@receiver(post_save, sender=ChatbotConversation)
 def cache_conversation_on_save(sender, instance, created, **kwargs):
     """Cache a conversation when it's created or updated."""
     try:
@@ -124,7 +119,6 @@ def cache_conversation_on_save(sender, instance, created, **kwargs):
 
 @receiver(post_delete, sender=OneToOneConversation)
 @receiver(post_delete, sender=GroupConversation)
-@receiver(post_delete, sender=ChatbotConversation)
 def cleanup_conversation_cache(sender, instance, **kwargs):
     """Clean up cache when a conversation is deleted."""
     try:

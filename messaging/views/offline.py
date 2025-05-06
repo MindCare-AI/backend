@@ -1,4 +1,5 @@
 # messaging/views/offline.py
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,8 +7,6 @@ from rest_framework.permissions import IsAuthenticated
 from ..caches.service_cache import message_service_cache
 from ..throttling import UserRateThrottle
 from drf_spectacular.utils import extend_schema, OpenApiResponse
-
-import logging
 
 logger = logging.getLogger(__name__)
 

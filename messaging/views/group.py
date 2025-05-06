@@ -11,10 +11,8 @@ from django.views.decorators.cache import cache_page
 
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
 from drf_spectacular.utils import (
     extend_schema,
@@ -28,7 +26,7 @@ from ..serializers.group import GroupConversationSerializer, GroupMessageSeriali
 from messaging.permissions import IsParticipantOrModerator
 from messaging.throttling import GroupMessageThrottle
 from ..mixins.edit_history import EditHistoryMixin
-from ..mixins.reactions import ReactionMixin  # Add this import
+from ..mixins.reactions import ReactionMixin
 
 logger = logging.getLogger(__name__)
 
@@ -482,50 +480,50 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         )
 
 
-class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet):
-    queryset = GroupMessage.objects.all()
+class GroupMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelViewSet):
+    """
+    API endpoints for Group Messages.
+
+    Supports CRUD operations, edit history, and reactions.
+    """
+
     serializer_class = GroupMessageSerializer
     permission_classes = [IsParticipantOrModerator]
-    renderer_classes = [JSONRenderer, BrowsableAPIRenderer]
+    throttle_classes = [GroupMessageThrottle]
+
+    def get_queryset(self):
+        """Filter messages to include only those in groups the user participates in."""
+        user = self.request.user
+        return GroupMessage.objects.filter(conversation__participants=user).order_by(
+            "-timestamp"
+        )
 
     def perform_create(self, serializer):
-        """Handle media uploads during message creation."""
-        request = self.request
-        if not request.user:
-            raise serializers.ValidationError("Authenticated user is required.")
+        """Set authenticated user as sender"""
+        serializer.save(sender=self.request.user)
 
-        # Pass the authenticated user as the sender
-        serializer.save(sender=request.user)
+    @action(detail=True, methods=["post"])
+    def mark_as_read(self, request, pk=None):
+        """Mark a message as read by the current user."""
+        try:
+            message = self.get_object()
+            message.read_by.add(request.user)
 
-    @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
-    def list(self, request, *args, **kwargs):
-        """Cache the group message list"""
-        return super().list(request, *args, **kwargs)
+            # Send read receipt via WebSocket
+            conversation_id = str(message.conversation.id)
+            from messaging.services.message_delivery import message_delivery_service
 
-    def retrieve(self, request, *args, **kwargs):
-        """Get group message with cache handling"""
-        message_id = kwargs.get("pk")
-        cache_key = f"group_message_{message_id}"
+            message_delivery_service.send_read_receipt(
+                conversation_id=conversation_id,
+                user_id=str(request.user.id),
+                username=request.user.username,
+                message_id=str(message.id),
+            )
 
-        # Try to get from cache first
-        cached_message = cache.get(cache_key)
-        if cached_message:
-            return Response(cached_message)
-
-        response = super().retrieve(request, *args, **kwargs)
-
-        # Cache the response for 1 hour
-        cache.set(cache_key, response.data, timeout=3600)
-        return response
-
-    def add_reaction(self, request, pk=None):
-        """Add reaction with cache invalidation"""
-        response = super().add_reaction(request, pk)
-        if response.status_code == 200:
-            # Invalidate message cache
-            cache_key = f"group_message_{pk}"
-            cache.delete(cache_key)
-            # Invalidate reactions cache
-            cache_key = f"message_reactions_{pk}"
-            cache.delete(cache_key)
-        return response
+            return Response({"status": "marked as read"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error marking message as read: {str(e)}")
+            return Response(
+                {"error": f"Failed to mark message as read: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

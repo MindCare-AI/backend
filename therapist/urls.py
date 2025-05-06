@@ -39,7 +39,12 @@ urlpatterns = [
     ),
     path(
         "profiles/<int:pk>/verify/",
-        TherapistProfileViewSet.as_view({"post": "verify"}),
+        TherapistProfileViewSet.as_view(
+            {
+                "get": "verify",  # allows GET to verify therapist
+                "post": "verify",
+            }
+        ),
         name="therapist-verify",
     ),
     path(

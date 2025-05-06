@@ -48,7 +48,6 @@ class RealTimeMiddleware:
         self.conversation_patterns = {
             "one_to_one": r"/api/messaging/one_to_one/(\d+)",
             "groups": r"/api/messaging/groups/(\d+)",
-            "chatbot": r"/api/messaging/chatbot/(\d+)",
         }
 
     def __call__(self, request):

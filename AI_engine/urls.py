@@ -1,4 +1,4 @@
-#AI_engine/urls.py
+# AI_engine/urls.py
 from django.urls import path
 from rest_framework import routers
 from .views import AIAnalysisViewSet, AIInsightViewSet, TherapyRecommendationViewSet
@@ -34,7 +34,6 @@ urlpatterns = [
         AIInsightViewSet.as_view({"post": "analyze_user"}),
         name="ai-insights-analyze-user",
     ),
-    
     # Therapy Recommendations endpoints
     path(
         "recommendations/",

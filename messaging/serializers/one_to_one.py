@@ -86,16 +86,25 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
         )
 
     def get_last_message(self, obj):
-        """Get the last message in the conversation."""
+        """Get the last message in the conversation with full media URL if exists."""
         try:
             message = obj.messages.last()
             if message:
+                media_url = None
+                if message.media:
+                    request = self.context.get("request")
+                    media_url = (
+                        request.build_absolute_uri(message.media.url)
+                        if request
+                        else message.media.url
+                    )
                 return {
                     "id": message.id,
                     "content": message.content,
                     "timestamp": message.timestamp,
                     "sender_id": message.sender_id,
                     "sender_name": message.sender.username,
+                    "media": media_url,
                 }
             return None
         except Exception as e:
@@ -230,3 +239,14 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
         instance.media = validated_data.get("media", instance.media)
         instance.save()
         return instance
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        if rep.get("media"):
+            request = self.context.get("request")
+            rep["media"] = (
+                request.build_absolute_uri(instance.media.url)
+                if request
+                else instance.media.url
+            )
+        return rep

@@ -190,4 +190,5 @@ ki
 opencv-python
 deepface
 easyocr
-face_recognitiongoogle-generativeai
+face_recognition
+google-generativeai

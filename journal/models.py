@@ -4,6 +4,26 @@ from django.conf import settings
 from django.utils import timezone
 
 
+class JournalCategory(models.Model):
+    """Model for categorizing journal entries"""
+    name = models.CharField(max_length=200)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="journal_categories",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Journal Categories"
+        ordering = ["name"]
+        unique_together = ["name", "user"]  # Ensure categories are unique per user
+
+    def __str__(self):
+        return f"{self.name} (by {self.user.username})"
+
+
 class JournalEntry(models.Model):
     """Model for user journal entries"""
 
@@ -46,7 +66,8 @@ class JournalEntry(models.Model):
         ("photography", "Photography"),
     ]
 
-    title = models.CharField(max_length=200)
+    # Make title optional
+    title = models.CharField(max_length=200, blank=True, null=True)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -56,6 +77,13 @@ class JournalEntry(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="journal_entries",
+    )
+    category = models.ForeignKey(
+        JournalCategory,
+        on_delete=models.SET_NULL,  # If category is deleted, entries remain
+        related_name="entries",
+        null=True,
+        blank=True,
     )
     is_private = models.BooleanField(default=True)
     shared_with_therapist = models.BooleanField(default=False)

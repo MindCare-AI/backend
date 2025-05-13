@@ -4,7 +4,7 @@ from typing import Dict, Any
 import requests
 from django.utils import timezone
 from datetime import timedelta
-from journal.models import JournalEntry
+from journal.models import JournalEntry, JournalCategory
 from django.db.models import Avg, Case, When, FloatField
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,31 @@ class PredictiveAnalysisService:
 
         qs = JournalEntry.objects.filter(user=user, **{f"{time_field}__gte": month_ago})
 
+        # Add analysis by category
+        categories = JournalCategory.objects.filter(user=user)
+        category_analysis = {}
+        
+        for category in categories:
+            category_entries = qs.filter(category=category)
+            if category_entries.exists():
+                category_analysis[category.name] = {
+                    "count": category_entries.count(),
+                    "avg_mood": category_entries.aggregate(
+                        avg_mood=Avg(
+                            Case(
+                                When(mood="very_negative", then=1.0),
+                                When(mood="negative", then=2.0),
+                                When(mood="neutral", then=3.0),
+                                When(mood="positive", then=4.0),
+                                When(mood="very_positive", then=5.0),
+                                default=3.0,
+                                output_field=FloatField(),
+                            )
+                        )
+                    )["avg_mood"] or 3.0,
+                    "most_recent": category_entries.latest(time_field).content[:100] if category_entries.latest(time_field) else ""
+                }
+
         # Map valid 'mood' field choices to numeric values for aggregation
         avg_mood = (
             qs.aggregate(
@@ -142,10 +167,12 @@ class PredictiveAnalysisService:
             or 3.0
         )
 
+        # Add category analysis to the result
         analysis = {
-            "concerns": qs.exists(),  # Dummy flag; update with real logic as needed
-            "sentiment_trend": "neutral",  # Placeholder value
+            "concerns": qs.exists(),
+            "sentiment_trend": "neutral",
             "avg_mood": avg_mood,
+            "category_analysis": category_analysis
         }
 
         return analysis

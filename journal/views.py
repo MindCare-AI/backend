@@ -6,12 +6,65 @@ from django.db.models import Count
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from journal.models import JournalEntry
-from journal.serializers import JournalEntrySerializer, JournalEntryDetailSerializer
-from feeds.models import Post  # Updated from FeedPost to Post
+from journal.models import JournalEntry, JournalCategory
+from journal.serializers import (
+    JournalEntrySerializer, 
+    JournalEntryDetailSerializer,
+    JournalCategorySerializer
+)
+from feeds.models import Post
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="List all journal categories for the authenticated user",
+        summary="List Journal Categories",
+        tags=["Journal Categories"],
+    ),
+    retrieve=extend_schema(
+        description="Retrieve a specific journal category",
+        summary="Retrieve Journal Category",
+        tags=["Journal Categories"],
+    ),
+    create=extend_schema(
+        description="Create a new journal category",
+        summary="Create Journal Category",
+        tags=["Journal Categories"],
+    ),
+    update=extend_schema(
+        description="Update a journal category",
+        summary="Update Journal Category",
+        tags=["Journal Categories"],
+    ),
+    destroy=extend_schema(
+        description="Delete a journal category",
+        summary="Delete Journal Category",
+        tags=["Journal Categories"],
+    )
+)
+class JournalCategoryViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing journal categories"""
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = JournalCategorySerializer
+
+    def get_queryset(self):
+        """Get categories for the current user"""
+        return JournalCategory.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Ensure the user is set when creating a category"""
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=["get"])
+    def entries(self, request, pk=None):
+        """Get all entries for a specific category"""
+        category = self.get_object()
+        entries = JournalEntry.objects.filter(category=category)
+        serializer = JournalEntrySerializer(entries, many=True, context={"request": request})
+        return Response(serializer.data)
 
 
 @extend_schema_view(
@@ -40,6 +93,11 @@ logger = logging.getLogger(__name__)
                 type=OpenApiTypes.STR,
                 description="Search in title and content",
             ),
+            OpenApiParameter(
+                name="category",
+                type=OpenApiTypes.INT,
+                description="Filter by category ID",
+            ),
         ],
     )
 )
@@ -64,6 +122,11 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
         """Get journal entries for the current user with filtering"""
         queryset = JournalEntry.objects.filter(user=self.request.user)
 
+        # Filter by category
+        category_id = self.request.query_params.get("category")
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
         # Filter by date range
         start_date = self.request.query_params.get("start_date")
         end_date = self.request.query_params.get("end_date")
@@ -81,7 +144,20 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Ensure the user is set when creating a journal entry"""
-        serializer.save(user=self.request.user)
+        # Extract category_id from request data for direct category assignment
+        category_id = self.request.data.get('category')
+        category = None
+        
+        if category_id:
+            try:
+                # Verify the category belongs to this user
+                category = JournalCategory.objects.get(id=category_id, user=self.request.user)
+            except JournalCategory.DoesNotExist:
+                # If category doesn't exist or doesn't belong to user, silently ignore it
+                pass
+                
+        # Save with the user and validated category
+        serializer.save(user=self.request.user, category=category)
 
     @action(detail=False, methods=["post"], url_path="share/(?P<journal_id>[^/.]+)")
     def share(self, request, journal_id=None):
@@ -97,7 +173,7 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
             ):
                 Post.objects.create(
                     author=request.user,
-                    content=f"Shared a journal entry: {entry.title}",
+                    content=f"Shared a journal entry from {entry.created_at.strftime('%Y-%m-%d')}",
                     post_type="text",
                     topics="mental_health",  # Default topic
                     tags="personal_growth",  # Default tag

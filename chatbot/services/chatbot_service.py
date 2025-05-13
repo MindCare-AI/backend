@@ -7,7 +7,7 @@ import requests
 from django.utils import timezone
 from datetime import timedelta
 from AI_engine.services.conversation_summary import conversation_summary_service
-from journal.models import JournalEntry
+from journal.models import JournalEntry, JournalCategory
 from mood.models import MoodLog
 from ..exceptions import ChatbotAPIError
 from .rag.therapy_rag_service import therapy_rag_service
@@ -299,7 +299,7 @@ User message category: {category}
             logger.error(f"Error updating conversation summary: {str(e)}")
 
     def _get_user_data(self, user) -> Dict[str, Any]:
-        """Retrieve user's journal entries and mood logs"""
+        """Retrieve user's journal entries, categories and mood logs"""
         try:
             # Define the lookback period
             end_date = timezone.now()
@@ -309,26 +309,54 @@ User message category: {category}
             journal_entries = JournalEntry.objects.filter(
                 user=user, created_at__range=(start_date, end_date)
             ).order_by("-created_at")[: self.journal_limit]
+            
+            # Get journal categories with entries
+            journal_categories = JournalCategory.objects.filter(
+                user=user, 
+                entries__created_at__range=(start_date, end_date)
+            ).distinct()
+
+            # Format journal entries
+            journal_data = []
+            for entry in journal_entries:
+                journal_data.append(
+                    {
+                        "date": entry.created_at.strftime("%Y-%m-%d"),
+                        "title": entry.title or f"Entry {entry.id}",
+                        "content": entry.content,
+                        "mood": entry.mood if hasattr(entry, "mood") else None,
+                        "activities": entry.activities if hasattr(entry, "activities") else None,
+                        "category": entry.category.name if entry.category else "Uncategorized"
+                    }
+                )
+            
+            # Format categories data
+            categories_data = []
+            for category in journal_categories:
+                recent_entries = category.entries.filter(
+                    created_at__range=(start_date, end_date)
+                ).order_by("-created_at")[:3]
+                
+                entries_data = []
+                for entry in recent_entries:
+                    entries_data.append({
+                        "date": entry.created_at.strftime("%Y-%m-%d"),
+                        "content": entry.content[:100] + "..." if len(entry.content) > 100 else entry.content,
+                        "mood": entry.mood if hasattr(entry, "mood") else None,
+                    })
+                
+                categories_data.append({
+                    "name": category.name,
+                    "entries_count": recent_entries.count(),
+                    "recent_entries": entries_data
+                })
 
             # Get recent mood logs
             mood_logs = MoodLog.objects.filter(
                 user=user, logged_at__range=(start_date, end_date)
             ).order_by("-logged_at")[: self.mood_limit]
 
-            # Format the data
-            journal_data = []
-            for entry in journal_entries:
-                journal_data.append(
-                    {
-                        "date": entry.created_at.strftime("%Y-%m-%d"),
-                        "content": entry.content,
-                        "mood": entry.mood if hasattr(entry, "mood") else None,
-                        "activities": entry.activities
-                        if hasattr(entry, "activities")
-                        else None,
-                    }
-                )
-
+            # Format the mood data
             mood_data = []
             for log in mood_logs:
                 mood_data.append(
@@ -347,6 +375,7 @@ User message category: {category}
 
             return {
                 "journal_entries": journal_data,
+                "journal_categories": categories_data,
                 "mood_logs": mood_data,
                 "analysis": analysis,
             }
@@ -475,6 +504,16 @@ Core principles:
             prompt += "\nPlease use this therapeutic approach when crafting your response.\n\n"
         else:
             prompt += "\nNo specific therapeutic recommendation available. Please provide general empathetic support.\n\n"
+        
+        # Add journal categories to the prompt if available
+        if user_data and "journal_categories" in user_data and user_data["journal_categories"]:
+            prompt += "\nUSER JOURNAL CATEGORIES:\n"
+            for category in user_data["journal_categories"][:3]:  # Limit to 3 categories
+                prompt += f"- {category['name']} ({category['entries_count']} recent entries)\n"
+                if category['recent_entries']:
+                    recent_entry = category['recent_entries'][0]
+                    prompt += f"  Most recent entry ({recent_entry['date']}): {recent_entry['content'][:50]}...\n"
+
         # ...existing code to add conversation summary, user insights, recent conversation...
         prompt += f"\nUser: {message}\n\nAssistant:"
         return prompt

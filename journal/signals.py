@@ -23,7 +23,7 @@ def handle_journal_entry_save(sender, instance, created, **kwargs):
                 user=user,
                 notification_type_name="journal_created",
                 title="New Journal Entry Created",
-                message=f"Your journal entry '{instance.title}' has been created.",
+                message=f"Your journal entry from {instance.created_at.strftime('%Y-%m-%d')} has been created.",
                 metadata={
                     "entry_id": str(instance.id),
                     "created_at": timezone.now().isoformat(),

@@ -173,7 +173,7 @@ class ConversationSummaryService:
     def _build_summary_prompt(self, messages: List[Dict]) -> str:
         """Build prompt for Ollama summary generation"""
         messages_text = "\n\n".join(
-            [f"[{msg['sender_type']}]: {msg['content']}" for msg in messages]
+            [f"[{msg.get('sender_type', 'user')}]: {msg.get('content', '')}" for msg in messages]
         )
 
         return f"""As an AI assistant, summarize the following conversation while preserving key information:
@@ -345,6 +345,18 @@ Please provide a comprehensive summary in JSON format with these fields:
                 "key_points": ["Error generating summary"],
                 "emotional_context": {"overall_tone": "neutral"},
             }
+
+    def update_summary(self, conversation_id: str, user, conversation_history: list) -> None:
+        """
+        Update the conversation summary for the given conversation.
+        This method re-generates the summary for older messages.
+        """
+        try:
+            # Reuse the get_or_create_summary method to update the summary
+            summary_data = self.get_or_create_summary(conversation_id, user, conversation_history)
+            logger.info(f"Updated conversation summary for conversation {conversation_id}")
+        except Exception as e:
+            logger.error(f"Error updating conversation summary: {str(e)}")
 
 
 # Create singleton instance

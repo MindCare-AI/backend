@@ -189,12 +189,11 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
     def update_availability(self, request, pk=None):
         try:
             profile = self.get_object()
-            if not (schedule := request.data.get("available_days")):
+            if not request.data.get("available_days"):
                 return Response(
                     {"error": "available_days is required"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-
             # Validate schedule with serializer
             serializer = self.get_serializer(profile, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)

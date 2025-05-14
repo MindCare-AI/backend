@@ -217,7 +217,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Handle reaction event"""
         message_id = data.get("message_id")
         reaction = data.get("reaction")
-        action = data.get("action", "add")
 
         if not message_id or not reaction:
             return

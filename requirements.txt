@@ -190,5 +190,4 @@ ki
 opencv-python
 deepface
 easyocr
-face_recognition
-google-generativeai
+tenacity

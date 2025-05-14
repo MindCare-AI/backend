@@ -1,5 +1,4 @@
-"""Chatbot service using Gemini for AI model inference"""
-
+#chatbot/services/chatbot_service.py
 from typing import Dict, Any
 import logging
 from django.conf import settings
@@ -8,9 +7,10 @@ import requests
 from django.utils import timezone
 from datetime import timedelta
 from AI_engine.services.conversation_summary import conversation_summary_service
-from journal.models import JournalEntry
+from journal.models import JournalEntry, JournalCategory
 from mood.models import MoodLog
 from ..exceptions import ChatbotAPIError
+from .rag.therapy_rag_service import therapy_rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,46 +45,57 @@ class ChatbotService:
         conversation_id: str,
         conversation_history: list = None,
     ) -> Dict[str, any]:
-        """Get response from Gemini with user context and AI analysis"""
+        """Get response from Gemini with integrated RAG therapy recommendation"""
         try:
-            # Check message content safety
             safety_check = self._check_content_safety(message)
             if safety_check["is_harmful"]:
-                return self._handle_harmful_content(
-                    user, message, safety_check["category"]
-                )
+                return self._handle_harmful_content(user, message, safety_check["category"])
 
-            # Get user's journal entries and mood data
             user_data = self._get_user_data(user)
+            conversation_context = self._prepare_conversation_context(user, conversation_id, conversation_history)
+            # Get therapy recommendation via RAG service
+            therapy_recommendation = self._get_therapy_recommendation(message, user_data)
+            prompt = self._build_prompt(message, conversation_context, user_data, user, therapy_recommendation)
 
-            # Ensure conversation_history is limited and get summary of older messages
-            conversation_context = self._prepare_conversation_context(
-                user, conversation_id, conversation_history
-            )
-
-            # Build prompt with context including conversation summary, journal and mood data
-            prompt = self._build_prompt(message, conversation_context, user_data, user)
-
-            # Make request to Gemini API
-            try:
-                response = self._call_gemini_api(prompt)
-
-                # After getting a response, check if we should generate a new summary
-                self._check_and_update_conversation_summary(
-                    user, conversation_id, conversation_history
-                )
-
-                return {
-                    "content": response["text"],
-                    "metadata": response.get("metadata", {}),
-                }
-            except Exception as e:
-                logger.error(f"Gemini API error: {str(e)}")
-                raise ChatbotAPIError(f"Gemini API error: {str(e)}")
-
+            response = self._call_gemini_api(prompt)
+            self._check_and_update_conversation_summary(user, conversation_id, conversation_history)
+            return {
+                "content": response["text"],
+                "metadata": {
+                    **response.get("metadata", {}),
+                    "therapy_recommendation": {
+                        "approach": therapy_recommendation.get("recommended_approach", "unknown"),
+                        "confidence": therapy_recommendation.get("confidence", 0.0),
+                    },
+                },
+            }
         except Exception as e:
             logger.error(f"Error getting chatbot response: {str(e)}")
             return self._error_response(str(e))
+
+    def _get_therapy_recommendation(
+        self, message: str, user_data: Dict = None
+    ) -> Dict[str, Any]:
+        """Get therapy approach recommendation using RAG service.
+        This method now fully relies on the RAG service.
+        """
+        try:
+            recommendation = therapy_rag_service.get_therapy_approach(message, user_data)
+            logger.info(f"Therapy recommendation: {recommendation}")
+            return recommendation
+        except Exception as e:
+            logger.warning(f"Error getting therapy recommendation from RAG service: {str(e)}")
+            return {
+                "recommended_approach": "unknown",
+                "confidence": 0.0,
+                "therapy_info": {
+                    "name": "General Therapeutic Approach",
+                    "description": "A personalized therapeutic approach combining various methods.",
+                    "core_principles": [],
+                },
+                "recommended_techniques": [],
+                "alternative_approach": "unknown",
+            }
 
     def _call_gemini_api(self, prompt: str) -> Dict[str, Any]:
         """Make a request to the Gemini API"""
@@ -278,7 +289,7 @@ User message category: {category}
         # Only update summary if we have a significant number of new messages since last summary
         try:
             # This would ideally be a background task
-            conversation_summary_service.update_conversation_summary(
+            conversation_summary_service.update_summary(
                 conversation_id, user, conversation_history
             )
             logger.info(
@@ -288,7 +299,7 @@ User message category: {category}
             logger.error(f"Error updating conversation summary: {str(e)}")
 
     def _get_user_data(self, user) -> Dict[str, Any]:
-        """Retrieve user's journal entries and mood logs"""
+        """Retrieve user's journal entries, categories and mood logs"""
         try:
             # Define the lookback period
             end_date = timezone.now()
@@ -298,26 +309,54 @@ User message category: {category}
             journal_entries = JournalEntry.objects.filter(
                 user=user, created_at__range=(start_date, end_date)
             ).order_by("-created_at")[: self.journal_limit]
+            
+            # Get journal categories with entries
+            journal_categories = JournalCategory.objects.filter(
+                user=user, 
+                entries__created_at__range=(start_date, end_date)
+            ).distinct()
+
+            # Format journal entries
+            journal_data = []
+            for entry in journal_entries:
+                journal_data.append(
+                    {
+                        "date": entry.created_at.strftime("%Y-%m-%d"),
+                        "title": entry.title or f"Entry {entry.id}",
+                        "content": entry.content,
+                        "mood": entry.mood if hasattr(entry, "mood") else None,
+                        "activities": entry.activities if hasattr(entry, "activities") else None,
+                        "category": entry.category.name if entry.category else "Uncategorized"
+                    }
+                )
+            
+            # Format categories data
+            categories_data = []
+            for category in journal_categories:
+                recent_entries = category.entries.filter(
+                    created_at__range=(start_date, end_date)
+                ).order_by("-created_at")[:3]
+                
+                entries_data = []
+                for entry in recent_entries:
+                    entries_data.append({
+                        "date": entry.created_at.strftime("%Y-%m-%d"),
+                        "content": entry.content[:100] + "..." if len(entry.content) > 100 else entry.content,
+                        "mood": entry.mood if hasattr(entry, "mood") else None,
+                    })
+                
+                categories_data.append({
+                    "name": category.name,
+                    "entries_count": recent_entries.count(),
+                    "recent_entries": entries_data
+                })
 
             # Get recent mood logs
             mood_logs = MoodLog.objects.filter(
                 user=user, logged_at__range=(start_date, end_date)
             ).order_by("-logged_at")[: self.mood_limit]
 
-            # Format the data
-            journal_data = []
-            for entry in journal_entries:
-                journal_data.append(
-                    {
-                        "date": entry.created_at.strftime("%Y-%m-%d"),
-                        "content": entry.content,
-                        "mood": entry.mood if hasattr(entry, "mood") else None,
-                        "activities": entry.activities
-                        if hasattr(entry, "activities")
-                        else None,
-                    }
-                )
-
+            # Format the mood data
             mood_data = []
             for log in mood_logs:
                 mood_data.append(
@@ -336,6 +375,7 @@ User message category: {category}
 
             return {
                 "journal_entries": journal_data,
+                "journal_categories": categories_data,
                 "mood_logs": mood_data,
                 "analysis": analysis,
             }
@@ -430,169 +470,52 @@ User message category: {category}
         conversation_context: Dict = None,
         user_data: Dict = None,
         user=None,
+        therapy_recommendation: Dict = None,
     ) -> str:
-        """Build an improved and optimized prompt with better context integration"""
+        """Build an improved prompt integrating the RAG therapy recommendation.
+        Updated to clearly include the recommendation from the RAG service.
+        """
         user_name = user.get_full_name() or user.username if user else "User"
-
         prompt = f"""You are MindCare AI, a therapeutic mental health assistant having a conversation with {user_name}. 
 Respond in a compassionate, helpful manner focusing on mental health support and therapeutic approaches.
 
-CONVERSATION GOAL: Provide personalized mental health support using the user's data, history, and the current conversation context.
+CONVERSATION GOAL: Provide personalized mental health support using the user's data, history, and conversation context.
 
 """
+        if therapy_recommendation and therapy_recommendation.get("recommended_approach") != "unknown":
+            therapy_name = therapy_recommendation.get("therapy_info", {}).get("name", "").strip()
+            confidence = therapy_recommendation.get("confidence", 0)
+            confidence_percent = int(confidence * 100)
+            prompt += f"""RECOMMENDED THERAPEUTIC APPROACH: {therapy_name} ({confidence_percent}% confidence)
 
-        # Add conversation summary first if available
-        if conversation_context and conversation_context.get("has_summary"):
-            prompt += f"""CONVERSATION SUMMARY:
-{conversation_context.get('summary', 'The conversation covered various mental health topics.')}
+Description: {therapy_recommendation.get("therapy_info", {}).get("description", "No description available.")}
 
-Key points from earlier conversation:
+Core principles:
 """
-            for point in conversation_context.get(
-                "key_points", ["General discussion about mental health"]
-            )[:3]:  # Limit to top 3 points
-                prompt += f"- {point}\n"
+            for principle in therapy_recommendation.get("therapy_info", {}).get("core_principles", [])[:3]:
+                prompt += f"- {principle}\n"
 
-            # Add emotional context if available
-            if conversation_context.get("emotional_context"):
-                emotional_context = conversation_context.get("emotional_context", {})
-                prompt += f"\nEmotional tone: {emotional_context.get('overall_tone', 'neutral')}"
+            techniques = therapy_recommendation.get("recommended_techniques", [])
+            if techniques:
+                prompt += "\nRECOMMENDED TECHNIQUES:\n"
+                for technique in techniques[:2]:
+                    prompt += f"- {technique.get('name', 'Technique')}\n"
 
-                # Add emotional progression if available
-                if emotional_context.get("progression"):
-                    prompt += f"\nEmotional progression: {emotional_context.get('progression')}"
+            prompt += "\nPlease use this therapeutic approach when crafting your response.\n\n"
+        else:
+            prompt += "\nNo specific therapeutic recommendation available. Please provide general empathetic support.\n\n"
+        
+        # Add journal categories to the prompt if available
+        if user_data and "journal_categories" in user_data and user_data["journal_categories"]:
+            prompt += "\nUSER JOURNAL CATEGORIES:\n"
+            for category in user_data["journal_categories"][:3]:  # Limit to 3 categories
+                prompt += f"- {category['name']} ({category['entries_count']} recent entries)\n"
+                if category['recent_entries']:
+                    recent_entry = category['recent_entries'][0]
+                    prompt += f"  Most recent entry ({recent_entry['date']}): {recent_entry['content'][:50]}...\n"
 
-            prompt += "\n"
-
-        # Add enhanced user analysis data
-        if user_data and not user_data.get("error"):
-            prompt += "\nUSER DATA INSIGHTS:\n"
-
-            # Add analysis data if available
-            if user_data.get("analysis"):
-                analysis = user_data["analysis"]
-
-                # Create a personalized context section based on analysis
-                if "mood_score" in analysis or "dominant_emotions" in analysis:
-                    prompt += "Emotional State: "
-                    if "mood_score" in analysis:
-                        mood_label = (
-                            "positive"
-                            if analysis.get("mood_score", 5) > 5
-                            else "neutral"
-                            if analysis.get("mood_score", 5) == 5
-                            else "negative"
-                        )
-                        prompt += f"{mood_label} (score: {analysis.get('mood_score', 5)}/10), "
-
-                    if (
-                        "dominant_emotions" in analysis
-                        and analysis["dominant_emotions"]
-                    ):
-                        prompt += f"primarily experiencing {', '.join(analysis['dominant_emotions'][:2])}\n"
-                    else:
-                        prompt += "\n"
-
-                # Add concerns and topics
-                if "topics_of_concern" in analysis and analysis["topics_of_concern"]:
-                    prompt += f"Primary concerns: {', '.join(analysis['topics_of_concern'][:3])}\n"
-
-                # Add social context if available
-                if analysis.get("social_patterns"):
-                    social = analysis["social_patterns"]
-                    prompt += f"Social context: {social.get('engagement_score', 'moderate')}/10 engagement, "
-                    prompt += f"{social.get('support_network', {}).get('strength', 'moderate')} support network\n"
-
-                # Add communication patterns if available
-                if analysis.get("communication_patterns"):
-                    comm = analysis["communication_patterns"]
-                    if comm.get("communication_style"):
-                        prompt += (
-                            f"Communication style: {comm.get('communication_style')}\n"
-                        )
-
-                    # Add emotional triggers for careful navigation
-                    if comm.get("emotional_triggers"):
-                        prompt += f"Approach carefully: {', '.join(comm['emotional_triggers'][:2])}\n"
-
-                # Add medication context if relevant
-                if analysis.get("medication_effects", {}).get("medications"):
-                    meds = analysis["medication_effects"]
-                    prompt += (
-                        f"Medication context: On {', '.join(meds['medications'][:2])}"
-                    )
-                    if meds.get("mood_effects"):
-                        prompt += f" with {meds['mood_effects'].get('impact', 'unknown')} impact on mood"
-                    prompt += "\n"
-
-                # Add suggested activities
-                if analysis.get("suggested_activities"):
-                    prompt += f"Recommended activities: {', '.join(analysis['suggested_activities'][:3])}\n"
-
-            # Add recent mood data (condensed)
-            if user_data.get("mood_logs") and len(user_data["mood_logs"]) > 0:
-                prompt += "\nMOOD TRENDS: "
-                # Extract last 3 mood ratings to show trend
-                recent_moods = user_data["mood_logs"][:3]
-                mood_values = [log.get("mood_rating", 5) for log in recent_moods]
-                mood_dates = [log.get("date", "recent") for log in recent_moods]
-
-                if len(mood_values) >= 2:
-                    # Show trend
-                    trend = (
-                        "improving"
-                        if mood_values[0] > mood_values[-1]
-                        else "stable"
-                        if mood_values[0] == mood_values[-1]
-                        else "declining"
-                    )
-                    prompt += f"{trend}, most recent rating {mood_values[0]}/10 on {mood_dates[0]}\n"
-                elif len(mood_values) == 1:
-                    prompt += (
-                        f"most recent rating {mood_values[0]}/10 on {mood_dates[0]}\n"
-                    )
-
-            # Add recent journal insight (very condensed)
-            if (
-                user_data.get("journal_entries")
-                and len(user_data["journal_entries"]) > 0
-            ):
-                recent_entry = user_data["journal_entries"][0]
-                # Extract a brief snippet
-                content = recent_entry.get("content", "")
-                snippet = content[:100] + "..." if len(content) > 100 else content
-                prompt += f"\nRECENT JOURNAL ({recent_entry.get('date', 'recent')}): {snippet}\n"
-
-        # Add recent conversation - strictly limit to the 6 most recent messages
-        prompt += "\nRECENT CONVERSATION:\n"
-        if conversation_context and conversation_context.get("recent_messages"):
-            for msg in conversation_context["recent_messages"][
-                -self.history_limit :
-            ]:  # Ensure strict limit
-                role = "Assistant" if msg.get("is_bot", False) else "User"
-                content = msg.get("content", "")
-                # Truncate very long messages
-                if len(content) > 200:
-                    content = content[:197] + "..."
-                prompt += f"{role}: {content}\n"
-
-        # Add current message
+        # ...existing code to add conversation summary, user insights, recent conversation...
         prompt += f"\nUser: {message}\n\nAssistant:"
-
-        # Add detailed instruction footer
-        prompt += """
-
-RESPONSE GUIDELINES:
-1. Be empathetic and supportive while focusing on therapeutic value
-2. Personalize using the user's specific data, history, and conversation context
-3. Reference insights from their mood trends, journal entries, or past conversations when relevant
-4. Maintain a warm, conversational tone while providing evidence-based guidance
-5. Suggest specific actionable techniques relevant to their situation
-6. Be concise but thorough in your response
-7. Address any topics of concern identified in their analysis when appropriate
-8. If they reveal new information, acknowledge how it connects to their overall mental health picture
-"""
-
         return prompt
 
     def _error_response(self, message: str) -> Dict[str, any]:

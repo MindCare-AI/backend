@@ -57,6 +57,19 @@ class TherapyClassifier:
         r"needing to be perfect",
         r"challenge my.*beliefs",
         r"catastrophize",
+        # Enhanced anxiety-related terms
+        r"anxiety",
+        r"stress",
+        r"worry",
+        r"managing stress",
+        r"managing anxiety",
+        r"social anxiety",
+        r"anxious thoughts",
+        r"stress level",
+        r"stress management",
+        r"worried about what others think",
+        r"expectations of others",
+        r"living up to expectations",
     ]
 
     # Weights for CBT indicators (higher weight = stronger indicator)
@@ -69,11 +82,19 @@ class TherapyClassifier:
         r"challenge belief": 1.6,
         r"anxiety disorder": 1.5,
         r"generalized anxiety": 1.5,
-        r"social anxiety": 1.5,
+        r"social anxiety": 1.8,  # Increased from 1.5
         r"phobia": 1.4,
         r"panic attack": 1.4,
         r"obsessive": 1.3,
         r"compulsive": 1.3,
+        r"anxiety": 2.0,  # Increased from 1.5
+        r"stress": 1.8,
+        r"worry": 1.8,  # Increased from 1.5
+        r"managing stress": 2.0,
+        r"managing anxiety": 2.0,
+        r"anxious thoughts": 1.8,
+        r"stress level": 1.8,
+        r"stress management": 2.0,
     }
 
     DBT_INDICATORS = [

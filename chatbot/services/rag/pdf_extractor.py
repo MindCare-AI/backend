@@ -46,6 +46,22 @@ class PDFExtractor:
         # simple in-memory cache for OCRed pages
         self.ocr_cache: Dict[str, str] = {}
 
+    def _perform_ocr(self, img, retry_count=0):
+        """Perform OCR with error recovery and optimization."""
+        try:
+            # Use custom Tesseract configuration for better results
+            custom_config = r'--oem 1 --psm 6 -l eng'
+            return pytesseract.image_to_string(img, config=custom_config)
+        except Exception as e:
+            if retry_count < 2:
+                logger.warning(f"OCR failed, retrying with different settings: {str(e)}")
+                # Try with different settings on failure
+                custom_config = r'--oem 0 --psm 3 -l eng'
+                return pytesseract.image_to_string(img, config=custom_config)
+            else:
+                logger.error(f"OCR failed after retries: {str(e)}")
+                return ""
+
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """Extract text from a PDF file using pdfplumber, with OCR fallback.
 
@@ -62,21 +78,40 @@ class PDFExtractor:
 
         try:
             text_content = []
+            ocr_needed_pages = []
+
+            # First pass: identify pages needing OCR
             with pdfplumber.open(pdf_path) as pdf:
+                total_pages = len(pdf.pages)
                 for i, page in enumerate(pdf.pages):
+                    # Release memory from previous iterations
+                    if i > 0 and i % 10 == 0:
+                        gc.collect()
+                    
+                    # Log progress for large documents
+                    if total_pages > 20 and i % 10 == 0:
+                        logger.info(f"Processing page {i+1}/{total_pages} of {os.path.basename(pdf_path)}")
+                    
                     text = page.extract_text() or ""
-                    # if embedded text is too short, run OCR
+                    # if embedded text is too short, mark for OCR
                     if len(text.strip()) < 50:
+                        ocr_needed_pages.append(i)
+                    else:
+                        text_content.append(text)
+
+            # Process OCR pages with optimized settings
+            if ocr_needed_pages:
+                logger.info(f"Running OCR on {len(ocr_needed_pages)} pages from {os.path.basename(pdf_path)}")
+                with pdfplumber.open(pdf_path) as pdf:
+                    for i in ocr_needed_pages:
                         cache_key = f"{pdf_path}::page_{i}"
                         if cache_key in self.ocr_cache:
                             ocr_text = self.ocr_cache[cache_key]
                         else:
-                            img = page.to_image(resolution=300).original
-                            ocr_text = pytesseract.image_to_string(img)
+                            img = pdf.pages[i].to_image(resolution=300).original
+                            ocr_text = self._perform_ocr(img)
                             self.ocr_cache[cache_key] = ocr_text
-                        text = ocr_text or text
-                    if text:
-                        text_content.append(text)
+                        text_content.append(ocr_text or "")
 
             return "\n".join(text_content)
 
@@ -112,14 +147,46 @@ class PDFExtractor:
         return cleaned.strip()
 
     def create_chunks(self, text: str) -> List[Dict[str, Any]]:
-        """Split text into semantically meaningful chunks with metadata.
+        """Split text into semantically meaningful chunks with improved boundary detection."""
+        # Detect section headers to preserve document structure
+        section_header_pattern = r'\n\s*(?:[A-Z][A-Z\s]+:|Chapter\s+\d+[:\s]+[\w\s]+|(?:\d+\.){1,3}\s+[A-Z][\w\s]+)'
+        section_breaks = [(m.start(), m.group()) for m in re.finditer(section_header_pattern, text)]
+        
+        # If we found section headers, use them to guide chunking
+        if section_breaks and len(section_breaks) > 1:
+            chunks = []
+            for i in range(len(section_breaks)):
+                start_idx = section_breaks[i][0]
+                end_idx = section_breaks[i+1][0] if i < len(section_breaks)-1 else len(text)
+                
+                # Get section header
+                section_header = section_breaks[i][1].strip()
+                section_text = text[start_idx:end_idx]
+                
+                # If section is too large, split it further using sentences
+                if len(section_text) > self.chunk_size * 1.5:
+                    sub_chunks = self._split_by_sentences(section_text)
+                    # Add section header to first chunk
+                    if sub_chunks:
+                        sub_chunks[0]["metadata"]["section"] = section_header
+                    chunks.extend(sub_chunks)
+                else:
+                    chunks.append({
+                        "text": section_text,
+                        "metadata": {
+                            "size": len(section_text),
+                            "section": section_header,
+                            "sentence_count": section_text.count(".") + section_text.count("!") + section_text.count("?")
+                        }
+                    })
+            
+            return chunks
+        
+        # Fall back to sentence-based chunking if no section headers found
+        return self._split_by_sentences(text)
 
-        Args:
-            text: Text to split into chunks
-
-        Returns:
-            List of dictionaries with chunk text and metadata
-        """
+    def _split_by_sentences(self, text: str) -> List[Dict[str, Any]]:
+        """Split text by sentences, preserving semantic coherence."""
         # Process text in smaller chunks if it's very large to reduce memory usage
         if len(text) > 500000 and self.use_spacy and self.nlp:
             logger.info(f"Text is very large ({len(text)} chars), processing in batches")

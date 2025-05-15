@@ -31,12 +31,12 @@ class VectorStore:
         min_conn = int(os.getenv("DB_POOL_MIN_CONN", 1))
         max_conn = int(os.getenv("DB_POOL_MAX_CONN", 5))
         self.pool = pool.ThreadedConnectionPool(min_conn, max_conn, **self.db_config)
-        self.embed_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
-        # Update embedding dimension to match nomic-embed-text's actual output dimension
+        self.embed_model = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
+        # Update embedding dimension to match BGE-M3's output dimension
         self.embedding_dimension = int(
-            os.getenv("EMBEDDING_DIMENSION", 768)
-        )  # Changed from 384 to 768
-        self.gpu_layers = int(os.getenv("OLLAMA_NUM_GPU", 50))
+            os.getenv("EMBEDDING_DIMENSION", 1024)
+        )
+        self.gpu_layers = int(os.getenv("OLLAMA_NUM_GPU", 35))
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
         self._setup_vector_store()
 
@@ -373,8 +373,8 @@ class VectorStore:
         if not chunks:
             return 0
 
-        # Better batch size based on GPU memory
-        BATCH_SIZE = 10 if self.gpu_layers > 0 else 5
+        # Smaller batch size for BGE-M3 to avoid OOM errors
+        BATCH_SIZE = 5 if self.gpu_layers > 0 else 3
         total_added = 0
 
         # Add progress indication to console
@@ -527,14 +527,7 @@ class VectorStore:
             raise
 
     def determine_therapy_approach(self, query: str) -> Tuple[str, float, List[Dict]]:
-        """Determine which therapy approach (CBT or DBT) is more suitable for the query.
-
-        Args:
-            query: User query or description of symptoms/situation
-
-        Returns:
-            Tuple of (recommended_therapy_type, confidence_score, supporting_chunks)
-        """
+        """Determine which therapy approach (CBT or DBT) is more suitable for the query."""
         try:
             # Get relevant chunks from both therapy types
             cbt_chunks = self.search_similar_chunks(query, therapy_type="cbt", limit=3)
@@ -561,7 +554,12 @@ class VectorStore:
                 recommended_therapy = "dbt"
                 confidence = dbt_avg_score
                 supporting_chunks = dbt_chunks
-
+                
+            # Ensure minimum confidence value to prevent zero confidence
+            min_conf = 0.3  # Add minimum confidence level
+            if confidence < min_conf and (cbt_chunks or dbt_chunks):
+                confidence = min_conf
+                
             return recommended_therapy, confidence, supporting_chunks
 
         except Exception as e:

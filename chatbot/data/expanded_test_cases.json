@@ -1,0 +1,90 @@
+[
+  {
+    "query": "I keep having negative thoughts that I can't get rid of. I think everyone hates me and I'll never be good enough.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I have trouble controlling my emotions. One minute I'm fine, and the next I'm furious or devastated.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I struggle with black and white thinking. Everything is either perfect or terrible, and I can't see the middle ground.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "My anxiety makes me catastrophize. I always imagine the worst possible outcome for every situation.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I have a hard time in relationships. I'm terrified of abandonment and often push people away before they can leave me.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I keep procrastinating on important tasks because I'm afraid I'll fail at them.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "When I'm upset, I often engage in impulsive behaviors that I later regret, like spending too much money or binge eating.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I'm constantly comparing myself to others on social media and feeling inadequate.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I need help with mindfulness techniques to stay present during stressful situations.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I need to challenge my irrational beliefs about needing to be perfect all the time.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I often feel overwhelmed by my emotions and struggle to regulate them. What can I do?",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I'm constantly worried about what others think of me and feel like I'm not living up to expectations.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I have a hard time accepting myself and often engage in self-destructive behaviors.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I need help with managing my stress and anxiety levels. Can you suggest some techniques?",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I'm experiencing high levels of stress at work and can't seem to focus on tasks.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "My anxiety is causing me to avoid social situations completely.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I want to practice mindfulness to help regulate my emotions during conflicts.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I have trouble with anger management and often lash out at people I care about.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "My thoughts race constantly and I can't turn off my mind to sleep.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "I feel emotionally numb most of the time and can't connect with others.",
+    "expected_approach": "dbt"
+  },
+  {
+    "query": "I overthink every decision and get paralyzed by fear of making mistakes.",
+    "expected_approach": "cbt"
+  },
+  {
+    "query": "My moods change rapidly throughout the day for seemingly no reason.",
+    "expected_approach": "dbt"
+  }
+]

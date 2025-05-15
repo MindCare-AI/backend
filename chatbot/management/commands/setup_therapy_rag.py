@@ -159,17 +159,20 @@ class Command(BaseCommand):
             )
 
             # Process with progress updates using tqdm
-            results = []
             with tqdm(
                 total=total_chunks, desc="Indexing chunks", unit="chunk", ncols=100
             ) as progress_bar:
-                for result in therapy_rag_service.index_documents(extracted_docs):
-                    results.append(result)  # Collect results for later use
-                    progress_bar.update(
-                        1
-                    )  # Update progress bar for each processed chunk
+                therapy_rag_service.index_documents(extracted_docs)
+                progress_bar.update(total_chunks)
 
             # Display results in a readable format
+            indexing_results = therapy_rag_service.setup_and_index_documents()
+            # guard against unexpected return type
+            if not isinstance(indexing_results, dict):
+                raise ValueError(f"Expected dict, got {type(indexing_results)}")
+            cbt_chunks = sum(d.get("chunks_added", 0) for d in indexing_results.get("cbt", []))
+            dbt_chunks = sum(d.get("chunks_added", 0) for d in indexing_results.get("dbt", []))
+
             total_elapsed = time.time() - start_time
             self.stdout.write(
                 self.style.SUCCESS(
@@ -178,13 +181,10 @@ class Command(BaseCommand):
             )
 
             # Show per-document stats
-            cbt_chunks = sum(doc.get("chunks_added", 0) for doc in results["cbt"])
-            dbt_chunks = sum(doc.get("chunks_added", 0) for doc in results["dbt"])
-
-            self.stdout.write(f"CBT Documents: {len(results['cbt'])}")
+            self.stdout.write(f"CBT Documents: {len(indexing_results.get('cbt', []))}")
             self.stdout.write(f"- Total chunks: {cbt_chunks}")
 
-            self.stdout.write(f"DBT Documents: {len(results['dbt'])}")
+            self.stdout.write(f"DBT Documents: {len(indexing_results.get('dbt', []))}")
             self.stdout.write(f"- Total chunks: {dbt_chunks}")
 
             self.stdout.write(f"Total chunks added: {cbt_chunks + dbt_chunks}")

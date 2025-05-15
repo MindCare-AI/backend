@@ -6,10 +6,10 @@ from django.conf import settings
 BASE_DIR = settings.BASE_DIR
 
 # Embedding model settings
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 EMBEDDING_DIMENSION = int(
-    os.getenv("EMBEDDING_DIMENSION", 768)
-)  # Changed from 384 to 768
+    os.getenv("EMBEDDING_DIMENSION", 1024)
+)  # BGE-M3 uses 1024 dimensions
 
 # Directory and file paths
 DATA_DIR = os.getenv("DATA_DIR", os.path.join(BASE_DIR, "chatbot", "data"))
@@ -55,14 +55,14 @@ CHUNK_OVERLAP = int(
 # Vector search settings
 SIMILARITY_THRESHOLD = float(
     os.getenv("SIMILARITY_THRESHOLD", 0.7)
-)  # Changed from 0.65 to 0.7 for stricter filtering
+)
 MINIMUM_CONFIDENCE_THRESHOLD = float(
     os.getenv("MINIMUM_CONFIDENCE_THRESHOLD", 0.65)
-)  # Changed from 0.6 to 0.65
+)
 SIMILARITY_DIFFERENCE_THRESHOLD = float(
     os.getenv("SIMILARITY_DIFFERENCE_THRESHOLD", 0.05)
 )
 
 # Ollama settings
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", 50))
+OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", 35))  # Reduced to 35 to fit in 6GB VRAM

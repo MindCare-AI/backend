@@ -1,2 +1,7 @@
 python manage.py reset_rag_tables
 python manage.py setup_therapy_rag
+
+#test
+ python manage.py test_chatbot_accuracy
+ python manage.py cross_validate_chatbot --output results.json
+ python manage.py run_parametric_tests

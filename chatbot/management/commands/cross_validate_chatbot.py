@@ -1,8 +1,10 @@
 # chatbot/management/commands/cross_validate_chatbot.py
 import json
 import logging
+import os
+from django.conf import settings
 from django.core.management.base import BaseCommand
-from chatbot.services.rag.evaluate_rag import run_evaluation
+from chatbot.services.rag.evaluate_rag import run_evaluation, evaluate_and_save
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +22,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         output_file = options.get("output")
+        expanded_test_file = os.path.join(settings.BASE_DIR, "chatbot", "data", "expanded_test_cases.json")
+        
         self.stdout.write(self.style.NOTICE("Starting cross-validation tests..."))
-
+        
         try:
-            results = run_evaluation()
+            # Try to use expanded test cases if available
+            if os.path.exists(expanded_test_file):
+                self.stdout.write(self.style.NOTICE(f"Using expanded test cases from {expanded_test_file}"))
+                results = evaluate_and_save(test_cases_file=expanded_test_file)
+            else:
+                self.stdout.write(self.style.NOTICE("Using default test cases"))
+                results = run_evaluation()
+            
             self.stdout.write(json.dumps(results, indent=2))
 
             if output_file:

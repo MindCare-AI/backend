@@ -1,79 +1,129 @@
 {
-  "total_cases": 10,
-  "correct": 6,
-  "incorrect": 4,
-  "average_confidence": 0.7193092031416258,
+  "total_cases": 14,
+  "correct": 11,
+  "incorrect": 3,
+  "average_confidence": 0.660609861297133,
   "cases": [
     {
       "query": "I keep having negative thoughts that I can't get rid of. I think everyone hates me and I'll never be good enough.",
       "expected": "cbt",
-      "predicted": "dbt",
-      "confidence": 0.6614656235768775,
-      "correct": false
+      "predicted": "cbt",
+      "confidence": 0.95,
+      "correct": true
     },
     {
       "query": "I have trouble controlling my emotions. One minute I'm fine, and the next I'm furious or devastated.",
       "expected": "dbt",
       "predicted": "dbt",
-      "confidence": 0.759675475370988,
+      "confidence": 0.9285714285714286,
       "correct": true
     },
     {
       "query": "I struggle with black and white thinking. Everything is either perfect or terrible, and I can't see the middle ground.",
       "expected": "dbt",
-      "predicted": "cbt",
-      "confidence": 0.6838771756508528,
-      "correct": false
+      "predicted": "dbt",
+      "confidence": 0.85,
+      "correct": true
     },
     {
       "query": "My anxiety makes me catastrophize. I always imagine the worst possible outcome for every situation.",
       "expected": "cbt",
       "predicted": "cbt",
-      "confidence": 0.7104209492851368,
+      "confidence": 0.9344827586206896,
       "correct": true
     },
     {
       "query": "I have a hard time in relationships. I'm terrified of abandonment and often push people away before they can leave me.",
       "expected": "dbt",
       "predicted": "dbt",
-      "confidence": 0.7259756264340332,
+      "confidence": 0.9,
       "correct": true
     },
     {
       "query": "I keep procrastinating on important tasks because I'm afraid I'll fail at them.",
       "expected": "cbt",
       "predicted": "cbt",
-      "confidence": 0.6292138528541229,
+      "confidence": 0.95,
       "correct": true
     },
     {
       "query": "When I'm upset, I often engage in impulsive behaviors that I later regret, like spending too much money or binge eating.",
       "expected": "dbt",
       "predicted": "dbt",
-      "confidence": 0.6987965074722112,
+      "confidence": 0.95,
       "correct": true
     },
     {
       "query": "I'm constantly comparing myself to others on social media and feeling inadequate.",
       "expected": "cbt",
       "predicted": "cbt",
-      "confidence": 0.6563408129377953,
+      "confidence": 0.9,
       "correct": true
     },
     {
       "query": "I need help with mindfulness techniques to stay present during stressful situations.",
       "expected": "dbt",
       "predicted": "mindfulness",
-      "confidence": 1.0,
+      "confidence": 0.95,
       "correct": false
     },
     {
       "query": "I need to challenge my irrational beliefs about needing to be perfect all the time.",
       "expected": "cbt",
+      "predicted": "cbt",
+      "confidence": 0.9354838709677419,
+      "correct": true
+    },
+    {
+      "query": "I often feel overwhelmed by my emotions and struggle to regulate them. What can I do?",
+      "expected": "dbt",
       "predicted": "dbt",
-      "confidence": 0.6673260078342405,
+      "confidence": 0,
+      "correct": true
+    },
+    {
+      "query": "I'm constantly worried about what others think of me and feel like I'm not living up to expectations.",
+      "expected": "cbt",
+      "predicted": "dbt",
+      "confidence": 0,
+      "correct": false
+    },
+    {
+      "query": "I have a hard time accepting myself and often engage in self-destructive behaviors.",
+      "expected": "dbt",
+      "predicted": "dbt",
+      "confidence": 0,
+      "correct": true
+    },
+    {
+      "query": "I need help with managing my stress and anxiety levels. Can you suggest some techniques?",
+      "expected": "cbt",
+      "predicted": "dbt",
+      "confidence": 0,
       "correct": false
     }
   ],
-  "accuracy": 0.6
+  "confusion_matrix": {
+    "cbt_as_cbt": 5,
+    "cbt_as_dbt": 2,
+    "dbt_as_dbt": 6,
+    "dbt_as_cbt": 0,
+    "unknown_predictions": 1
+  },
+  "accuracy": 0.7857142857142857,
+  "class_metrics": {
+    "cbt": {
+      "precision": 1.0,
+      "recall": 0.7142857142857143,
+      "f1": 0.8333333333333333
+    },
+    "dbt": {
+      "precision": 0.75,
+      "recall": 1.0,
+      "f1": 0.8571428571428571
+    }
+  },
+  "macro_precision": 0.875,
+  "macro_recall": 0.8571428571428572,
+  "macro_f1": 0.8452380952380951
 }

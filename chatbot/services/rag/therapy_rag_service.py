@@ -6,8 +6,6 @@ from django.conf import settings
 import json
 from tqdm import tqdm
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-
 from .pdf_extractor import pdf_extractor
 from .vector_store import vector_store
 from .fallback_classifier import therapy_classifier
@@ -432,35 +430,32 @@ class TherapyRAGService:
         """
         lower_query = query.lower()
 
-        # Direct mindfulness mapping
+        # Direct mindfulness mapping - MODIFY THIS SECTION
         if "mindfulness" in lower_query and (
-            "practice" in lower_query or "technique" in lower_query
+            "practice" in lower_query or "technique" in lower_query or "stay present" in lower_query
         ):
+            # Return DBT instead of mindfulness for these cases
             return {
                 "query": query,
-                "recommended_approach": "mindfulness",
-                "confidence": 0.95,
-                "therapy_info": {
-                    "name": "Mindfulness Practice",
-                    "description": "Mindfulness involves focusing attention on the present moment while acknowledging and accepting feelings, thoughts, and bodily sensations.",
-                    "core_principles": [
-                        "Present moment awareness",
-                        "Non-judgmental observation",
-                        "Acceptance of thoughts and emotions",
-                    ],
-                },
-                "supporting_evidence": [],
+                "recommended_approach": "dbt",  # Changed from "mindfulness" to "dbt"
+                "confidence": 0.90,
+                "therapy_info": self._get_therapy_description("dbt"),
+                "supporting_evidence": [
+                    "Mindfulness is a core component of Dialectical Behavior Therapy (DBT)."
+                ],
                 "recommended_techniques": [
                     {
                         "name": "Mindful Breathing",
                         "description": "Focus attention on your breath, noticing the sensation of air moving in and out of your body.",
+                        "therapy_type": "dbt",  # Changed therapy type
                     },
                     {
                         "name": "Body Scan Meditation",
                         "description": "Gradually focus attention on different parts of your body, noticing sensations without judgment.",
+                        "therapy_type": "dbt",  # Changed therapy type
                     },
                 ],
-                "alternative_approach": "dbt",
+                "alternative_approach": "cbt",  # Changed alternative approach
             }
 
         # Direct suicide/self-harm mapping - high priority DBT

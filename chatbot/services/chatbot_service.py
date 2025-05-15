@@ -1,4 +1,4 @@
-#chatbot/services/chatbot_service.py
+# chatbot/services/chatbot_service.py
 from typing import Dict, Any
 import logging
 from django.conf import settings
@@ -28,6 +28,48 @@ class ChatbotService:
         "dangerous_content",
     ]
 
+    # Define reusable prompt templates as class constants
+    SYSTEM_TEMPLATE = """\
+SYSTEM: You are MindCare AI, a compassionate mental health assistant. 
+Follow these rules strictly:
+- Always begin by naming the recommended therapy approach.
+- Use at least two core principles by name.
+- Incorporate at least one concrete, step-by-step technique.
+- Conclude with an encouraging, empathetic closing statement.
+- Tone: empathetic, non-judgmental, clear.
+- Format your response in 4 sections exactly:
+    1. Overview of [Therapy Name]
+    2. Key Principles: • principle A • principle B
+    3. Technique Steps: 1. … 2. …
+    4. Closing Statement
+"""
+
+    FEW_SHOT_EXAMPLES = """\
+### Example 1
+USER: “I have racing thoughts and can’t focus on work.”
+ASSISTANT:
+1. Overview of CBT  
+   CBT (Cognitive Behavioral Therapy) focuses on identifying and challenging cognitive distortions.  
+2. Key Principles: • Cognitive Distortions • Behavioral Activation  
+3. Technique Steps:  
+   1. Keep a thought record when you notice racing thoughts.  
+   2. Schedule a 5-minute focused “work sprint” followed by a reward break.  
+4. Closing Statement  
+   You’re making progress by noticing patterns—keep practicing these steps!
+
+### Example 2
+USER: “I feel overwhelmed by intense emotions and don’t know what to do.”
+ASSISTANT:
+1. Overview of DBT  
+   DBT (Dialectical Behavior Therapy) combines acceptance and change strategies to regulate emotions.  
+2. Key Principles: • Distress Tolerance • Emotion Regulation  
+3. Technique Steps:  
+   1. Use TIPP: Temperature, Intense exercise, Paced breathing, Progressive relaxation.  
+   2. Practice “wise mind” mindfulness for 2 minutes when emotions surge.  
+4. Closing Statement  
+   You’re not alone—these skills can help you regain balance.
+"""
+
     def __init__(self):
         self.api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         self.api_key = settings.GEMINI_API_KEY
@@ -49,22 +91,34 @@ class ChatbotService:
         try:
             safety_check = self._check_content_safety(message)
             if safety_check["is_harmful"]:
-                return self._handle_harmful_content(user, message, safety_check["category"])
+                return self._handle_harmful_content(
+                    user, message, safety_check["category"]
+                )
 
             user_data = self._get_user_data(user)
-            conversation_context = self._prepare_conversation_context(user, conversation_id, conversation_history)
+            conversation_context = self._prepare_conversation_context(
+                user, conversation_id, conversation_history
+            )
             # Get therapy recommendation via RAG service
-            therapy_recommendation = self._get_therapy_recommendation(message, user_data)
-            prompt = self._build_prompt(message, conversation_context, user_data, user, therapy_recommendation)
+            therapy_recommendation = self._get_therapy_recommendation(
+                message, user_data
+            )
+            prompt = self._build_prompt(
+                message, conversation_context, user_data, user, therapy_recommendation
+            )
 
             response = self._call_gemini_api(prompt)
-            self._check_and_update_conversation_summary(user, conversation_id, conversation_history)
+            self._check_and_update_conversation_summary(
+                user, conversation_id, conversation_history
+            )
             return {
                 "content": response["text"],
                 "metadata": {
                     **response.get("metadata", {}),
                     "therapy_recommendation": {
-                        "approach": therapy_recommendation.get("recommended_approach", "unknown"),
+                        "approach": therapy_recommendation.get(
+                            "recommended_approach", "unknown"
+                        ),
                         "confidence": therapy_recommendation.get("confidence", 0.0),
                     },
                 },
@@ -80,11 +134,15 @@ class ChatbotService:
         This method now fully relies on the RAG service.
         """
         try:
-            recommendation = therapy_rag_service.get_therapy_approach(message, user_data)
+            recommendation = therapy_rag_service.get_therapy_approach(
+                message, user_data
+            )
             logger.info(f"Therapy recommendation: {recommendation}")
             return recommendation
         except Exception as e:
-            logger.warning(f"Error getting therapy recommendation from RAG service: {str(e)}")
+            logger.warning(
+                f"Error getting therapy recommendation from RAG service: {str(e)}"
+            )
             return {
                 "recommended_approach": "unknown",
                 "confidence": 0.0,
@@ -206,10 +264,9 @@ class ChatbotService:
         self, user, message: str, category: str
     ) -> Dict[str, Any]:
         """Generate therapeutic response for harmful content"""
-        user_name = user.get_full_name() or user.username
 
         # Create specialized prompt for handling harmful content
-        prompt = f"""You are MindCare AI, a therapeutic chatbot assistant. The user {user_name} has expressed potentially harmful content 
+        prompt = f"""You are MindCare AI, a therapeutic chatbot assistant. The user has expressed potentially harmful content 
 related to {category}. Your response must:
 
 1. Remain calm, professional and compassionate
@@ -218,8 +275,7 @@ related to {category}. Your response must:
 4. Offer support and perspective
 5. Avoid judgment while maintaining clear ethical boundaries
 6. Do not repeat or quote the exact harmful statement back to them
-7. Address them by name ({user_name}) to maintain personal connection
-8. Provide a therapeutic perspective that shows empathy while discouraging harmful attitudes
+7. Provide a therapeutic perspective that shows empathy while discouraging harmful attitudes
 
 User message category: {category}
 """
@@ -309,11 +365,10 @@ User message category: {category}
             journal_entries = JournalEntry.objects.filter(
                 user=user, created_at__range=(start_date, end_date)
             ).order_by("-created_at")[: self.journal_limit]
-            
+
             # Get journal categories with entries
             journal_categories = JournalCategory.objects.filter(
-                user=user, 
-                entries__created_at__range=(start_date, end_date)
+                user=user, entries__created_at__range=(start_date, end_date)
             ).distinct()
 
             # Format journal entries
@@ -325,31 +380,41 @@ User message category: {category}
                         "title": entry.title or f"Entry {entry.id}",
                         "content": entry.content,
                         "mood": entry.mood if hasattr(entry, "mood") else None,
-                        "activities": entry.activities if hasattr(entry, "activities") else None,
-                        "category": entry.category.name if entry.category else "Uncategorized"
+                        "activities": entry.activities
+                        if hasattr(entry, "activities")
+                        else None,
+                        "category": entry.category.name
+                        if entry.category
+                        else "Uncategorized",
                     }
                 )
-            
+
             # Format categories data
             categories_data = []
             for category in journal_categories:
                 recent_entries = category.entries.filter(
                     created_at__range=(start_date, end_date)
                 ).order_by("-created_at")[:3]
-                
+
                 entries_data = []
                 for entry in recent_entries:
-                    entries_data.append({
-                        "date": entry.created_at.strftime("%Y-%m-%d"),
-                        "content": entry.content[:100] + "..." if len(entry.content) > 100 else entry.content,
-                        "mood": entry.mood if hasattr(entry, "mood") else None,
-                    })
-                
-                categories_data.append({
-                    "name": category.name,
-                    "entries_count": recent_entries.count(),
-                    "recent_entries": entries_data
-                })
+                    entries_data.append(
+                        {
+                            "date": entry.created_at.strftime("%Y-%m-%d"),
+                            "content": entry.content[:100] + "..."
+                            if len(entry.content) > 100
+                            else entry.content,
+                            "mood": entry.mood if hasattr(entry, "mood") else None,
+                        }
+                    )
+
+                categories_data.append(
+                    {
+                        "name": category.name,
+                        "entries_count": recent_entries.count(),
+                        "recent_entries": entries_data,
+                    }
+                )
 
             # Get recent mood logs
             mood_logs = MoodLog.objects.filter(
@@ -472,51 +537,130 @@ User message category: {category}
         user=None,
         therapy_recommendation: Dict = None,
     ) -> str:
-        """Build an improved prompt integrating the RAG therapy recommendation.
-        Updated to clearly include the recommendation from the RAG service.
-        """
+        """Build an improved prompt integrating the RAG therapy recommendation."""
         user_name = user.get_full_name() or user.username if user else "User"
-        prompt = f"""You are MindCare AI, a therapeutic mental health assistant having a conversation with {user_name}. 
-Respond in a compassionate, helpful manner focusing on mental health support and therapeutic approaches.
 
-CONVERSATION GOAL: Provide personalized mental health support using the user's data, history, and conversation context.
-
-"""
-        if therapy_recommendation and therapy_recommendation.get("recommended_approach") != "unknown":
-            therapy_name = therapy_recommendation.get("therapy_info", {}).get("name", "").strip()
-            confidence = therapy_recommendation.get("confidence", 0)
-            confidence_percent = int(confidence * 100)
-            prompt += f"""RECOMMENDED THERAPEUTIC APPROACH: {therapy_name} ({confidence_percent}% confidence)
-
-Description: {therapy_recommendation.get("therapy_info", {}).get("description", "No description available.")}
-
-Core principles:
-"""
-            for principle in therapy_recommendation.get("therapy_info", {}).get("core_principles", [])[:3]:
-                prompt += f"- {principle}\n"
-
-            techniques = therapy_recommendation.get("recommended_techniques", [])
-            if techniques:
-                prompt += "\nRECOMMENDED TECHNIQUES:\n"
-                for technique in techniques[:2]:
-                    prompt += f"- {technique.get('name', 'Technique')}\n"
-
-            prompt += "\nPlease use this therapeutic approach when crafting your response.\n\n"
-        else:
-            prompt += "\nNo specific therapeutic recommendation available. Please provide general empathetic support.\n\n"
+        # Detect potential crisis keywords in the message
+        is_crisis = self._detect_crisis_indicators(message)
         
-        # Add journal categories to the prompt if available
-        if user_data and "journal_categories" in user_data and user_data["journal_categories"]:
-            prompt += "\nUSER JOURNAL CATEGORIES:\n"
-            for category in user_data["journal_categories"][:3]:  # Limit to 3 categories
-                prompt += f"- {category['name']} ({category['entries_count']} recent entries)\n"
-                if category['recent_entries']:
-                    recent_entry = category['recent_entries'][0]
-                    prompt += f"  Most recent entry ({recent_entry['date']}): {recent_entry['content'][:50]}...\n"
+        # Assemble the base prompt
+        prompt = "\n".join([
+            self.SYSTEM_TEMPLATE,
+            self.FEW_SHOT_EXAMPLES,
+            f"USER: \"{message}\"",
+            "ASSISTANT:"
+        ])
 
-        # ...existing code to add conversation summary, user insights, recent conversation...
-        prompt += f"\nUser: {message}\n\nAssistant:"
+        # Build the enhanced context to inject before ASSISTANT:
+        enhanced_context = []
+        
+        # 1. User History Context Integration
+        if user_data:
+            # Add journal entries summary if available
+            if user_data.get("journal_entries"):
+                recent_entries = user_data["journal_entries"][:3]
+                topics = ", ".join([entry.get("title", "Entry") for entry in recent_entries])
+                enhanced_context.append(f"SYSTEM: User has recently journaled about: {topics}")
+            
+            # Add mood patterns if available
+            if user_data.get("mood_logs"):
+                mood_ratings = [log.get("mood_rating", 0) for log in user_data.get("mood_logs", [])]
+                if mood_ratings:
+                    avg_mood = sum(mood_ratings) / len(mood_ratings)
+                    mood_trend = "declining" if len(mood_ratings) > 1 and mood_ratings[0] < mood_ratings[-1] else "improving" if len(mood_ratings) > 1 and mood_ratings[0] > mood_ratings[-1] else "stable"
+                    enhanced_context.append(f"SYSTEM: User's recent mood trend: {mood_trend} (avg: {avg_mood:.1f}/10)")
+
+        # 2. Emotional Context Awareness
+        if user_data and user_data.get("analysis"):
+            analysis = user_data["analysis"]
+            
+            # Add emotional patterns
+            if analysis.get("dominant_emotions"):
+                emotions = ", ".join(analysis.get("dominant_emotions", [])[:3])
+                enhanced_context.append(f"SYSTEM: Dominant emotions: {emotions}")
+            
+            # Add sentiment data
+            if analysis.get("sentiment_score") is not None:
+                sentiment = analysis.get("sentiment_score")
+                enhanced_context.append(f"SYSTEM: Overall sentiment: {sentiment:.2f} (-1 to 1 scale)")
+
+        # 3. Therapy-Specific Techniques
+        if therapy_recommendation and therapy_recommendation.get("recommended_approach") != "unknown":
+            name = therapy_recommendation["therapy_info"]["name"]
+            confidence = int(therapy_recommendation["confidence"] * 100)
+            principles = therapy_recommendation["therapy_info"]["core_principles"][:2]
+            
+            # Get more detailed techniques
+            all_techniques = therapy_recommendation.get("recommended_techniques", [])
+            techniques = [t for t in all_techniques[:3] if "name" in t]
+            technique_names = [t["name"] for t in techniques]
+            
+            # Add therapy recommendations
+            enhanced_context.append(f"SYSTEM: Recommended Approach: {name} ({confidence}% confidence)")
+            enhanced_context.append(f"SYSTEM: Core Principles: {principles[0]}, {principles[1]}")
+            enhanced_context.append(f"SYSTEM: Techniques to Include: {', '.join(technique_names)}")
+            
+            # Add specific exercises if available
+            if all_techniques and len(all_techniques) > 0 and "steps" in all_techniques[0]:
+                enhanced_context.append(f"SYSTEM: Exercise: {all_techniques[0]['name']} - {'; '.join(all_techniques[0].get('steps', [])[:3])}")
+
+        # 4. Personalization Enhancements
+        enhanced_context.append(f"SYSTEM: User Name: {user_name}")
+        
+        # Add past successful techniques if available
+        if user_data and user_data.get("analysis") and user_data["analysis"].get("suggested_activities"):
+            activities = user_data["analysis"].get("suggested_activities", [])[:2]
+            if activities:
+                enhanced_context.append(f"SYSTEM: Previously helpful activities: {', '.join(activities)}")
+
+        # 5. Conversation Continuity
+        if conversation_context:
+            if conversation_context.get("has_summary") and conversation_context.get("summary"):
+                enhanced_context.append(f"SYSTEM: Past conversation summary: {conversation_context['summary']}")
+            
+            if conversation_context.get("key_points"):
+                key_points = ", ".join(conversation_context.get("key_points", [])[:3])
+                enhanced_context.append(f"SYSTEM: Key topics discussed: {key_points}")
+
+        # 6. Enhanced Safety and Crisis Detection
+        if is_crisis:
+            enhanced_context.append("SYSTEM: PRIORITY ALERT - Potential crisis detected. Provide immediate support resources and crisis intervention.")
+
+        # 7. Cultural Sensitivity
+        if user and hasattr(user, "profile") and hasattr(user.profile, "cultural_background"):
+            enhanced_context.append(f"SYSTEM: Consider cultural context: {user.profile.cultural_background}")
+        else:
+            enhanced_context.append("SYSTEM: Maintain cultural sensitivity and avoid assumptions about background or beliefs.")
+
+        # 8. Goal-Oriented Framing
+        if user_data and user_data.get("analysis") and user_data["analysis"].get("topics_of_concern"):
+            topics = user_data["analysis"].get("topics_of_concern", [])[:2]
+            if topics:
+                enhanced_context.append(f"SYSTEM: User's therapeutic focus areas: {', '.join(topics)}")
+
+        # Insert the enhanced context before ASSISTANT:
+        if enhanced_context:
+            prompt = prompt.replace(
+                "ASSISTANT:",
+                "\n".join(enhanced_context) + "\n\nASSISTANT:"
+            )
+
         return prompt
+
+    def _detect_crisis_indicators(self, message: str) -> bool:
+        """Detect potential crisis indicators in a message."""
+        crisis_keywords = [
+            r'suicid(e|al)', r'kill (myself|me)', r'want to die', r'end (my|this) life',
+            r'harm(ing)? myself', r'no reason to live', r'better off dead', r'emergency',
+            r'crisis', r'urgent help', r'immediate danger', r'overdose', r'self-harm'
+        ]
+        
+        message_lower = message.lower()
+        for keyword in crisis_keywords:
+            if re.search(keyword, message_lower):
+                return True
+                
+        return False
 
     def _error_response(self, message: str) -> Dict[str, any]:
         """Generate error response"""

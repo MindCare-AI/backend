@@ -1,4 +1,4 @@
-#chatbot/serializers.py
+# chatbot/serializers.py
 from rest_framework import serializers
 from .models import ChatbotConversation, ChatMessage, ConversationSummary
 

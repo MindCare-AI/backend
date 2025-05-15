@@ -191,3 +191,5 @@ opencv-python
 deepface
 easyocr
 tenacity
+pdfplumber
+spacy

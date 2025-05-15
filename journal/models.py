@@ -6,6 +6,7 @@ from django.utils import timezone
 
 class JournalCategory(models.Model):
     """Model for categorizing journal entries"""
+
     name = models.CharField(max_length=200)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

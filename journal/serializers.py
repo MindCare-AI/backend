@@ -43,14 +43,21 @@ class JournalEntrySerializer(serializers.ModelSerializer):
             "category",
             "category_name",
         ]
-        read_only_fields = ["user", "created_at", "updated_at", "date", "word_count", "category_name"]
+        read_only_fields = [
+            "user",
+            "created_at",
+            "updated_at",
+            "date",
+            "word_count",
+            "category_name",
+        ]
 
     def get_mood_description(self, obj):
         return obj.get_mood_display() if obj.mood else ""
 
     def get_word_count(self, obj):
         return len(obj.content.split()) if obj.content else 0
-    
+
     def get_category_name(self, obj):
         return obj.category.name if obj.category else ""
 
@@ -85,13 +92,20 @@ class JournalEntryDetailSerializer(serializers.ModelSerializer):
             "category",
             "category_name",
         ]
-        read_only_fields = ["user", "created_at", "updated_at", "date", "word_count", "category_name"]
+        read_only_fields = [
+            "user",
+            "created_at",
+            "updated_at",
+            "date",
+            "word_count",
+            "category_name",
+        ]
 
     def get_mood_description(self, obj):
         return obj.get_mood_display() if obj.mood else ""
 
     def get_word_count(self, obj):
         return len(obj.content.split()) if obj.content else 0
-        
+
     def get_category_name(self, obj):
         return obj.category.name if obj.category else ""

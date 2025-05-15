@@ -127,7 +127,7 @@ class PredictiveAnalysisService:
         # Add analysis by category
         categories = JournalCategory.objects.filter(user=user)
         category_analysis = {}
-        
+
         for category in categories:
             category_entries = qs.filter(category=category)
             if category_entries.exists():
@@ -145,8 +145,11 @@ class PredictiveAnalysisService:
                                 output_field=FloatField(),
                             )
                         )
-                    )["avg_mood"] or 3.0,
-                    "most_recent": category_entries.latest(time_field).content[:100] if category_entries.latest(time_field) else ""
+                    )["avg_mood"]
+                    or 3.0,
+                    "most_recent": category_entries.latest(time_field).content[:100]
+                    if category_entries.latest(time_field)
+                    else "",
                 }
 
         # Map valid 'mood' field choices to numeric values for aggregation
@@ -172,7 +175,7 @@ class PredictiveAnalysisService:
             "concerns": qs.exists(),
             "sentiment_trend": "neutral",
             "avg_mood": avg_mood,
-            "category_analysis": category_analysis
+            "category_analysis": category_analysis,
         }
 
         return analysis

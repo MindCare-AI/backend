@@ -1,4 +1,4 @@
-#chatbot/models.py
+# chatbot/models.py
 import uuid
 from django.db import models
 from django.conf import settings
@@ -75,6 +75,9 @@ class ChatMessage(models.Model):
 
     class Meta:
         ordering = ["timestamp"]
+        indexes = [
+            models.Index(fields=["conversation", "timestamp"]),
+        ]
         verbose_name = "Chat Message"
         verbose_name_plural = "Chat Messages"
 

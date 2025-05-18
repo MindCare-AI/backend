@@ -9,9 +9,10 @@ class JournalCategoryAdmin(admin.ModelAdmin):
     list_filter = ["created_at"]
     search_fields = ["name", "user__username"]
     readonly_fields = ["created_at", "updated_at"]
-    
+
     def entries_count(self, obj):
         return obj.entries.count()
+
     entries_count.short_description = "Entries"
 
 

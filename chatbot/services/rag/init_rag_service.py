@@ -1,4 +1,4 @@
-#chatbot/services/rag/init_rag_service.py
+# chatbot/services/rag/init_rag_service.py
 import os
 import logging
 import subprocess

@@ -1,10 +1,11 @@
-#chatbot/serializers.py
+# chatbot/serializers.py
 from rest_framework import serializers
 from .models import ChatbotConversation, ChatMessage, ConversationSummary
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.SerializerMethodField(read_only=True)
+    chatbot_method = serializers.SerializerMethodField(read_only=True)  # New field
 
     class Meta:
         model = ChatMessage
@@ -18,12 +19,23 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             "message_type",
             "metadata",
             "parent_message",
+            "chatbot_method",  # Include new field in the response
         ]
-        read_only_fields = ["id", "timestamp", "sender_name"]
+        read_only_fields = ["id", "timestamp", "sender_name", "chatbot_method"]
 
     def get_sender_name(self, obj):
         if obj.sender:
             return obj.sender.get_full_name() or obj.sender.username
+        return None
+
+    def get_chatbot_method(self, obj):
+        if obj.is_bot:
+            # If the metadata contains a therapy recommendation from the RAG,
+            # return its 'approach'. Otherwise, fallback to a default.
+            rec = obj.metadata.get("therapy_recommendation") if obj.metadata else None
+            if rec and rec.get("approach"):
+                return rec.get("approach")
+            return "Not determined"
         return None
 
 

@@ -8,9 +8,9 @@ from drf_spectacular.utils import extend_schema_view, extend_schema, OpenApiPara
 from drf_spectacular.types import OpenApiTypes
 from journal.models import JournalEntry, JournalCategory
 from journal.serializers import (
-    JournalEntrySerializer, 
+    JournalEntrySerializer,
     JournalEntryDetailSerializer,
-    JournalCategorySerializer
+    JournalCategorySerializer,
 )
 from feeds.models import Post
 import logging
@@ -43,10 +43,11 @@ logger = logging.getLogger(__name__)
         description="Delete a journal category",
         summary="Delete Journal Category",
         tags=["Journal Categories"],
-    )
+    ),
 )
 class JournalCategoryViewSet(viewsets.ModelViewSet):
     """ViewSet for managing journal categories"""
+
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = JournalCategorySerializer
 
@@ -63,7 +64,9 @@ class JournalCategoryViewSet(viewsets.ModelViewSet):
         """Get all entries for a specific category"""
         category = self.get_object()
         entries = JournalEntry.objects.filter(category=category)
-        serializer = JournalEntrySerializer(entries, many=True, context={"request": request})
+        serializer = JournalEntrySerializer(
+            entries, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
 
@@ -145,17 +148,19 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Ensure the user is set when creating a journal entry"""
         # Extract category_id from request data for direct category assignment
-        category_id = self.request.data.get('category')
+        category_id = self.request.data.get("category")
         category = None
-        
+
         if category_id:
             try:
                 # Verify the category belongs to this user
-                category = JournalCategory.objects.get(id=category_id, user=self.request.user)
+                category = JournalCategory.objects.get(
+                    id=category_id, user=self.request.user
+                )
             except JournalCategory.DoesNotExist:
                 # If category doesn't exist or doesn't belong to user, silently ignore it
                 pass
-                
+
         # Save with the user and validated category
         serializer.save(user=self.request.user, category=category)
 

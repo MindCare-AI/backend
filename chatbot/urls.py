@@ -1,4 +1,4 @@
-#chatbot/urls.py
+# chatbot/urls.py
 from django.urls import path
 from .views import ChatbotViewSet
 
@@ -27,12 +27,23 @@ chatbot_send_message = ChatbotViewSet.as_view(
 urlpatterns = [
     path("", chatbot_list, name="chatbot-conversation-list"),
     path("", chatbot_detail, name="chatbot-conversation-detail"),
-    path("<int:pk>/send_message/",chatbot_send_message, name="chatbot-send-message",),
+    path(
+        "<int:pk>/send_message/",
+        chatbot_send_message,
+        name="chatbot-send-message",
+    ),
 ]
 
 # Example request body for the send_message endpoint
 # POST request to /api/v1/chatbot/9/send_message/
-# JSON body:
+# JSON body (simple format):
 # {
 #   "content": "Hello, can you help me with my anxiety?"
+# }
+#
+# OR JSON body (structured format):
+# {
+#   "user_message": {
+#     "content": "Hello, can you help me with my anxiety?"
+#   }
 # }

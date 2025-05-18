@@ -33,6 +33,7 @@ class CustomUser(AbstractUser):
     updated_at = models.DateTimeField(auto_now=True)
     is_online = models.BooleanField(default=False)
     last_seen = models.DateTimeField(null=True, blank=True)
+    is_online = models.BooleanField(default=False, null=False)
 
     tracker = FieldTracker(
         ["user_type", "email", "phone_number", "crisis_alert_enabled"]

@@ -9,7 +9,6 @@ import logging
 
 from .models.one_to_one import OneToOneMessage
 from .models.group import GroupMessage
-from .models.chatbot import ChatbotMessage
 from .models.base import BaseMessage
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_delete, sender=OneToOneMessage)
 @receiver(post_delete, sender=GroupMessage)
-@receiver(post_delete, sender=ChatbotMessage)
 def update_conversation_on_message_change_delete(sender, instance, **kwargs):
     conversation = instance.conversation
     conversation.last_activity = timezone.now()
@@ -51,10 +49,22 @@ def handle_message_edit(sender, instance, **kwargs):
 def handle_message_reaction(sender, instance, created, **kwargs):
     """Handle reaction caching"""
     try:
-        if not created and hasattr(instance, "reactions"):
-            # Update reactions cache
+        if hasattr(instance, "reactions"):
             cache_key = f"message_reactions_{instance.id}"
-            cache.set(cache_key, instance.reactions, timeout=3600)
+
+            if not created:
+                # Update reactions cache when message is modified
+                cache.set(cache_key, instance.reactions, timeout=3600)
+            else:
+                # Initialize empty reactions cache for new messages
+                cache.set(cache_key, [], timeout=3600)
+
+            # Get reactions from cache for validation
+            cached_reactions = cache.get(cache_key)
+            if cached_reactions is None:
+                # If cache miss, repopulate from instance
+                cache.set(cache_key, instance.reactions, timeout=3600)
+                logger.info(f"Repopulated reactions cache for message {instance.id}")
 
     except Exception as e:
         logger.error(f"Error handling message reaction: {str(e)}", exc_info=True)

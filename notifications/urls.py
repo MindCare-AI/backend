@@ -24,4 +24,9 @@ urlpatterns = [
         NotificationViewSet.as_view({"get": "count"}),
         name="notification-count",
     ),
+    path(
+        "bulk-delete/",
+        NotificationViewSet.as_view({"post": "bulk_delete"}),
+        name="notification-bulk-delete",
+    ),
 ]

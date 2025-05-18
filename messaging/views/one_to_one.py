@@ -1,5 +1,5 @@
 # messaging/views/one_to_one.py
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Count, Max, Q, Prefetch
@@ -7,11 +7,19 @@ from django.contrib.auth import get_user_model
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 # Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
 # • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
 # • extend_schema_view: Applies common schema settings to all view methods of a viewset.
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiExample,
+    OpenApiResponse,
+)
 
 from ..models.one_to_one import OneToOneConversation, OneToOneMessage
 from ..serializers.one_to_one import (
@@ -24,6 +32,7 @@ from ..serializers.one_to_one import (
 # from ..services/firebase import push_message  # DELETE THIS LINE
 import logging
 from ..mixins.edit_history import EditHistoryMixin
+from ..mixins.reactions import ReactionMixin
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
@@ -31,18 +40,42 @@ logger = logging.getLogger(__name__)
 
 @extend_schema_view(
     list=extend_schema(
-        description="List all one-to-one conversations for the authenticated user. Each conversation includes annotations for the latest message, its time, unread count, and participant details.",
+        description="List all one-to-one conversations for the authenticated user.",
         summary="List One-to-One Conversations",
         tags=["One-to-One Conversation"],
     ),
     retrieve=extend_schema(
-        description="Retrieve detailed information for a specific one-to-one conversation, including recent messages and details about the other participant(s).",
+        description="Retrieve detailed information for a specific one-to-one conversation.",
         summary="Retrieve One-to-One Conversation",
         tags=["One-to-One Conversation"],
     ),
     create=extend_schema(
-        description="Create a new one-to-one conversation.",
+        description="Create a new one-to-one conversation. Expects a request body with a 'participant_id'.",
         summary="Create One-to-One Conversation",
+        request={
+            "type": "object",
+            "properties": {
+                "participant_id": {
+                    "type": "integer",
+                    "description": "ID of the second participant (must be a patient if you're a therapist, or vice versa).",
+                }
+            },
+            "required": ["participant_id"],
+        },
+        responses={
+            201: OneToOneConversationSerializer,
+            400: OpenApiResponse(
+                description="Bad Request – e.g., missing or invalid participant_id."
+            ),
+            404: OpenApiResponse(description="Participant not found."),
+        },
+        examples=[
+            OpenApiExample(
+                "Valid Request",
+                description="A valid request to create a one-to-one conversation.",
+                value={"participant_id": 2},
+            )
+        ],
         tags=["One-to-One Conversation"],
     ),
 )
@@ -190,6 +223,7 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
     @extend_schema(
         description="Set the conversation status as 'typing' for the authenticated user.",
         summary="Set Typing Status",
+        request=None,  # explicitly no body expected
         tags=["One-to-One Conversation"],
     )
     @action(detail=True, methods=["post"])
@@ -323,7 +357,7 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
             )
 
 
-class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
+class OneToOneMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelViewSet):
     queryset = OneToOneMessage.objects.all()
     serializer_class = OneToOneMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -335,24 +369,59 @@ class OneToOneMessageViewSet(EditHistoryMixin, viewsets.ModelViewSet):
             conversation__participants=self.request.user
         ).order_by("-timestamp")
 
+    @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
+    def list(self, request, *args, **kwargs):
+        """Cache the message list for better performance"""
+        return super().list(request, *args, **kwargs)
+
     def retrieve(self, request, *args, **kwargs):
-        """Retrieve a specific message by ID with detailed information."""
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
+        """Get message with cache handling and debug logging."""
+        message_id = kwargs.get("pk")
+        logger.debug(f"Attempting to retrieve message with ID: {message_id}")
 
-    @action(detail=True, methods=["post"], url_path="add_reaction")
-    def add_reaction(self, request, pk=None):
-        """Add a reaction to a specific message."""
-        return Response(
-            {"detail": "This feature is not implemented yet."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
-        )
+        # Check if the message exists in the queryset
+        try:
+            message = self.get_queryset().get(id=message_id)
+            logger.debug(f"Message found: {message}")
+        except OneToOneMessage.DoesNotExist:
+            logger.error(
+                f"Message with ID {message_id} does not exist or is not accessible."
+            )
+            return Response(
+                {"detail": "No OneToOneMessage matches the given query."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-    @action(detail=True, methods=["delete"], url_path="remove_reaction")
-    def remove_reaction(self, request, pk=None):
-        """Remove a reaction from a specific message."""
-        return Response(
-            {"detail": "This feature is not implemented yet."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
-        )
+        # Try to get from cache first
+        cache_key = f"one_to_one_message_{message_id}"
+        cached_message = cache.get(cache_key)
+        if cached_message:
+            logger.debug(f"Returning cached message for ID: {message_id}")
+            return Response(cached_message)
+
+        # Serialize and cache the response
+        response = super().retrieve(request, *args, **kwargs)
+        cache.set(cache_key, response.data, timeout=3600)
+        return response
+
+    def perform_create(self, serializer):
+        """Handle media uploads during message creation."""
+        request = self.request
+        if not request.user:
+            raise serializers.ValidationError("Authenticated user is required.")
+
+        # Pass the authenticated user as the sender
+        serializer.save(sender=request.user)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = (
+            self.request
+        )  # Ensure the request is passed to the serializer
+        return context
+
+    def get_serializer(self, *args, **kwargs):
+        """Return the serializer instance that should be used for validating and
+        deserializing input, and for serializing output."""
+        kwargs["context"] = self.get_serializer_context()
+        return self.serializer_class(*args, **kwargs)

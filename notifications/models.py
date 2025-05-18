@@ -21,6 +21,8 @@ class NotificationType(models.Model):
         indexes = [
             models.Index(fields=["name"]),
             models.Index(fields=["is_global"]),
+            models.Index(fields=["default_enabled"]),
+            models.Index(fields=["created_at"]),
         ]
 
     def __str__(self):
@@ -61,11 +63,20 @@ class Notification(models.Model):
             models.Index(fields=["-created_at"]),
             models.Index(fields=["read"]),
             models.Index(fields=["priority"]),
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["user", "read"]),
+            models.Index(fields=["notification_type", "-created_at"]),
         ]
 
     def __str__(self):
         return f"{self.user}: {self.title}"
 
     def mark_read(self):
+        """Mark notification as read with cache invalidation"""
+        from django.core.cache import cache
+
         self.read = True
         self.save()
+        # Invalidate relevant caches
+        cache.delete(f"user_notifications_{self.user.id}")
+        cache.delete(f"notification_count_{self.user.id}")

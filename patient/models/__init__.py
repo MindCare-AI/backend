@@ -1,11 +1,12 @@
 # patient/models/__init__.py
 from .patient_profile import PatientProfile
-from .health_metric import HealthMetric
 from .medical_history import MedicalHistoryEntry
-# from .mood_log import MoodLog
+from .health_metric import HealthMetric
+from .client_feedback import ClientFeedback
 
 __all__ = [
     "PatientProfile",
-    "HealthMetric",
     "MedicalHistoryEntry",
+    "HealthMetric",
+    "ClientFeedback",
 ]

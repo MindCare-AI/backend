@@ -5,7 +5,7 @@ from django.utils import timezone
 import logging
 from model_utils import FieldTracker
 from django.apps import apps
-from therapist.models.appointment import Appointment
+from appointments.models import Appointment
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,9 @@ class CustomUser(AbstractUser):
     passcode_enabled = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_online = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(null=True, blank=True)
+    is_online = models.BooleanField(default=False, null=False)
 
     tracker = FieldTracker(
         ["user_type", "email", "phone_number", "crisis_alert_enabled"]

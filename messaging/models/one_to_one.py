@@ -57,3 +57,16 @@ class OneToOneMessage(BaseMessage):
         blank=True,
         help_text="History of message edits",
     )
+    media = models.FileField(
+        upload_to="uploads/one_to_one/",
+        blank=True,
+        null=True,
+        help_text="Upload media files (images, videos, PDFs, etc.)",
+    )
+
+    def clean(self):
+        super().clean()
+        if self.media:
+            from media_handler.utils import validate_file_extension
+
+            validate_file_extension(self.media.name, [".jpg", ".png", ".mp4", ".pdf"])

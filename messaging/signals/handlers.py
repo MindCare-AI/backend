@@ -7,7 +7,6 @@ from django.utils import timezone
 from ..models.base import BaseMessage
 from ..models.one_to_one import OneToOneMessage
 from ..models.group import GroupMessage
-from ..models.chatbot import ChatbotMessage
 from notifications.services import UnifiedNotificationService
 import logging
 
@@ -96,7 +95,6 @@ def handle_message_reaction(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=OneToOneMessage)
 @receiver(post_save, sender=GroupMessage)
-@receiver(post_save, sender=ChatbotMessage)
 def update_conversation_on_message_change(sender, instance, created, **kwargs):
     from messaging.services.message_delivery import message_delivery_service
 

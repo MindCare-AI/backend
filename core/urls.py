@@ -14,14 +14,18 @@ urlpatterns = [
     path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="red"),
     path("auth/", include("auth.urls")),
     path("users/", include("users.urls")),
-    path("mood/", include("mood.urls")),
     path("journal/", include("journal.urls")),
-    path("notifications/", include("notifications.urls")),
-    path("analytics/", include("analytics.urls")),
+    path("mood/", include("mood.urls")),
+    path("feeds/", include("feeds.urls")),
     path("media/", include("media_handler.urls")),
     path("messaging/", include("messaging.urls")),
-    path("therapist/", include("therapist.urls")),
+    path("appointments/", include("appointments.urls")),
     path("patient/", include("patient.urls")),
+    path("therapist/", include("therapist.urls")),
+    path("notifications/", include("notifications.urls")),
+    path("ai/", include("AI_engine.urls")),
+    path("chatbot/", include("chatbot.urls")),
 ]
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

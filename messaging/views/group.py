@@ -5,22 +5,28 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 import logging
 
-from django.db.models import Count
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiResponse,
+    OpenApiExample,
+)
 
 from ..models.group import GroupConversation, GroupMessage
 from ..serializers.group import GroupConversationSerializer, GroupMessageSerializer
 from messaging.permissions import IsParticipantOrModerator
 from messaging.throttling import GroupMessageThrottle
 from ..mixins.edit_history import EditHistoryMixin
-from ..mixins.reactions import ReactionMixin  # Add this import
+from ..mixins.reactions import ReactionMixin
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +70,20 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
     throttle_classes = [GroupMessageThrottle]
 
     def get_queryset(self):
+        """Fetch all groups the user is involved in."""
         user = self.request.user
-        if not user.is_authenticated:
-            return self.queryset.none()
-        return (
-            self.queryset.filter(participants=user)
-            .prefetch_related("participants", "moderators")
-            .annotate(
-                participant_count=Count("participants"), message_count=Count("messages")
-            )
-        )
+        logger.debug(f"Fetching groups for user: {user.id}")
+        groups = GroupConversation.objects.filter(participants=user)
+        logger.debug(f"Groups found: {groups.count()}")
+        return groups
+
+    def get_serializer_class(self):
+        """Return the appropriate serializer class based on the action."""
+        if self.action == "add_participant":
+            from ..serializers.group import AddParticipantSerializer
+
+            return AddParticipantSerializer
+        return super().get_serializer_class()
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -100,8 +110,56 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             raise ValidationError(f"Failed to create group: {str(e)}")
 
     @extend_schema(
-        description="Add a user as a moderator to the group (notifications removed).",
+        description="Create a new group conversation. Provide a name and any other allowed fields. The creator is automatically added as a participant and moderator.",
+        summary="Create Group Conversation",
+        request={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name of the group conversation",
+                },
+                # include any additional parameters as needed...
+            },
+            "required": ["name"],
+        },
+        responses={
+            201: GroupConversationSerializer,
+            400: OpenApiResponse(
+                description="Bad Request – e.g., missing name or exceeding group limit."
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Valid Request",
+                description="A valid request to create a group conversation",
+                value={"name": "Test Group Conversation"},
+            )
+        ],
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        description="Add a user as a moderator to the group.",
         summary="Add Moderator",
+        request={
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "description": "ID of the user to add as moderator.",
+                }
+            },
+            "required": ["user_id"],
+        },
+        responses={
+            200: OpenApiResponse(description="User added as moderator successfully."),
+            400: OpenApiResponse(
+                description="Bad Request – e.g., user not a participant."
+            ),
+            403: OpenApiResponse(description="Forbidden – insufficient permission."),
+        },
         tags=["Group Conversation"],
     )
     @action(detail=True, methods=["post"])
@@ -146,7 +204,33 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         ]
         return Response(moderator_data)
 
-    @action(detail=True, methods=["post"])
+    @extend_schema(
+        description="Add a participant to the group.",
+        summary="Add Participant",
+        request={
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "description": "ID of the user to add as participant.",
+                }
+            },
+            "required": ["user_id"],
+        },
+        responses={
+            200: OpenApiResponse(
+                description="User added as participant successfully or already a member."
+            ),
+            400: OpenApiResponse(
+                description="Bad Request – e.g., maximum participant limit reached."
+            ),
+            403: OpenApiResponse(
+                description="Forbidden – only moderators can add participants."
+            ),
+        },
+        tags=["Group Conversation"],
+    )
+    @action(detail=True, methods=["post"], url_path="add_participant")
     def add_participant(self, request, pk=None):
         """Add participant to group"""
         try:
@@ -160,9 +244,13 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 )
 
             user_id = request.data.get("user_id")
+            if not user_id:
+                return Response(
+                    {"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST
+                )
+
             user = get_object_or_404(get_user_model(), id=user_id)
 
-            # Fix: Use the correct settings reference
             if (
                 group.participants.count()
                 >= settings.GROUP_SETTINGS["MAX_PARTICIPANTS_PER_GROUP"]
@@ -192,6 +280,26 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        description="Remove a participant from the group.",
+        summary="Remove Participant",
+        request={
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "integer",
+                    "description": "ID of the user to remove from the group.",
+                }
+            },
+            "required": ["user_id"],
+        },
+        responses={
+            200: OpenApiResponse(description="User removed from group successfully."),
+            403: OpenApiResponse(description="Forbidden – insufficient permission."),
+            500: OpenApiResponse(description="Internal server error."),
+        },
+        tags=["Group Conversation"],
+    )
     @action(detail=True, methods=["post"])
     def remove_participant(self, request, pk=None):
         """Remove participant with proper validation (notifications removed)"""
@@ -223,6 +331,28 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        description="Pin a message in the group conversation.",
+        summary="Pin Message",
+        request={
+            "type": "object",
+            "properties": {
+                "message_id": {
+                    "type": "integer",
+                    "description": "ID of the message to be pinned.",
+                }
+            },
+            "required": ["message_id"],
+        },
+        responses={
+            200: OpenApiResponse(description="Message pinned successfully."),
+            400: OpenApiResponse(description="Bad Request – message_id missing."),
+            403: OpenApiResponse(
+                description="Forbidden – only moderators can pin messages."
+            ),
+        },
+        tags=["Group Conversation"],
+    )
     @action(detail=True, methods=["post"])
     def pin_message(self, request, pk=None):
         group = self.get_object()
@@ -267,9 +397,133 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
+    def list(self, request, *args, **kwargs):
+        """Cache the group conversation list"""
+        return super().list(request, *args, **kwargs)
 
-class GroupMessageViewSet(EditHistoryMixin, ReactionMixin, viewsets.ModelViewSet):
-    queryset = GroupMessage.objects.all()
+    def retrieve(self, request, *args, **kwargs):
+        """Get group conversation with cache handling"""
+        conversation_id = kwargs.get("pk")
+        cache_key = f"group_conversation_{conversation_id}"
+
+        # Try to get from cache first
+        cached_conversation = cache.get(cache_key)
+        if cached_conversation:
+            return Response(cached_conversation)
+
+        response = super().retrieve(request, *args, **kwargs)
+
+        # Cache the response for 30 minutes (groups change more often than 1-1 chats)
+        cache.set(cache_key, response.data, timeout=1800)
+        return response
+
+    @action(detail=False, methods=["get"], url_path="search_messages")
+    def search_messages(self, request):
+        """Search group messages by content with partial matching."""
+        query = request.query_params.get("query", "").strip()
+        if not query:
+            return Response(
+                {"error": "Query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        messages = GroupMessage.objects.filter(content__icontains=query)
+        serializer = GroupMessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="search_groups")
+    def search_groups(self, request):
+        """Search group conversations by name with partial matching."""
+        query = request.query_params.get("query", "").strip()
+        if not query:
+            return Response(
+                {"error": "Query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        groups = GroupConversation.objects.filter(name__icontains=query)
+        serializer = GroupConversationSerializer(groups, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="search_all")
+    def search_all(self, request):
+        """Unified search for group conversations and one-to-one conversations by name."""
+        query = request.query_params.get("query", "").strip()
+        if not query:
+            return Response(
+                {"error": "Query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Search group conversations
+        group_results = GroupConversation.objects.filter(name__icontains=query)
+        group_serializer = GroupConversationSerializer(group_results, many=True)
+
+        # Search one-to-one conversations
+        from ..models.one_to_one import OneToOneConversation
+        from ..serializers.one_to_one import OneToOneConversationSerializer
+
+        one_to_one_results = OneToOneConversation.objects.filter(
+            participants__username__icontains=query
+        ).distinct()
+        one_to_one_serializer = OneToOneConversationSerializer(
+            one_to_one_results, many=True
+        )
+
+        return Response(
+            {
+                "groups": group_serializer.data,
+                "one_to_one": one_to_one_serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class GroupMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelViewSet):
+    """
+    API endpoints for Group Messages.
+
+    Supports CRUD operations, edit history, and reactions.
+    """
+
     serializer_class = GroupMessageSerializer
     permission_classes = [IsParticipantOrModerator]
-    renderer_classes = [JSONRenderer, BrowsableAPIRenderer]
+    throttle_classes = [GroupMessageThrottle]
+
+    def get_queryset(self):
+        """Filter messages to include only those in groups the user participates in."""
+        user = self.request.user
+        return GroupMessage.objects.filter(conversation__participants=user).order_by(
+            "-timestamp"
+        )
+
+    def perform_create(self, serializer):
+        """Set authenticated user as sender"""
+        serializer.save(sender=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def mark_as_read(self, request, pk=None):
+        """Mark a message as read by the current user."""
+        try:
+            message = self.get_object()
+            message.read_by.add(request.user)
+
+            # Send read receipt via WebSocket
+            conversation_id = str(message.conversation.id)
+            from messaging.services.message_delivery import message_delivery_service
+
+            message_delivery_service.send_read_receipt(
+                conversation_id=conversation_id,
+                user_id=str(request.user.id),
+                username=request.user.username,
+                message_id=str(message.id),
+            )
+
+            return Response({"status": "marked as read"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error marking message as read: {str(e)}")
+            return Response(
+                {"error": f"Failed to mark message as read: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

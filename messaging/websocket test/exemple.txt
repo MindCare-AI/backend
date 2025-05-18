@@ -1,0 +1,11 @@
+#send message
+{"type": "message","content": "Hello, this is a test message.","message_type": "text","metadata": {}}
+
+#typing
+{"type": "typing","is_typing": true}
+
+#read
+{"type": "read","message_id": 5}
+
+#Add Reaction
+{"type": "reaction","message_id": 5,"reaction": "like","action": "add"}

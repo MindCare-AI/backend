@@ -1,0 +1,2 @@
+#aziztonsi2@gmail.com
+wscat -c "ws://localhost:8000/ws/conversation/1/?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ2MTAyODQwLCJpYXQiOjE3NDYwOTkyNDAsImp0aSI6IjFmZjMxNmU5MGM2MTRmOTNiZjA2OGM2NWM1NjcwODhmIiwidXNlcl9pZCI6M30.ZP6TPEHbROds87dzUAgveZNINrXPqIMSY5ArBb-VoYA"

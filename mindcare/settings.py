@@ -11,7 +11,7 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Only load .env once, at the beginning, with explicit path
-load_dotenv(dotenv_path=os.path.join(BASE_DIR, "..", ".env"), override=True)
+load_dotenv(dotenv_path=os.path.join(BASE_DIR, ".env"), override=True)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -60,13 +60,17 @@ INSTALLED_APPS = [
     "media_handler",
     "corsheaders",
     "messaging",
+    "chatbot",
     "channels",
     "channels_redis",
     "therapist",
     "patient",
+    "feeds",
+    "appointments",  # Added appointments app
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_filters",
+    "AI_engine",  # Added AI_engine app
 ]
 
 SITE_ID = 1
@@ -81,8 +85,9 @@ AUTHENTICATION_BACKENDS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",  # Must be near the top
-    "allauth.account.middleware.AccountMiddleware",  # <-- Added Allauth middleware
+    "corsheaders.middleware.CorsMiddleware",
+    "core.utils.RequestMiddleware",  # Place early to ensure request is available
+    "allauth.account.middleware.AccountMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -271,6 +276,10 @@ USE_I18N = True
 
 USE_TZ = True
 
+TIME_INPUT_FORMATS = ["%H:%M"]
+TIME_FORMAT = "H:i"
+USE_L10N = False  # Disable localization to ensure your format is used
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
@@ -280,27 +289,56 @@ STATIC_URL = "static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# Media file size limits
+# Media file size limits and allowed types
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
 ALLOWED_MEDIA_TYPES = {
-    "image": ["image/jpeg", "image/png", "image/gif"],
-    "video": ["video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo"],
-    "audio": ["audio/mpeg", "audio/wav", "audio/ogg"],
+    "image": [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/bmp",
+        "image/webp",
+        "image/tiff",
+        "image/svg+xml",
+    ],
+    "video": [
+        "video/mp4",
+        "video/mpeg",
+        "video/quicktime",
+        "video/x-msvideo",
+        "video/x-ms-wmv",
+        "video/webm",
+        "video/3gpp",
+    ],
+    "audio": [
+        "audio/mpeg",
+        "audio/wav",
+        "audio/wave",
+        "audio/x-wav",
+        "audio/mp3",
+        "audio/ogg",
+        "audio/webm",
+        "audio/aac",
+        "audio/x-m4a",
+    ],
     "document": [
         "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "text/plain",
+        "text/csv",
+        "text/html",
+        "application/json",
+        "application/xml",
+        "application/zip",
+        "application/x-rar-compressed",
     ],
-}
-
-# Media upload settings
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
-ALLOWED_MEDIA_TYPES = {
-    "image": [".jpg", ".jpeg", ".png", ".gif"],
-    "video": [".mp4", ".mov", ".avi"],
-    "audio": [".mp3", ".wav", ".ogg"],
-    "document": [".pdf", ".doc", ".docx", ".txt"],
 }
 
 MEDIA_FILE_STORAGE = {
@@ -343,6 +381,12 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
     "DEFAULT_CONTENT_NEGOTIATION_CLASS": "rest_framework.negotiation.DefaultContentNegotiation",
+    # Note: For date-only fields (if any)
+    "DATE_FORMAT": "%Y-%m-%d",
+    # For time only fields
+    "TIME_FORMAT": "%H:%M",
+    # For date/time fields – 24-hour format
+    "DATETIME_FORMAT": "%Y-%m-%d %H:%M",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -520,22 +564,93 @@ LOGGING = {
 }
 
 # Gemini API Configuration
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Clean and normalize the API key from environment
+raw_api_key = os.environ.get("GEMINI_API_KEY", "")
+if isinstance(raw_api_key, str):
+    GEMINI_API_KEY = raw_api_key.strip().replace('"', "").replace("'", "")
+    # Check if the key seems valid (basic check)
+    if len(GEMINI_API_KEY) < 10:
+        print("WARNING: GEMINI_API_KEY seems too short or invalid!")
+else:
+    print("WARNING: GEMINI_API_KEY is not set properly!")
+    GEMINI_API_KEY = ""
+
 GEMINI_API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 )
 
-# Verification settings
+# Notification Cache Settings
+NOTIFICATION_SETTINGS = {
+    "CACHE_TIMEOUT": 3600,  # 1 hour default
+    "COUNT_CACHE_TIMEOUT": 60,  # 1 minute for notification counts
+    "TYPE_CACHE_TIMEOUT": 86400,  # 24 hours for notification types
+    "PREFERENCES_CACHE_TIMEOUT": 3600,  # 1 hour for user preferences
+    "CACHE_KEY_PREFIX": "notification",
+    "MAX_CACHED_TYPES": 100,
+}
+
+# Verification settings - consolidated and enhanced
 VERIFICATION_SETTINGS = {
+    "MAX_VERIFICATION_ATTEMPTS": 10,  # Increased from 3 to 10
+    "VERIFICATION_COOLDOWN_MINUTES": 2,  # Changed from 24 hours to 2 minutes
     "LICENSE_PATTERNS": [
         r"License[:\s]+([A-Z0-9-]+)",
         r"Registration[:\s]+([A-Z0-9-]+)",
+        r"Number[:\s]+([A-Z0-9-]+)",
+        r"#([A-Z0-9-]+)",
+        r"Certificate[:\s]+([A-Z0-9-]+)",
+        r"ID[:\s]+([A-Z0-9-]+)",
     ],
-    "MAX_VERIFICATION_ATTEMPTS": 3,
-    "VERIFICATION_COOLDOWN_HOURS": 24,
+    "DATE_FORMATS": [
+        "%m/%d/%Y",
+        "%m-%d-%Y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%m/%d/%y",
+        "%d/%m/%y",
+    ],
+    "IMAGE_REQUIREMENTS": {
+        "MIN_WIDTH": 300,
+        "MIN_HEIGHT": 300,
+        "MAX_DIMENSION": 4000,
+        "MIN_ASPECT_RATIO": 0.5,
+        "MAX_ASPECT_RATIO": 2.0,
+        "MAX_SIZE": 5 * 1024 * 1024,  # 5MB
+        "ALLOWED_MIME_TYPES": ["image/jpeg", "image/png", "image/webp"],
+    },
+    "FACE_VERIFICATION": {
+        "CONFIDENCE_THRESHOLD": 0.7,
+        "MODEL": "VGG-Face",
+        "METRIC": "cosine",
+        "ENFORCE_DETECTION": True,
+        "DETECTOR_BACKEND": "opencv",
+    },
+    "LICENSE_VALIDITY": {
+        "DEFAULT_DURATION_DAYS": 365,
+        "REMINDER_DAYS_BEFORE": [90, 30, 7],
+        "GRACE_PERIOD_DAYS": 30,
+    },
+    "OCR_SETTINGS": {
+        "LANGUAGES": ["en"],
+        "FORCE_CPU": False,  # Set to True to always use CPU
+        "GPU_MEMORY_LIMIT": 2048,  # Limit GPU memory usage (in MB)
+        "CONFIDENCE_THRESHOLD": 0.7,
+    },
+    "LICENSE_VALIDATION": {
+        "MIN_CONFIDENCE": 0.7,
+        "REQUIRED_FIELDS": ["license_number", "issuing_authority", "expiry_date"],
+        "ALLOWED_AUTHORITIES": [
+            "State Medical Board",
+            "State Board of Psychology",
+            "State Board of Behavioral Sciences",
+            "State Mental Health Board",
+            "Board of Professional Counselors",
+            "National Board for Certified Counselors",
+            "American Psychological Association",
+        ],
+    },
 }
 
-# Group Settings - consolidated (removed duplicate)
 GROUP_SETTINGS = {
     "MAX_GROUPS_PER_USER": 10,
     "MAX_PARTICIPANTS_PER_GROUP": 50,
@@ -557,12 +672,16 @@ MESSAGE_SETTINGS = {
 
 # Chatbot Settings
 CHATBOT_SETTINGS = {
+    "RESPONSE_TIMEOUT": 30,  # seconds
     "MAX_RETRIES": 3,
-    "RESPONSE_TIMEOUT": 30,
-    "MAX_HISTORY_MESSAGES": 5,
-    "MIN_MESSAGE_LENGTH": 2,
-    "MAX_MESSAGE_LENGTH": 1000,
+    "MAX_TOKENS": 1024,
+    "TEMPERATURE": 0.7,
+    "MODEL": "gemini-2.0-flash",
 }
+
+CHATBOT_JOURNAL_LIMIT = 5  # Number of recent journal entries to include
+CHATBOT_MOOD_LIMIT = 10  # Number of recent mood logs to include
+CHATBOT_LOOKBACK_DAYS = 30  # Days to look back for user data
 
 # Throttling Configuration
 THROTTLE_RATES = {
@@ -584,17 +703,44 @@ USER_TYPE_THROTTLE_RATES = {
 # Redis Cache Configuration
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "BACKEND": "django_redis.cache.RedisCache",
         "LOCATION": "redis://127.0.0.1:6379/1",
         "OPTIONS": {
-            "db": 1,
-            "socket_timeout": 5,
-            "socket_connect_timeout": 5,
-            "retry_on_timeout": True,
-            "max_connections": 100,
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
-    }
+    },
+    "messaging": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/2",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    },
 }
+
+# Cache timeouts for different types of data
+MESSAGE_CACHE_TIMEOUT = 3600  # 1 hour for messages
+CONVERSATION_CACHE_TIMEOUT = 1800  # 30 minutes for conversations
+CHATBOT_CACHE_TIMEOUT = 900  # 15 minutes for chatbot responses
+REACTIONS_CACHE_TIMEOUT = 3600  # 1 hour for reactions
+
+# Bulk operations settings
+MESSAGE_BULK_CACHE_SIZE = 100  # Maximum number of messages to cache per conversation
+
+# Use Redis for session backend as well
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+
+# Cache middleware settings
+CACHE_MIDDLEWARE_ALIAS = "default"
+CACHE_MIDDLEWARE_SECONDS = 3600
+CACHE_MIDDLEWARE_KEY_PREFIX = "mindcare"
+
+# Cache time to live is 15 minutes
+CACHE_TTL = 60 * 15
+
+# Cache key settings
+CACHE_KEY_PREFIX = "mindcare"
 
 # Session Configuration (if using Redis for sessions)
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -628,4 +774,23 @@ WS_MESSAGE_TYPES = {
     "read_receipt": "Message read receipts",
     "presence_update": "Online/offline status updates",
     "conversation_updated": "Changes to conversation metadata",
+}
+
+# AI and Ollama Settings
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+
+CHATBOT_SETTINGS = {
+    "MAX_RETRIES": 3,
+    "RESPONSE_TIMEOUT": 30,
+    "MAX_HISTORY_MESSAGES": 5,
+}
+
+AI_ENGINE_SETTINGS = {
+    "ANALYSIS_BATCH_SIZE": 100,
+    "MAX_ANALYSIS_PERIOD": 90,  # Maximum days to analyze
+    "MIN_DATA_POINTS": 5,  # Minimum data points needed for analysis
+    "RISK_THRESHOLD": 0.7,  # Threshold for risk alerts
+    "UPDATE_FREQUENCY": 24,  # Hours between updates
+    "ENABLED_MODELS": ["sentiment", "topic", "risk"],
+    "CACHE_TIMEOUT": 3600,  # 1 hour cache for AI results
 }

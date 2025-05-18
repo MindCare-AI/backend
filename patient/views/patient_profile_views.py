@@ -7,7 +7,6 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
     OpenApiParameter,
-    OpenApiResponse,
 )
 from patient.models.patient_profile import PatientProfile
 from patient.serializers.patient_profile import PatientProfileSerializer
@@ -62,22 +61,17 @@ class PatientProfileViewSet(viewsets.ModelViewSet):
             user=self.request.user
         )
 
-    @extend_schema(
-        description="Retrieve appointment details from a patient profile.",
-        summary="Get Appointments",
-        responses=OpenApiResponse(response=PatientProfileSerializer),
-        tags=["Patient Profile"],
-    )
-    @action(detail=True, methods=["get"])
-    def appointments(self, request, pk=None):
-        profile = self.get_object()
-        return Response(
-            {
-                "last_appointment": profile.last_appointment,
-                "next_appointment": profile.next_appointment,
-                "has_upcoming": bool(profile.next_appointment),
-            }
-        )
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)  # Return updated profile data
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
 
     @extend_schema(
         description="Upload a file associated with the patient profile.",

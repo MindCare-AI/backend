@@ -11,6 +11,20 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     other_participant = serializers.SerializerMethodField()
     other_user_name = serializers.SerializerMethodField()
+    participant_id = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        help_text="ID of the participant for the conversation",
+    )
+
+    def __init__(self, *args, **kwargs):
+        """Dynamically adjust fields based on the request method."""
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request and request.method == "POST":
+            self.fields["participant_id"].required = True
+        else:
+            self.fields.pop("participant_id", None)
 
     class Meta:
         model = OneToOneConversation
@@ -22,6 +36,7 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
             "last_message",
             "other_participant",
             "other_user_name",
+            "participant_id",
         ]
         read_only_fields = ["created_at", "unread_count"]
 
@@ -71,16 +86,25 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
         )
 
     def get_last_message(self, obj):
-        """Get the last message in the conversation."""
+        """Get the last message in the conversation with full media URL if exists."""
         try:
             message = obj.messages.last()
             if message:
+                media_url = None
+                if message.media:
+                    request = self.context.get("request")
+                    media_url = (
+                        request.build_absolute_uri(message.media.url)
+                        if request
+                        else message.media.url
+                    )
                 return {
                     "id": message.id,
                     "content": message.content,
                     "timestamp": message.timestamp,
                     "sender_id": message.sender_id,
                     "sender_name": message.sender.username,
+                    "media": media_url,
                 }
             return None
         except Exception as e:
@@ -117,6 +141,30 @@ class OneToOneConversationSerializer(serializers.ModelSerializer):
             return other_user.get_full_name() or other_user.username
         return None
 
+    def create(self, validated_data):
+        """Handle creation of a one-to-one conversation."""
+        participant_id = validated_data.pop("participant_id", None)
+        if not participant_id:
+            raise serializers.ValidationError(
+                {"participant_id": "This field is required."}
+            )
+
+        # Fetch the participant user
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        try:
+            participant = User.objects.get(id=participant_id)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                {"participant_id": "User does not exist."}
+            )
+
+        # Create the conversation
+        conversation = OneToOneConversation.objects.create()
+        conversation.participants.add(self.context["request"].user, participant)
+        return conversation
+
 
 class OneToOneMessageSerializer(serializers.ModelSerializer):
     MESSAGE_TYPE_CHOICES = (
@@ -129,12 +177,32 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
     )
 
     conversation = serializers.PrimaryKeyRelatedField(
-        queryset=OneToOneConversation.objects.all(), help_text="Select the conversation"
+        queryset=OneToOneConversation.objects.all(),
+        help_text="Select the conversation",
+        required=False,  # Make conversation optional for updates
     )
 
     message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
 
     sender_name = serializers.CharField(source="sender.username", read_only=True)
+
+    media = serializers.FileField(
+        required=False,
+        allow_null=True,
+        help_text="Upload media files (images, videos, PDFs, etc.)",
+    )
+
+    def __init__(self, *args, **kwargs):
+        """Dynamically adjust fields based on the request method."""
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request:
+            if request.method == "POST":
+                # Ensure `conversation` is included for POST requests
+                self.fields["conversation"].required = True
+            elif request.method in ["GET", "PATCH", "PUT"]:
+                # Exclude `conversation` for other methods
+                self.fields.pop("conversation", None)
 
     class Meta:
         model = OneToOneMessage
@@ -146,6 +214,7 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
             "sender",
             "sender_name",
             "timestamp",
+            "media",
         ]
         read_only_fields = ["id", "sender", "sender_name", "timestamp"]
 
@@ -160,3 +229,24 @@ class OneToOneMessageSerializer(serializers.ModelSerializer):
             request.user
         )  # Set the sender to the authenticated user
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """Update the message content and other fields."""
+        instance.content = validated_data.get("content", instance.content)
+        instance.message_type = validated_data.get(
+            "message_type", instance.message_type
+        )
+        instance.media = validated_data.get("media", instance.media)
+        instance.save()
+        return instance
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        if rep.get("media"):
+            request = self.context.get("request")
+            rep["media"] = (
+                request.build_absolute_uri(instance.media.url)
+                if request
+                else instance.media.url
+            )
+        return rep

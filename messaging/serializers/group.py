@@ -94,6 +94,14 @@ class GroupMessageSerializer(serializers.ModelSerializer):
 
     message_type = serializers.ChoiceField(choices=MESSAGE_TYPE_CHOICES, default="text")
 
+    edit_history = serializers.ListField(child=serializers.CharField(), default=list)
+
+    media = serializers.FileField(
+        required=False,
+        allow_null=True,
+        help_text="Upload media files (images, videos, PDFs, etc.)",
+    )
+
     class Meta:
         model = GroupMessage
         fields = [
@@ -103,5 +111,33 @@ class GroupMessageSerializer(serializers.ModelSerializer):
             "message_type",
             "sender",
             "timestamp",
+            "edit_history",
+            "media",
         ]
         read_only_fields = ["id", "sender", "timestamp"]
+
+
+class AddParticipantSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(
+        help_text="ID of the user to add as a participant."
+    )
+
+
+class EditHistorySerializer(serializers.Serializer):
+    editor = serializers.CharField(help_text="The user who edited the message.")
+    timestamp = serializers.DateTimeField(help_text="The time the edit was made.")
+    previous_content = serializers.CharField(
+        help_text="The content of the message before the edit."
+    )
+
+
+class GroupMessageSearchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroupMessage
+        fields = ["id", "content", "sender", "timestamp", "conversation"]
+
+
+class GroupConversationSearchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroupConversation
+        fields = ["id", "name", "description", "participant_count"]

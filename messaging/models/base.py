@@ -95,6 +95,11 @@ class BaseMessage(models.Model):
         default=dict, help_text="Store additional message metadata"
     )
 
+    # Edit history field
+    edit_history = models.JSONField(
+        default=list, help_text="List of previous message versions"
+    )
+
     class Meta:
         abstract = True
         ordering = ["-timestamp"]
@@ -137,30 +142,23 @@ class BaseMessage(models.Model):
             logger.error(f"Error editing message {self.id}: {str(e)}")
             return False
 
-    def add_reaction(self, user, reaction_type: str):
+    def add_reaction(self, user, reaction_type):
         """Add a reaction to the message"""
         if not self.reactions:
             self.reactions = {}
 
-        if reaction_type not in self.reactions:
-            self.reactions[reaction_type] = []
-
-        if user.id not in self.reactions[reaction_type]:
-            self.reactions[reaction_type].append(user.id)
-            self.save()
+        user_id = str(user.id)
+        if user_id not in self.reactions:
+            self.reactions[user_id] = reaction_type
+            self.save(update_fields=["reactions"])
 
     def remove_reaction(self, user):
-        """Remove all reactions by a user"""
-        if not self.reactions:
-            return
-
-        for reaction_type, users in list(self.reactions.items()):
-            if user.id in users:
-                users.remove(user.id)
-                if not users:  # Remove empty reaction types
-                    del self.reactions[reaction_type]
-
-        self.save()
+        """Remove a user's reaction from the message"""
+        if self.reactions:
+            user_id = str(user.id)
+            if user_id in self.reactions:
+                del self.reactions[user_id]
+                self.save(update_fields=["reactions"])
 
     @property
     def reactions_changed(self):

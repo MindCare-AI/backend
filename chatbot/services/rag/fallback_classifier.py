@@ -73,9 +73,9 @@ class TherapyClassifier:
         r"not good enogh",
         # catch scenario-specific phrases
         r"caught in a ceaseless spiral",
-        r"self[- ]criticism", 
-        r"embarras\w+",       # matches embarrasingly, embarrassing
-        r"can'?t brethe",     # matches can't brethe / cant brethe
+        r"self[- ]criticism",
+        r"embarras\w+",  # matches embarrasingly, embarrassing
+        r"can'?t brethe",  # matches can't brethe / cant brethe
     ]
 
     # Weights for CBT indicators (higher weight = stronger indicator)
@@ -212,7 +212,9 @@ class TherapyClassifier:
             w = self.DBT_WEIGHTS.get(pat, 1.0)
             self.dbt_patterns.append((re.compile(pat, re.IGNORECASE), w))
         # Minimum confidence to actually use fallback; below this return "unknown"
-        self.confidence_threshold = float(os.getenv("FALLBACK_CONFIDENCE_THRESHOLD", 0.5))
+        self.confidence_threshold = float(
+            os.getenv("FALLBACK_CONFIDENCE_THRESHOLD", 0.5)
+        )
         # Simple in-memory cache to avoid re-computing
         self._cache: Dict[str, Tuple[str, float, Dict[str, Any]]] = {}
 
@@ -232,8 +234,12 @@ class TherapyClassifier:
         lower_text = key
 
         # Count weighted matches for each therapy type
-        cbt_score, cbt_matches = self._count_precompiled_matches(lower_text, self.cbt_patterns)
-        dbt_score, dbt_matches = self._count_precompiled_matches(lower_text, self.dbt_patterns)
+        cbt_score, cbt_matches = self._count_precompiled_matches(
+            lower_text, self.cbt_patterns
+        )
+        dbt_score, dbt_matches = self._count_precompiled_matches(
+            lower_text, self.dbt_patterns
+        )
 
         # For specific test case patterns
         if "black and white thinking" in lower_text and "middle ground" in lower_text:

@@ -1,4 +1,4 @@
-#chatbot/services/rag/pdf_extractor.py
+# chatbot/services/rag/pdf_extractor.py
 import os
 import logging
 import pdfplumber
@@ -25,10 +25,12 @@ class PDFExtractor:
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        
+
         # Try to load the spaCy model, but have a fallback
         try:
-            self.nlp = spacy.load("en_core_web_sm", disable=["ner", "parser", "attribute_ruler"])
+            self.nlp = spacy.load(
+                "en_core_web_sm", disable=["ner", "parser", "attribute_ruler"]
+            )
             # Add sentencizer component to avoid the warning about sentence boundaries
             if "sentencizer" not in [pipe_name for pipe_name, _ in self.nlp.pipeline]:
                 self.nlp.add_pipe("sentencizer")
@@ -37,17 +39,25 @@ class PDFExtractor:
             self.use_spacy = True
             logger.info("Using spaCy for sentence tokenization with sentencizer")
         except IOError:
-            logger.warning("spaCy model 'en_core_web_sm' not found. Using regex fallback for sentence splitting.")
+            logger.warning(
+                "spaCy model 'en_core_web_sm' not found. Using regex fallback for sentence splitting."
+            )
             self.nlp = None
             self.use_spacy = False
-            logger.info("To install the spaCy model, run: python manage.py download_spacy_model")
-        
-        self.max_workers = min(2, os.cpu_count() or 2)  # Limit workers to reduce memory usage
+            logger.info(
+                "To install the spaCy model, run: python manage.py download_spacy_model"
+            )
+
+        self.max_workers = min(
+            2, os.cpu_count() or 2
+        )  # Limit workers to reduce memory usage
         # Improved cache with size limit to prevent memory issues
         self.ocr_cache: Dict[str, str] = {}
         self.max_cache_size = 50  # Maximum number of pages to cache
         # OCR quality settings
-        self.ocr_min_text_threshold = 50  # Minimum character count to consider embedded text sufficient
+        self.ocr_min_text_threshold = (
+            50  # Minimum character count to consider embedded text sufficient
+        )
         self.ocr_resolution = 300  # DPI for OCR
 
     def extract_text_from_pdf(self, pdf_path: str) -> str:
@@ -73,7 +83,9 @@ class PDFExtractor:
                     try:
                         text = page.extract_text() or ""
                     except Exception as e:
-                        logger.warning(f"Error extracting text from page {i+1}/{total_pages}: {e}")
+                        logger.warning(
+                            f"Error extracting text from page {i+1}/{total_pages}: {e}"
+                        )
                         text = ""
 
                     # Check if text is sufficient or needs OCR
@@ -81,35 +93,43 @@ class PDFExtractor:
                         cache_key = f"{pdf_path}::page_{i}"
                         if cache_key in self.ocr_cache:
                             ocr_text = self.ocr_cache[cache_key]
-                            logger.debug(f"Using cached OCR for page {i+1}/{total_pages}")
+                            logger.debug(
+                                f"Using cached OCR for page {i+1}/{total_pages}"
+                            )
                         else:
                             try:
                                 # Get page image
-                                img = page.to_image(resolution=self.ocr_resolution).original
-                                
+                                img = page.to_image(
+                                    resolution=self.ocr_resolution
+                                ).original
+
                                 # Try different orientations if needed (detect rotation)
                                 ocr_text = self._process_image_with_ocr(img)
-                                
+
                                 # Manage cache size
                                 if len(self.ocr_cache) >= self.max_cache_size:
                                     # Remove a random item if cache is full
                                     self.ocr_cache.pop(next(iter(self.ocr_cache)))
-                                
+
                                 # Store in cache
                                 self.ocr_cache[cache_key] = ocr_text
-                                logger.debug(f"OCR completed for page {i+1}/{total_pages}")
-                            
+                                logger.debug(
+                                    f"OCR completed for page {i+1}/{total_pages}"
+                                )
+
                             except Exception as ocr_error:
-                                logger.error(f"OCR failed for page {i+1}/{total_pages}: {ocr_error}")
+                                logger.error(
+                                    f"OCR failed for page {i+1}/{total_pages}: {ocr_error}"
+                                )
                                 ocr_text = ""
-                                
+
                         text = ocr_text if ocr_text else text
-                    
+
                     # Add page number for better context
                     if text:
                         text_with_page = f"[Page {i+1}]\n{text}"
                         text_content.append(text_with_page)
-                        
+
             return "\n\n".join(text_content)
 
         except Exception as e:
@@ -118,40 +138,40 @@ class PDFExtractor:
 
     def _process_image_with_ocr(self, img) -> str:
         """Process an image with OCR, trying different orientations if needed.
-        
+
         Args:
             img: The image to process
-            
+
         Returns:
             Extracted text
         """
         # First try with default orientation
         text = pytesseract.image_to_string(img)
-        
+
         # If very little text is found, try other orientations
         if len(text.strip()) < 20:
             try:
                 from PIL import Image
                 import numpy as np
-                
+
                 # Convert to numpy array for rotation
                 img_array = np.array(img)
-                
+
                 # Try 90 degree rotation
                 rotated_img = Image.fromarray(np.rot90(img_array))
                 rotated_text = pytesseract.image_to_string(rotated_img)
-                
+
                 # Use the text with more content
                 if len(rotated_text.strip()) > len(text.strip()):
                     text = rotated_text
-                    
+
             except ImportError:
                 logger.warning("PIL or numpy not available for image rotation")
-                
+
         # Set tesseract custom config for better extraction
-        custom_config = r'--oem 3 --psm 1'  # Automatic page segmentation with orientation and script detection
+        custom_config = r"--oem 3 --psm 1"  # Automatic page segmentation with orientation and script detection
         improved_text = pytesseract.image_to_string(img, config=custom_config)
-        
+
         # Return the better result
         return improved_text if len(improved_text.strip()) > len(text.strip()) else text
 
@@ -193,24 +213,32 @@ class PDFExtractor:
         """
         # Process text in smaller chunks if it's very large to reduce memory usage
         if len(text) > 500000 and self.use_spacy and self.nlp:
-            logger.info(f"Text is very large ({len(text)} chars), processing in batches")
+            logger.info(
+                f"Text is very large ({len(text)} chars), processing in batches"
+            )
             return self._create_chunks_in_batches(text)
-        
+
         if self.use_spacy and self.nlp:
             # Use spaCy for sentence splitting if available
             try:
                 doc = self.nlp(text)
-                sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+                sentences = [
+                    sent.text.strip() for sent in doc.sents if sent.text.strip()
+                ]
             except Exception as e:
                 logger.warning(f"Error using spaCy: {str(e)}. Falling back to regex")
                 # Fall back to regex if spaCy fails
-                sentence_endings = r'(?<=[.!?])\s+'
-                sentences = [s.strip() for s in re.split(sentence_endings, text) if s.strip()]
+                sentence_endings = r"(?<=[.!?])\s+"
+                sentences = [
+                    s.strip() for s in re.split(sentence_endings, text) if s.strip()
+                ]
         else:
             # Fallback to regex-based sentence splitting
-            sentence_endings = r'(?<=[.!?])\s+'
-            sentences = [s.strip() for s in re.split(sentence_endings, text) if s.strip()]
-        
+            sentence_endings = r"(?<=[.!?])\s+"
+            sentences = [
+                s.strip() for s in re.split(sentence_endings, text) if s.strip()
+            ]
+
         chunks = []
         current_chunk = []
         current_size = 0
@@ -265,63 +293,71 @@ class PDFExtractor:
         """Process large text in smaller batches to reduce memory usage."""
         all_chunks = []
         batch_size = 200000  # Process 200k characters at a time
-        
+
         for i in range(0, len(text), batch_size):
-            batch_text = text[i:i+batch_size]
-            
+            batch_text = text[i : i + batch_size]
+
             # Find sentence boundaries for better splits
             if i > 0:
                 # Find the first sentence break after the start point
-                match = re.search(r'(?<=[.!?])\s+', batch_text[:1000])
+                match = re.search(r"(?<=[.!?])\s+", batch_text[:1000])
                 if match:
-                    batch_text = batch_text[match.end():]
-            
+                    batch_text = batch_text[match.end() :]
+
             # Use regex for better memory usage on batches
-            sentence_endings = r'(?<=[.!?])\s+'
-            sentences = [s.strip() for s in re.split(sentence_endings, batch_text) if s.strip()]
-            
+            sentence_endings = r"(?<=[.!?])\s+"
+            sentences = [
+                s.strip() for s in re.split(sentence_endings, batch_text) if s.strip()
+            ]
+
             current_chunk = []
             current_size = 0
-            
+
             for sentence in sentences:
                 if not sentence:
                     continue
-                    
+
                 sentence_size = len(sentence)
-                
+
                 # If adding this sentence would exceed chunk size, save current chunk and start new one
                 if current_size + sentence_size > self.chunk_size and current_chunk:
                     chunk_text = " ".join(current_chunk)
-                    all_chunks.append({
+                    all_chunks.append(
+                        {
+                            "text": chunk_text,
+                            "metadata": {
+                                "size": len(chunk_text),
+                                "sentence_count": len(current_chunk),
+                            },
+                        }
+                    )
+
+                    # Start new chunk with overlap
+                    overlap_idx = max(0, len(current_chunk) - self.chunk_overlap // 50)
+                    current_chunk = current_chunk[overlap_idx:]
+                    current_size = (
+                        sum(len(s) for s in current_chunk) + len(current_chunk) - 1
+                    )
+
+                current_chunk.append(sentence)
+                current_size += sentence_size + 1  # +1 for space
+
+            # Add the last chunk from this batch if not empty
+            if current_chunk:
+                chunk_text = " ".join(current_chunk)
+                all_chunks.append(
+                    {
                         "text": chunk_text,
                         "metadata": {
                             "size": len(chunk_text),
                             "sentence_count": len(current_chunk),
                         },
-                    })
-                    
-                    # Start new chunk with overlap
-                    overlap_idx = max(0, len(current_chunk) - self.chunk_overlap // 50)
-                    current_chunk = current_chunk[overlap_idx:]
-                    current_size = sum(len(s) for s in current_chunk) + len(current_chunk) - 1
-                    
-                current_chunk.append(sentence)
-                current_size += sentence_size + 1  # +1 for space
-            
-            # Add the last chunk from this batch if not empty
-            if current_chunk:
-                chunk_text = " ".join(current_chunk)
-                all_chunks.append({
-                    "text": chunk_text,
-                    "metadata": {
-                        "size": len(chunk_text),
-                        "sentence_count": len(current_chunk),
-                    },
-                })
-                
+                    }
+                )
+
             # Force garbage collection after each batch
             gc.collect()
-            
+
         return all_chunks
 
     def extract_text(self, pdf_path: str) -> str:
@@ -356,7 +392,9 @@ class PDFExtractor:
 
         return cleaned_text, chunks
 
-    def extract_and_process_batch(self, pdf_paths: List[str], max_workers: int = None) -> List[Tuple[str, List[Dict[str, Any]]]]:
+    def extract_and_process_batch(
+        self, pdf_paths: List[str], max_workers: int = None
+    ) -> List[Tuple[str, List[Dict[str, Any]]]]:
         """Extract and process multiple PDFs with optimized memory usage.
 
         Args:
@@ -368,13 +406,13 @@ class PDFExtractor:
         """
         if max_workers is None:
             max_workers = self.max_workers
-        
+
         # Process one file at a time to reduce memory usage
         max_workers = 1
-        
+
         logger.info(f"Processing {len(pdf_paths)} PDFs using {max_workers} workers")
         results = []
-        
+
         # Process one file at a time with garbage collection between files
         with tqdm(total=len(pdf_paths), desc="Processing PDF files", ncols=100) as pbar:
             for i, path in enumerate(pdf_paths):
@@ -382,25 +420,27 @@ class PDFExtractor:
                     # Log memory usage before processing
                     filename = os.path.basename(path)
                     file_size = os.path.getsize(path) / (1024 * 1024)  # Convert to MB
-                    
+
                     # Process the file
                     result = self.extract_and_process(path)
                     chunks_count = len(result[1]) if result[1] else 0
-                    
+
                     # Update progress
-                    pbar.set_postfix_str(f"File: {filename} ({file_size:.1f}MB) - {chunks_count} chunks")
+                    pbar.set_postfix_str(
+                        f"File: {filename} ({file_size:.1f}MB) - {chunks_count} chunks"
+                    )
                     pbar.update(1)
-                    
+
                     results.append(result)
-                    
+
                     # Force garbage collection after each file
                     gc.collect()
-                    
+
                 except Exception as e:
                     logger.error(f"Error processing {os.path.basename(path)}: {str(e)}")
                     results.append((None, []))
                     pbar.update(1)
-        
+
         return results
 
 

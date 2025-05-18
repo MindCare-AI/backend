@@ -6,6 +6,7 @@ import argparse
 from typing import Dict, Any
 from .therapy_rag_service import therapy_rag_service
 from django.conf import settings
+
 logger = logging.getLogger(__name__)
 
 # Default test cases - can be overridden by loading from JSON file
@@ -179,6 +180,7 @@ for idx in range(1, 101):
     expected = "dbt" if idx % 2 == 0 else "cbt"
     other_cases.append({"query": query, "expected_approach": expected})
 TEST_CASES.extend(other_cases)
+
 
 class RagEvaluator:
     """Evaluate RAG therapy approach recommendation performance."""
@@ -406,20 +408,24 @@ def run_evaluation():
         expected = case["expected_approach"].lower()
         rec = therapy_rag_service.get_therapy_approach(query)
         actual = rec.get("recommended_approach", "unknown").lower()
-        passed = (actual == expected)
-        results.append({
-            "query": query,
-            "expected": expected,
-            "actual": actual,
-            "confidence": rec.get("confidence", 0),
-            "pass": passed,
-        })
+        passed = actual == expected
+        results.append(
+            {
+                "query": query,
+                "expected": expected,
+                "actual": actual,
+                "confidence": rec.get("confidence", 0),
+                "pass": passed,
+            }
+        )
 
     summary = {
         "total": len(results),
         "passed": sum(1 for r in results if r["pass"]),
         "failed": sum(1 for r in results if not r["pass"]),
-        "accuracy": (sum(1 for r in results if r["pass"]) / len(results)) if results else 0,
+        "accuracy": (sum(1 for r in results if r["pass"]) / len(results))
+        if results
+        else 0,
     }
     return {"summary": summary, "results": results}
 

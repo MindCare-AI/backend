@@ -232,27 +232,34 @@ class TherapyRAGService:
 
         return results
 
-    async def index_documents_async(self, documents: Dict[str, List], progress_callback=None) -> Dict[str, Any]:
+    async def index_documents_async(
+        self, documents: Dict[str, List], progress_callback=None
+    ) -> Dict[str, Any]:
         """Index documents asynchronously by saving them as JSON files on disk instead
         of storing them in the database. Improved to use asynchronous file I/O.
         """
         results = {"cbt": [], "dbt": []}
         index_dir = os.path.join(settings.BASE_DIR, "chatbot", "data", "indexed")
         os.makedirs(index_dir, exist_ok=True)
-        
+
         async def save_document(therapy: str, doc: Dict) -> Dict[str, Any]:
             filename_safe = doc["filename"].replace(" ", "_")
             out_filename = f"{therapy}_{filename_safe}.json"
             out_filepath = os.path.join(index_dir, out_filename)
             async with aiofiles.open(out_filepath, "w") as f:
-                await f.write(json.dumps({
-                    "therapy": therapy,
-                    "filename": doc["filename"],
-                    "pdf_path": doc["pdf_path"],
-                    "text": doc["text"],
-                    "chunks": doc["chunks"],
-                    "metadata": doc["metadata"],
-                }, indent=2))
+                await f.write(
+                    json.dumps(
+                        {
+                            "therapy": therapy,
+                            "filename": doc["filename"],
+                            "pdf_path": doc["pdf_path"],
+                            "text": doc["text"],
+                            "chunks": doc["chunks"],
+                            "metadata": doc["metadata"],
+                        },
+                        indent=2,
+                    )
+                )
             if progress_callback:
                 progress_callback(2)  # Count two steps (document info and chunks)
             return {
@@ -278,7 +285,9 @@ class TherapyRAGService:
                 logger.error(f"Error saving document: {res}")
         return results
 
-    def index_documents(self, documents: Dict[str, List], progress_callback=None) -> Dict[str, Any]:
+    def index_documents(
+        self, documents: Dict[str, List], progress_callback=None
+    ) -> Dict[str, Any]:
         """Index documents by saving them to file instead of the database."""
         return asyncio.run(self.index_documents_async(documents, progress_callback))
 
@@ -480,7 +489,9 @@ class TherapyRAGService:
                 "recommended_approach": "cbt",
                 "confidence": 0.95,
                 "therapy_info": self._get_therapy_description("cbt"),
-                "supporting_evidence": ["Racing thoughts often relate to cognitive distortions addressed by CBT."],
+                "supporting_evidence": [
+                    "Racing thoughts often relate to cognitive distortions addressed by CBT."
+                ],
                 "recommended_techniques": [],
                 "alternative_approach": "dbt",
             }
@@ -506,7 +517,9 @@ class TherapyRAGService:
                 "recommended_approach": "dbt",
                 "confidence": 0.95,
                 "therapy_info": self._get_therapy_description("dbt"),
-                "supporting_evidence": ["DBT includes mindfulness as a core principle."],
+                "supporting_evidence": [
+                    "DBT includes mindfulness as a core principle."
+                ],
                 "recommended_techniques": [],
                 "alternative_approach": "cbt",
             }

@@ -359,9 +359,7 @@ Please provide a comprehensive summary in JSON format with these fields:
         try:
             # Reuse the get_or_create_summary method to update the summary
             # Removed unused variable 'summary_data'
-            self.get_or_create_summary(
-                conversation_id, user, conversation_history
-            )
+            self.get_or_create_summary(conversation_id, user, conversation_history)
             logger.info(
                 f"Updated conversation summary for conversation {conversation_id}"
             )

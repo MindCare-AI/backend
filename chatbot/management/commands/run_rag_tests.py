@@ -5,6 +5,7 @@ from chatbot.models import ChatbotConversation
 from chatbot.services.rag.evaluate_rag import run_evaluation, TEST_CASES
 from chatbot.services.chatbot_service import chatbot_service
 
+
 class Command(BaseCommand):
     help = "Run RAG-only and end-to-end Gemini scenario tests and output JSON results"
 
@@ -46,26 +47,43 @@ class Command(BaseCommand):
                 conversation_id=str(conv.id),
                 conversation_history=[],
             )
-            actual = resp.get("metadata", {}).get("therapy_recommendation", {}).get("approach", "unknown")
-            confidence = resp.get("metadata", {}).get("therapy_recommendation", {}).get("confidence", 0.0)
-            passed = (actual == expected)
-            e2e_results.append({
-                "query": prompt,
-                "expected": expected,
-                "actual": actual,
-                "confidence": confidence,
-                "pass": passed,
-            })
+            actual = (
+                resp.get("metadata", {})
+                .get("therapy_recommendation", {})
+                .get("approach", "unknown")
+            )
+            confidence = (
+                resp.get("metadata", {})
+                .get("therapy_recommendation", {})
+                .get("confidence", 0.0)
+            )
+            passed = actual == expected
+            e2e_results.append(
+                {
+                    "query": prompt,
+                    "expected": expected,
+                    "actual": actual,
+                    "confidence": confidence,
+                    "pass": passed,
+                }
+            )
 
         total = len(e2e_results)
         passed_count = sum(1 for r in e2e_results if r["pass"])
         e2e_acc = passed_count / total if total else 0
 
-        summary = {"total": total, "passed": passed_count, "failed": total - passed_count, "accuracy": e2e_acc}
+        summary = {
+            "total": total,
+            "passed": passed_count,
+            "failed": total - passed_count,
+            "accuracy": e2e_acc,
+        }
         output = {"e2e_summary": summary, "e2e_results": e2e_results}
 
         self.stdout.write(json.dumps(output, indent=2))
-        self.stdout.write(self.style.SUCCESS(f"End-to-end Accuracy: {e2e_acc*100:.2f}%"))
+        self.stdout.write(
+            self.style.SUCCESS(f"End-to-end Accuracy: {e2e_acc*100:.2f}%")
+        )
 
         out = options.get("output")
         if out:

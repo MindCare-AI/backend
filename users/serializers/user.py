@@ -76,9 +76,7 @@ class UserTypeSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     patient_profile = PatientProfileSerializer(source="patientprofile", read_only=True)
-    therapist_profile = TherapistProfileSerializer(
-        read_only=True
-    )
+    therapist_profile = TherapistProfileSerializer(read_only=True)
     preferences = UserPreferencesSerializer(read_only=True)
     settings = UserSettingsSerializer(read_only=True)
     profile_id = serializers.SerializerMethodField()
@@ -102,9 +100,17 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {"password": {"write_only": True}}
 
     def get_profile_id(self, obj):
-        if obj.user_type == "patient" and hasattr(obj, "patient_profile") and obj.patient_profile:
+        if (
+            obj.user_type == "patient"
+            and hasattr(obj, "patient_profile")
+            and obj.patient_profile
+        ):
             return obj.patient_profile.id
-        elif obj.user_type == "therapist" and hasattr(obj, "therapist_profile") and obj.therapist_profile:
+        elif (
+            obj.user_type == "therapist"
+            and hasattr(obj, "therapist_profile")
+            and obj.therapist_profile
+        ):
             return obj.therapist_profile.id
         return None
 

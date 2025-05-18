@@ -179,8 +179,12 @@ class Command(BaseCommand):
             )
 
             # Show per-document stats
-            cbt_chunks = sum(doc.get("chunks_added", 0) for doc in results_by_type["cbt"])
-            dbt_chunks = sum(doc.get("chunks_added", 0) for doc in results_by_type["dbt"])
+            cbt_chunks = sum(
+                doc.get("chunks_added", 0) for doc in results_by_type["cbt"]
+            )
+            dbt_chunks = sum(
+                doc.get("chunks_added", 0) for doc in results_by_type["dbt"]
+            )
 
             self.stdout.write(f"CBT Documents: {len(results_by_type['cbt'])}")
             self.stdout.write(f"- Total chunks: {cbt_chunks}")

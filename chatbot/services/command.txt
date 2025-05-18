@@ -1,2 +1,3 @@
 python manage.py reset_rag_tables
 python manage.py setup_therapy_rag
+python manage.py run_rag_tests

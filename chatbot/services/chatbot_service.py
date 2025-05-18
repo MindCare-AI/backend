@@ -38,7 +38,7 @@ Follow these rules strictly:
 - Conclude with an encouraging, empathetic closing statement.
 - Tone: empathetic, non-judgmental, clear.
 - Format your response in 4 sections exactly:
-    1. Overview of [Therapy Name]
+    1. Overview of [Therapy Name] (e.g., CBT or DBT as recommended)
     2. Key Principles: • principle A • principle B
     3. Technique Steps: 1. … 2. …
     4. Closing Statement
@@ -80,52 +80,36 @@ ASSISTANT:
         self.mood_limit = getattr(settings, "CHATBOT_MOOD_LIMIT", 10)
         self.lookback_days = getattr(settings, "CHATBOT_LOOKBACK_DAYS", 30)
 
-    def get_response(
-        self,
-        user,
-        message: str,
-        conversation_id: str,
-        conversation_history: list = None,
-    ) -> Dict[str, any]:
-        """Get response from Gemini with integrated RAG therapy recommendation"""
-        try:
-            safety_check = self._check_content_safety(message)
-            if safety_check["is_harmful"]:
-                return self._handle_harmful_content(
-                    user, message, safety_check["category"]
-                )
+    def get_response(self, user, message, conversation_id, conversation_history):
+        # 1. Summarize older context (if any)
+        context = conversation_summary_service.get_conversation_context(conversation_id, user)
 
-            user_data = self._get_user_data(user)
-            conversation_context = self._prepare_conversation_context(
-                user, conversation_id, conversation_history
-            )
-            # Get therapy recommendation via RAG service
-            therapy_recommendation = self._get_therapy_recommendation(
-                message, user_data
-            )
-            prompt = self._build_prompt(
-                message, conversation_context, user_data, user, therapy_recommendation
-            )
+        # 2. Decide therapy approach via RAG
+        rec = therapy_rag_service.get_therapy_approach(
+            query=message,
+            user_data={'recent_messages': context.get('recent_messages'),
+                       'analysis': context.get('summary')}
+        )
+        method = rec.get('recommended_approach', 'unknown')
+        conf = rec.get('confidence', 0.0)
 
-            response = self._call_gemini_api(prompt)
-            self._check_and_update_conversation_summary(
-                user, conversation_id, conversation_history
-            )
-            return {
-                "content": response["text"],
-                "metadata": {
-                    **response.get("metadata", {}),
-                    "therapy_recommendation": {
-                        "approach": therapy_recommendation.get(
-                            "recommended_approach", "unknown"
-                        ),
-                        "confidence": therapy_recommendation.get("confidence", 0.0),
-                    },
-                },
-            }
-        except Exception as e:
-            logger.error(f"Error getting chatbot response: {str(e)}")
-            return self._error_response(str(e))
+        # 3. Build an explanatory reply
+        content = (
+            f"I've reviewed your message and recent conversation context.\n\n"
+            f"• Context summary: {context.get('summary','No summary available')}\n\n"
+            f"Based on my analysis, I recommend *{method.upper()}* (confidence: {conf:.2f}).\n"
+            f"Key evidence: {rec.get('supporting_evidence',[])}\n"
+            f"Suggested techniques: {[t.get('name') for t in rec.get('recommended_techniques',[])]}\n\n"
+            f"Feel free to ask more or let me know how you'd like to proceed!"
+        )
+
+        # 4. Attach metadata including the chosen method and full rec
+        metadata = {
+            'chatbot_method': method,
+            'therapy_recommendation': rec,
+        }
+
+        return {'content': content, 'metadata': metadata}
 
     def _get_therapy_recommendation(
         self, message: str, user_data: Dict = None
@@ -537,7 +521,8 @@ User message category: {category}
         user=None,
         therapy_recommendation: Dict = None,
     ) -> str:
-        """Build an improved prompt integrating the RAG therapy recommendation."""
+        """Build an improved prompt integrating user data, therapy recommendations and conversation history."""
+        # Get user's name for personalization
         user_name = user.get_full_name() or user.username if user else "User"
 
         # Detect potential crisis keywords in the message
@@ -546,6 +531,7 @@ User message category: {category}
         # Assemble the base prompt
         prompt = "\n".join([
             self.SYSTEM_TEMPLATE,
+            f"SYSTEM: The user's name is {user_name}. Address them by name occasionally to personalize the conversation.",
             self.FEW_SHOT_EXAMPLES,
             f"USER: \"{message}\"",
             "ASSISTANT:"
@@ -554,36 +540,107 @@ User message category: {category}
         # Build the enhanced context to inject before ASSISTANT:
         enhanced_context = []
         
-        # 1. User History Context Integration
+        # 1. User History Context Integration - Journals and Mood
         if user_data:
-            # Add journal entries summary if available
+            # Add journal entries with content summaries if available
             if user_data.get("journal_entries"):
                 recent_entries = user_data["journal_entries"][:3]
-                topics = ", ".join([entry.get("title", "Entry") for entry in recent_entries])
-                enhanced_context.append(f"SYSTEM: User has recently journaled about: {topics}")
+                # Extract real content and details from journal entries
+                journal_details = []
+                for entry in recent_entries:
+                    content_snippet = entry.get("content", "")[:100] + "..." if entry.get("content") and len(entry.get("content", "")) > 100 else entry.get("content", "")
+                    entry_date = entry.get("date", "recent")
+                    mood = entry.get("mood", "unspecified")
+                    category = entry.get("category", "general")
+                    journal_details.append(f"[{entry_date}, mood: {mood}, category: {category}]: \"{content_snippet}\"")
+                
+                if journal_details:
+                    enhanced_context.append("SYSTEM: User's recent journal entries:")
+                    for detail in journal_details:
+                        enhanced_context.append(f"- {detail}")
             
-            # Add mood patterns if available
+            # Add detailed mood patterns if available
             if user_data.get("mood_logs"):
-                mood_ratings = [log.get("mood_rating", 0) for log in user_data.get("mood_logs", [])]
-                if mood_ratings:
-                    avg_mood = sum(mood_ratings) / len(mood_ratings)
-                    mood_trend = "declining" if len(mood_ratings) > 1 and mood_ratings[0] < mood_ratings[-1] else "improving" if len(mood_ratings) > 1 and mood_ratings[0] > mood_ratings[-1] else "stable"
-                    enhanced_context.append(f"SYSTEM: User's recent mood trend: {mood_trend} (avg: {avg_mood:.1f}/10)")
-
-        # 2. Emotional Context Awareness
+                mood_logs = user_data["mood_logs"]
+                if mood_logs:
+                    # Calculate patterns and trends
+                    mood_ratings = [log.get("mood_rating", 0) for log in mood_logs]
+                    activities = []
+                    for log in mood_logs[:3]:
+                        if log.get("activities"):
+                            activities.extend(log.get("activities", []))
+                    
+                    # Get unique activities
+                    unique_activities = list(set(activities))[:5]
+                    
+                    # Calculate mood stats
+                    avg_mood = sum(mood_ratings) / len(mood_ratings) if mood_ratings else 0
+                    
+                    # Determine trend
+                    mood_trend = "declining" 
+                    if len(mood_ratings) > 1:
+                        if mood_ratings[0] < mood_ratings[-1]:
+                            mood_trend = "improving"
+                        elif mood_ratings[0] == mood_ratings[-1]:
+                            mood_trend = "stable"
+                    
+                    enhanced_context.append(f"SYSTEM: {user_name}'s recent mood data:")
+                    enhanced_context.append(f"- Mood trend: {mood_trend} (average: {avg_mood:.1f}/10)")
+                    if unique_activities:
+                        enhanced_context.append(f"- Recent activities: {', '.join(unique_activities)}")        # 2. Emotional Context Awareness - AI Analysis of Emotions and Mental State
         if user_data and user_data.get("analysis"):
             analysis = user_data["analysis"]
             
-            # Add emotional patterns
+            # Add emotional patterns with more context
             if analysis.get("dominant_emotions"):
                 emotions = ", ".join(analysis.get("dominant_emotions", [])[:3])
-                enhanced_context.append(f"SYSTEM: Dominant emotions: {emotions}")
-            
-            # Add sentiment data
+                enhanced_context.append(f"SYSTEM: {user_name}'s dominant emotions: {emotions}")
+
+            # Add sentiment data with interpretation
             if analysis.get("sentiment_score") is not None:
                 sentiment = analysis.get("sentiment_score")
-                enhanced_context.append(f"SYSTEM: Overall sentiment: {sentiment:.2f} (-1 to 1 scale)")
+                sentiment_desc = "negative" if sentiment < -0.3 else "neutral" if -0.3 <= sentiment <= 0.3 else "positive"
+                enhanced_context.append(f"SYSTEM: Overall sentiment analysis: {sentiment_desc} ({sentiment:.2f} on -1 to 1 scale)")
+                
+            # Add medical analysis data
+            if analysis.get("medication_effects"):
+                med_effects = analysis.get("medication_effects")
+                if med_effects.get("medications"):
+                    meds = ", ".join(med_effects.get("medications", [])[:3])
+                    enhanced_context.append(f"SYSTEM: {user_name}'s medication context: {meds}")
+                
+                if med_effects.get("mood_effects"):
+                    mood_impact = med_effects.get("mood_effects")
+                    if isinstance(mood_impact, dict) and "description" in mood_impact:
+                        enhanced_context.append(f"SYSTEM: Medication impact: {mood_impact.get('description')}")
+                    elif isinstance(mood_impact, str):
+                        enhanced_context.append(f"SYSTEM: Medication impact: {mood_impact}")
+                        
+                if med_effects.get("side_effects_detected"):
+                    side_effects = ", ".join(med_effects.get("side_effects_detected", [])[:3])
+                    if side_effects:
+                        enhanced_context.append(f"SYSTEM: Note potential side effects: {side_effects}")
 
+        # Add social interaction analysis
+        if user_data and user_data.get("analysis") and user_data["analysis"].get("social_patterns"):
+            social = user_data["analysis"].get("social_patterns")
+            
+            if social.get("engagement_score") is not None:
+                engagement = social.get("engagement_score")
+                engagement_level = "low" if engagement < 0.3 else "moderate" if 0.3 <= engagement <= 0.7 else "high"
+                enhanced_context.append(f"SYSTEM: {user_name}'s social engagement: {engagement_level}")
+            
+            if social.get("support_network"):
+                support = social.get("support_network")
+                if isinstance(support, dict) and support.get("strength"):
+                    enhanced_context.append(f"SYSTEM: Support network strength: {support.get('strength')}")
+                elif isinstance(support, str):
+                    enhanced_context.append(f"SYSTEM: Support network: {support}")
+            
+            if social.get("therapeutic_content") and len(social.get("therapeutic_content")) > 0:
+                helpful_content = social.get("therapeutic_content")[0] if isinstance(social.get("therapeutic_content")[0], str) else social.get("therapeutic_content")[0].get("description", "helpful interactions")
+                enhanced_context.append(f"SYSTEM: Therapeutic content that helps {user_name}: {helpful_content}")
+        
         # 3. Therapy-Specific Techniques
         if therapy_recommendation and therapy_recommendation.get("recommended_approach") != "unknown":
             name = therapy_recommendation["therapy_info"]["name"]
@@ -613,18 +670,30 @@ User message category: {category}
             if activities:
                 enhanced_context.append(f"SYSTEM: Previously helpful activities: {', '.join(activities)}")
 
-        # 5. Conversation Continuity
+        # 5. Conversation Continuity - Enhanced with more context from conversation history
         if conversation_context:
+            # Add conversation summary if available
             if conversation_context.get("has_summary") and conversation_context.get("summary"):
                 enhanced_context.append(f"SYSTEM: Past conversation summary: {conversation_context['summary']}")
             
+            # Add key points from conversation
             if conversation_context.get("key_points"):
                 key_points = ", ".join(conversation_context.get("key_points", [])[:3])
-                enhanced_context.append(f"SYSTEM: Key topics discussed: {key_points}")
+                enhanced_context.append(f"SYSTEM: Key topics discussed with {user_name}: {key_points}")
+                
+            # Add emotional context from conversation history
+            if conversation_context.get("emotional_context"):
+                emotional_ctx = conversation_context.get("emotional_context", {})
+                if emotional_ctx.get("overall_tone"):
+                    enhanced_context.append(f"SYSTEM: Previous conversation tone: {emotional_ctx.get('overall_tone')}")
+                if isinstance(emotional_ctx, dict) and emotional_ctx.get("main_concerns"):
+                    concerns = ", ".join(emotional_ctx.get("main_concerns", [])[:2])
+                    if concerns:
+                        enhanced_context.append(f"SYSTEM: {user_name}'s main concerns: {concerns}")
 
         # 6. Enhanced Safety and Crisis Detection
         if is_crisis:
-            enhanced_context.append("SYSTEM: PRIORITY ALERT - Potential crisis detected. Provide immediate support resources and crisis intervention.")
+            enhanced_context.append(f"SYSTEM: PRIORITY ALERT - Potential crisis detected for {user_name}. Provide immediate support resources and crisis intervention.")
 
         # 7. Cultural Sensitivity
         if user and hasattr(user, "profile") and hasattr(user.profile, "cultural_background"):
@@ -636,7 +705,30 @@ User message category: {category}
         if user_data and user_data.get("analysis") and user_data["analysis"].get("topics_of_concern"):
             topics = user_data["analysis"].get("topics_of_concern", [])[:2]
             if topics:
-                enhanced_context.append(f"SYSTEM: User's therapeutic focus areas: {', '.join(topics)}")
+                enhanced_context.append(f"SYSTEM: {user_name}'s therapeutic focus areas: {', '.join(topics)}")
+                
+        # 9. Communication Patterns Analysis
+        if user_data and user_data.get("analysis") and user_data["analysis"].get("communication_patterns"):
+            comm_patterns = user_data["analysis"].get("communication_patterns", {})
+            
+            if comm_patterns.get("communication_style"):
+                style = comm_patterns.get("communication_style")
+                if isinstance(style, dict) and style.get("primary_style"):
+                    enhanced_context.append(f"SYSTEM: {user_name}'s communication style: {style.get('primary_style')}")
+                elif isinstance(style, str):
+                    enhanced_context.append(f"SYSTEM: {user_name}'s communication style: {style}")
+            
+            if comm_patterns.get("emotional_triggers") and len(comm_patterns.get("emotional_triggers")) > 0:
+                triggers = ", ".join(comm_patterns.get("emotional_triggers", [])[:2])
+                if triggers:
+                    enhanced_context.append(f"SYSTEM: Topics that may trigger emotional responses: {triggers}")
+                    
+            if comm_patterns.get("response_patterns"):
+                response_pattern = comm_patterns.get("response_patterns")
+                if isinstance(response_pattern, dict) and response_pattern.get("best_approach"):
+                    enhanced_context.append(f"SYSTEM: Best response approach: {response_pattern.get('best_approach')}")
+                elif isinstance(response_pattern, str):
+                    enhanced_context.append(f"SYSTEM: Response pattern: {response_pattern}")
 
         # Insert the enhanced context before ASSISTANT:
         if enhanced_context:

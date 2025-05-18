@@ -81,6 +81,7 @@ class UserSerializer(serializers.ModelSerializer):
     )
     preferences = UserPreferencesSerializer(read_only=True)
     settings = UserSettingsSerializer(read_only=True)
+    profile_id = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
@@ -95,9 +96,17 @@ class UserSerializer(serializers.ModelSerializer):
             "settings",
             "patient_profile",
             "therapist_profile",
+            "profile_id",
         ]
         read_only_fields = ["id", "date_joined", "last_login"]
         extra_kwargs = {"password": {"write_only": True}}
+
+    def get_profile_id(self, obj):
+        if obj.user_type == "patient" and hasattr(obj, "patient_profile") and obj.patient_profile:
+            return obj.patient_profile.id
+        elif obj.user_type == "therapist" and hasattr(obj, "therapist_profile") and obj.therapist_profile:
+            return obj.therapist_profile.id
+        return None
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)

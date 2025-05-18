@@ -159,15 +159,16 @@ class Command(BaseCommand):
             )
 
             # Process with progress updates using tqdm
-            results = []
+            results_by_type = {"cbt": [], "dbt": []}  # Initialize results structure
+            indexing_results = therapy_rag_service.index_documents(extracted_docs)
+
             with tqdm(
                 total=total_chunks, desc="Indexing chunks", unit="chunk", ncols=100
             ) as progress_bar:
-                for result in therapy_rag_service.index_documents(extracted_docs):
-                    results.append(result)  # Collect results for later use
-                    progress_bar.update(
-                        1
-                    )  # Update progress bar for each processed chunk
+                for therapy_type in ["cbt", "dbt"]:
+                    for result in indexing_results.get(therapy_type, []):
+                        results_by_type[therapy_type].append(result)
+                        progress_bar.update(1)
 
             # Display results in a readable format
             total_elapsed = time.time() - start_time
@@ -178,13 +179,13 @@ class Command(BaseCommand):
             )
 
             # Show per-document stats
-            cbt_chunks = sum(doc.get("chunks_added", 0) for doc in results["cbt"])
-            dbt_chunks = sum(doc.get("chunks_added", 0) for doc in results["dbt"])
+            cbt_chunks = sum(doc.get("chunks_added", 0) for doc in results_by_type["cbt"])
+            dbt_chunks = sum(doc.get("chunks_added", 0) for doc in results_by_type["dbt"])
 
-            self.stdout.write(f"CBT Documents: {len(results['cbt'])}")
+            self.stdout.write(f"CBT Documents: {len(results_by_type['cbt'])}")
             self.stdout.write(f"- Total chunks: {cbt_chunks}")
 
-            self.stdout.write(f"DBT Documents: {len(results['dbt'])}")
+            self.stdout.write(f"DBT Documents: {len(results_by_type['dbt'])}")
             self.stdout.write(f"- Total chunks: {dbt_chunks}")
 
             self.stdout.write(f"Total chunks added: {cbt_chunks + dbt_chunks}")

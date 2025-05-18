@@ -6,7 +6,6 @@ import argparse
 from typing import Dict, Any
 from .therapy_rag_service import therapy_rag_service
 from django.conf import settings
-
 logger = logging.getLogger(__name__)
 
 # Default test cases - can be overridden by loading from JSON file
@@ -68,8 +67,118 @@ TEST_CASES = [
         "query": "I need help with managing my stress and anxiety levels. Can you suggest some techniques?",
         "expected_approach": "cbt",
     },
+    {
+        "query": "I feel like I'm always walking on eggshels around people, trying not to upset them.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I can't stop overthinking every little thing I do, and it's exhausting.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I have trouble trusting people because I'm afraid they'll hurt me.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I often feel like I'm not good enogh no matter how hard I try.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I struggle with intense feelings of guilt and shame over past mistakes.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I need help with techniques to stop catastrophizing every situation.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I feel like my emotions control me, and I can't seem to manage them.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I keep doubting myself and my abilities, even when I know I'm capable.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I have a hard time letting go of grudges and forgiving others.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I often feel like I'm a failure and that nothing I do is ever good enough.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I feel like I'm constantly being judged by others, even when they don't say anything.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I struggle with impulsive decisions that I regret later, like spending too much money.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I need help with strategies to stop procrastinaton and get things done.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I often feel like I'm not worthy of love or acceptance from others.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I have a hard time dealing with criticism, even when it's constructive.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I feel like my emotions are a rollercoaster, and I can't get off the ride.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I need help with challenging my negative self-talk and building confidence.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I often feel like I'm stuck in a cycle of self-sabotage and can't break free.",
+        "expected_approach": "dbt",
+    },
+    {
+        "query": "I struggle with perfectionism and feel like I can't make mistakes.",
+        "expected_approach": "cbt",
+    },
+    {
+        "query": "I feel like I'm always on edge, waiting for something bad to happen.",
+        "expected_approach": "cbt",
+    },
 ]
 
+# Add 100 additional complex test cases to challenge RAG
+extra_cases = []
+for idx in range(1, 101):
+    # verbose, nuanced scenario with occasional typos and subtle cues
+    query = (
+        f"Scenario {idx}: I'm caught in a ceaseless spiral of self-criticism—"
+        f"I replay each micro-interaction at work, sense every shifted glance, "
+        f"and convince myself I'm embarrasingly inept; then I can't brethe."
+    )
+    # alternate expected approaches
+    expected = "cbt" if idx % 3 == 1 else ("dbt" if idx % 3 == 2 else "cbt")
+    extra_cases.append({"query": query, "expected_approach": expected})
+
+TEST_CASES.extend(extra_cases)
+
+# Add 100 additional 'other' complex test cases
+other_cases = []
+for idx in range(1, 101):
+    # verbose, multifaceted scenario with both emotional and cognitive descriptors
+    query = (
+        f"Other {idx}: Between my racing thoughts about "
+        f"{'work deadlines' if idx % 2 == 0 else 'relationship conflicts'}, "
+        f"I also feel "
+        f"{'a hollow emptiness' if idx % 3 == 0 else 'overwhelming guilt'}, "
+        f"and I keep resorting to "
+        f"{'avoidance behaviors' if idx % 5 == 0 else 'rumination patterns'} to cope."
+    )
+    expected = "dbt" if idx % 2 == 0 else "cbt"
+    other_cases.append({"query": query, "expected_approach": expected})
+TEST_CASES.extend(other_cases)
 
 class RagEvaluator:
     """Evaluate RAG therapy approach recommendation performance."""
@@ -289,11 +398,30 @@ def evaluate_and_save(
         return {"error": str(e)}
 
 
-# For backward compatibility
 def run_evaluation():
-    """Legacy function for backward compatibility"""
-    evaluator = RagEvaluator()
-    return evaluator.run_evaluation()
+    """Run predefined RAG test cases and return pass/fail results."""
+    results = []
+    for case in TEST_CASES:
+        query = case["query"]
+        expected = case["expected_approach"].lower()
+        rec = therapy_rag_service.get_therapy_approach(query)
+        actual = rec.get("recommended_approach", "unknown").lower()
+        passed = (actual == expected)
+        results.append({
+            "query": query,
+            "expected": expected,
+            "actual": actual,
+            "confidence": rec.get("confidence", 0),
+            "pass": passed,
+        })
+
+    summary = {
+        "total": len(results),
+        "passed": sum(1 for r in results if r["pass"]),
+        "failed": sum(1 for r in results if not r["pass"]),
+        "accuracy": (sum(1 for r in results if r["pass"]) / len(results)) if results else 0,
+    }
+    return {"summary": summary, "results": results}
 
 
 def main():

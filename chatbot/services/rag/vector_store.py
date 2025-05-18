@@ -1,16 +1,15 @@
 # chatbot/services/rag/vector_store.py
 
-import numpy as np
 from psycopg2 import pool
 import logging
 import requests
 import os
-import json
-from typing import List, Dict, Any, Optional, Tuple
+import re
+from typing import List, Dict, Any, Tuple
 from psycopg2.extras import execute_values, Json
 from django.conf import settings
 from tenacity import retry, stop_after_attempt, wait_random_exponential
-from contextlib import contextmanager  # Add this import
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,9 @@ class VectorStore:
             "host": settings.DATABASES["default"]["HOST"],
             "port": settings.DATABASES["default"]["PORT"],
         }
+        # enforce SSL for Neon cloud databases
+        if "neon.tech" in self.db_config.get("host", ""):
+            self.db_config["sslmode"] = "require"
         # Initialize a threaded connection pool
         min_conn = int(os.getenv("DB_POOL_MIN_CONN", 1))
         max_conn = int(os.getenv("DB_POOL_MAX_CONN", 5))
@@ -38,6 +40,21 @@ class VectorStore:
         )  # Changed from 384 to 768
         self.gpu_layers = int(os.getenv("OLLAMA_NUM_GPU", 50))
         self.ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
+        # Enhanced configuration for better accuracy
+        self.similarity_threshold = float(os.getenv("SIMILARITY_THRESHOLD", 0.65))
+        self.similarity_quantile = float(os.getenv("SIMILARITY_QUANTILE", 0.75))
+        # per-therapy overrides
+        self.similarity_threshold_cbt = float(os.getenv("SIMILARITY_THRESHOLD_CBT", self.similarity_threshold))
+        self.similarity_threshold_dbt = float(os.getenv("SIMILARITY_THRESHOLD_DBT", self.similarity_threshold))
+        self.max_retrieval_count = int(os.getenv("MAX_RETRIEVAL_COUNT", 10))
+        self.enable_reranking = os.getenv("ENABLE_RERANKING", "true").lower() == "true"
+        self.enable_hybrid_search = os.getenv("ENABLE_HYBRID_SEARCH", "true").lower() == "true"
+        self.keyword_weight = float(os.getenv("KEYWORD_WEIGHT", 0.25))
+        self.semantic_weight = float(os.getenv("SEMANTIC_WEIGHT", 0.75))
+        self.cache_enabled = os.getenv("ENABLE_EMBEDDING_CACHE", "true").lower() == "true"
+        self.cache_size = int(os.getenv("EMBEDDING_CACHE_SIZE", 1000))
+        self.embedding_cache = {}  # In-memory LRU cache for embeddings
         self._setup_vector_store()
 
     @contextmanager
@@ -56,517 +73,511 @@ class VectorStore:
             self.pool.putconn(conn)
 
     def _setup_vector_store(self):
-        """Set up the database with necessary tables and extensions."""
-        try:
-            # First, check if tables exist - if they do and have wrong dimension, drop them
-            self._check_and_recreate_tables_if_needed()
-            # Then set up the database with the correct dimensions
-            self.setup_db()
-            # Pull the embedding model to ensure it's available
-            self._ensure_model_pulled()
-        except Exception as e:
-            logger.error(f"Error setting up vector store: {str(e)}")
-            raise
-
-    def _ensure_model_pulled(self):
-        """Make sure the embedding model is pulled from Ollama."""
-        try:
-            import requests
-
-            logger.info(
-                f"Checking if embedding model {self.embed_model} is available..."
-            )
-
-            # Just check if the model exists by sending a small embedding request
-            try:
-                response = requests.post(
-                    f"{self.ollama_host}/api/embeddings",
-                    json={"model": self.embed_model, "prompt": "Test"},
-                    timeout=10,  # Short timeout just to check
-                )
-                if response.status_code == 200:
-                    logger.info(f"Embedding model {self.embed_model} is ready")
-                    return True
-            except requests.exceptions.RequestException:
-                logger.warning(
-                    f"Embedding model {self.embed_model} not immediately available"
-                )
-
-            # If we got here, we need to pull the model
-            logger.info(f"Pulling embedding model {self.embed_model}...")
-
-            # Use subprocess to call the management command with timeout
-            import subprocess
-            import sys
-            from django.conf import settings
-
-            # Construct the command to run the pull_embedding_model command
-            cmd = [
-                sys.executable,
-                os.path.join(settings.BASE_DIR, "manage.py"),
-                "pull_embedding_model",
-                "--timeout",
-                "300",
-            ]
-
-            try:
-                subprocess.run(cmd, check=True, timeout=310)
-                logger.info(f"Embedding model {self.embed_model} is ready")
-                return True
-            except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
-                logger.error(f"Could not pull embedding model: {str(e)}")
-                raise Exception(f"Failed to pull embedding model: {str(e)}")
-
-        except Exception as e:
-            logger.warning(f"Could not verify embedding model: {str(e)}")
-            return False
-
-    def _check_and_recreate_tables_if_needed(self):
-        """Check if tables exist with wrong dimension and recreate if needed."""
+        """Setup the vector store tables in PostgreSQL."""
         try:
             with self._get_cursor() as (conn, cursor):
-                # Check if the therapy_chunks table exists
-                cursor.execute("""
-                    SELECT EXISTS (
-                       SELECT FROM information_schema.tables 
-                       WHERE table_name = 'therapy_chunks'
-                    );
-                """)
-                table_exists = cursor.fetchone()[0]
-
-                if table_exists:
-                    # Check the vector dimension of the embedding column
-                    try:
-                        cursor.execute("""
-                            SELECT typelem FROM pg_type WHERE typname = 'vector';
-                            SELECT atttypmod FROM pg_attribute 
-                            WHERE attrelid = 'therapy_chunks'::regclass 
-                            AND attname = 'embedding';
-                        """)
-                        # If the dimension doesn't match, drop the tables
-                        cursor.execute("""
-                            DROP TABLE IF EXISTS therapy_chunks;
-                            DROP TABLE IF EXISTS therapy_documents;
-                        """)
-                        conn.commit()
-                        logger.info(
-                            "Dropped existing tables with incorrect embedding dimension"
-                        )
-                    except Exception:
-                        # If error, it's safer to drop and recreate
-                        cursor.execute("""
-                            DROP TABLE IF EXISTS therapy_chunks;
-                            DROP TABLE IF EXISTS therapy_documents;
-                        """)
-                        conn.commit()
-                        logger.info(
-                            "Dropped existing tables due to error checking dimension"
-                        )
-        except Exception as e:
-            logger.error(f"Error checking tables: {str(e)}")
-            raise
-
-    def setup_db(self):
-        """Set up the database with necessary extensions and tables."""
-        try:
-            with self._get_cursor() as (conn, cursor):
-                # Enable pgvector extension
+                # Create extension if not exists
                 cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
-
+                
                 # Create tables if they don't exist
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS therapy_documents (
                         id SERIAL PRIMARY KEY,
-                        therapy_type VARCHAR(50) NOT NULL,
-                        document_name TEXT NOT NULL,
-                        document_path TEXT NOT NULL,
-                        metadata JSONB DEFAULT '{}'::jsonb NOT NULL,
-                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        therapy_type TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        file_path TEXT,
+                        metadata JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-
-                # Create therapy_chunks table with the updated embedding dimension
-                cursor.execute(f"""
+                
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS therapy_chunks (
                         id SERIAL PRIMARY KEY,
                         document_id INTEGER REFERENCES therapy_documents(id) ON DELETE CASCADE,
-                        chunk_index INTEGER NOT NULL,
-                        chunk_text TEXT NOT NULL,
-                        embedding vector({self.embedding_dimension}),
-                        metadata JSONB DEFAULT '{{}}'::jsonb,
-                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                        UNIQUE(document_id, chunk_index)
+                        text TEXT NOT NULL,
+                        embedding vector(%s),
+                        metadata JSONB,
+                        sequence INTEGER,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
-                """)
-
+                """ % self.embedding_dimension)
+                
                 # Create index for faster similarity search
                 cursor.execute("""
                     CREATE INDEX IF NOT EXISTS therapy_chunks_embedding_idx 
-                    ON therapy_chunks USING hnsw (embedding vector_cosine_ops)
-                    WITH (m = 16, ef_construction = 64);
+                    ON therapy_chunks USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100)
                 """)
-
-                logger.info(
-                    f"Set up database with embedding dimension {self.embedding_dimension}"
-                )
+                
+                logger.info("Vector store setup complete")
         except Exception as e:
-            logger.error(f"Error setting up database: {str(e)}")
+            logger.error(f"Error setting up vector store: {str(e)}")
             raise
 
-    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(3))
-    def _get_embedding(self, text: str) -> np.ndarray:
-        """Generate embedding for text using Ollama API.
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=1, max=10),
+        reraise=True
+    )
+    def generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding for text with caching for frequently used queries.
 
         Args:
             text: Text to embed
 
         Returns:
-            Embedding vector as a numpy array
+            List of embedding values
         """
+        # Check cache first if enabled
+        if self.cache_enabled:
+            cache_key = hash(text)
+            if cache_key in self.embedding_cache:
+                return self.embedding_cache[cache_key]
+
+        # Clean text before embedding
+        clean_text = self._clean_text_for_embedding(text)
+
         try:
-            # Log GPU usage
-            logger.info(f"Using GPU layers: {self.gpu_layers}")  # Log GPU layers
-
-            # Truncate extremely long texts to avoid API failures
-            if len(text) > 8000:
-                logger.warning(
-                    "Truncating text longer than 8000 characters for embedding"
-                )
-                text = text[:8000]
-
+            # Make request to Ollama API
             response = requests.post(
                 f"{self.ollama_host}/api/embeddings",
-                json={
-                    "model": self.embed_model,
-                    "prompt": text,
-                    "options": {"num_gpu": self.gpu_layers},  # Ensure GPU layers are passed
-                },
-                timeout=30,
+                json={"model": self.embed_model, "prompt": clean_text},
+                timeout=30  # Add timeout to prevent hanging requests
             )
-            response.raise_for_status()
-            embedding = np.array(response.json()["embedding"])
 
-            # Make sure embedding dimensions match our expected dimension
-            if embedding.shape[0] != self.embedding_dimension:
-                logger.warning(
-                    f"Embedding dimension mismatch: got {embedding.shape[0]}, expected {self.embedding_dimension}"
-                )
-                # If dimensions are close, we can pad or truncate
-                if embedding.shape[0] > self.embedding_dimension:
-                    embedding = embedding[: self.embedding_dimension]
-                elif embedding.shape[0] < self.embedding_dimension:
-                    padding = np.zeros(self.embedding_dimension - embedding.shape[0])
-                    embedding = np.concatenate([embedding, padding])
+            if response.status_code == 200:
+                embedding = response.json().get("embedding")
+                if embedding is None:
+                    logger.error("No embedding found in response")
+                    embedding = [0.0] * self.embedding_dimension
 
-            return embedding
-        except Exception as e:
-            logger.error(f"Embedding error: {str(e)}")
+                # Store in cache if enabled
+                if self.cache_enabled:
+                    self.embedding_cache[cache_key] = embedding
+
+                return embedding
+            else:
+                logger.error(f"Error generating embedding: {response.status_code}, {response.text}")
+                return [0.0] * self.embedding_dimension
+
+        except requests.exceptions.Timeout:
+            logger.error("Timeout when generating embedding")
             raise
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error when generating embedding")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to generate embedding: {str(e)}")
+            return [0.0] * self.embedding_dimension
 
-    @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(3))
-    def _get_embeddings_batch(self, texts: List[str]) -> List[np.ndarray]:
-        """Generate embeddings for a batch of texts using Ollama API.
-        Process each text individually as Ollama API doesn't support true batching.
+    def _normalize_embedding(self, embedding: List[float]) -> List[float]:
+        """Normalize embedding vector to unit length for better similarity comparisons."""
+        if not embedding:
+            return [0.0] * self.embedding_dimension
 
-        Args:
-            texts: List of texts to embed
+        # Calculate vector magnitude
+        magnitude = sum(x * x for x in embedding) ** 0.5
 
-        Returns:
-            List of embedding vectors as numpy arrays
-        """
-        results = []
+        if magnitude > 0:
+            # Normalize to unit vector
+            return [x / magnitude for x in embedding]
+        return embedding
 
-        for i, text in enumerate(texts):
-            try:
-                # Ensure text isn't too long - limit to 8000 chars to prevent errors
-                if len(text) > 8000:
-                    logger.warning(
-                        f"Text at index {i} truncated from {len(text)} to 8000 characters"
-                    )
-                    text = text[:8000]
+    def _clean_text_for_embedding(self, text: str) -> str:
+        """Clean and prepare text for embedding to improve vector quality."""
+        if not text:
+            return ""
 
-                # Process one text at a time
-                response = requests.post(
-                    f"{self.ollama_host}/api/embeddings",
-                    json={
-                        "model": self.embed_model,
-                        "prompt": text,  # Single text, not a batch
-                        "options": {"num_gpu": self.gpu_layers},
-                    },
-                    timeout=30,  # Shorter timeout for individual requests
-                )
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
 
-                if response.status_code != 200:
-                    logger.error(
-                        f"Embedding error for text {i}: {response.status_code} {response.reason}"
-                    )
-                    # Log a small portion of the text for debugging
-                    logger.error(f"Text preview: {text[:100]}...")
-                    response.raise_for_status()
+        # Truncate very long texts to avoid token limits
+        max_chars = 8000  # Approximate character limit
+        if len(text) > max_chars:
+            # Try to truncate at sentence boundary
+            truncated = text[:max_chars]
+            last_period = truncated.rfind('.')
+            if last_period > max_chars * 0.8:  # Only truncate at sentence if it's not too short
+                truncated = truncated[:last_period+1]
+            text = truncated
 
-                # Extract embedding from response
-                embedding = np.array(response.json()["embedding"])
+        return text
 
-                # Ensure embedding has correct dimension
-                if embedding.shape[0] != self.embedding_dimension:
-                    logger.warning(
-                        f"Embedding dimension mismatch: got {embedding.shape[0]}, expected {self.embedding_dimension}"
-                    )
-                    if embedding.shape[0] > self.embedding_dimension:
-                        embedding = embedding[: self.embedding_dimension]
-                    elif embedding.shape[0] < self.embedding_dimension:
-                        padding = np.zeros(
-                            self.embedding_dimension - embedding.shape[0]
-                        )
-                        embedding = np.concatenate([embedding, padding])
-
-                results.append(embedding)
-
-            except Exception as e:
-                logger.error(f"Error embedding text {i}: {str(e)}")
-                # If we can't get a valid embedding, add a zero vector to maintain order
-                results.append(np.zeros(self.embedding_dimension))
-
-        return results
-
-    def add_document(
-        self,
-        therapy_type: str,
-        document_name: str,
-        document_path: str,
-        metadata: Dict = None,
-    ) -> int:
-        """Add a new document to the store.
-
+    def add_document(self, therapy_type: str, title: str, file_path: str, metadata: Dict = None) -> int:
+        """Add a document to the vector store.
+        
         Args:
             therapy_type: Type of therapy ('cbt' or 'dbt')
-            document_name: Name/title of the document
-            document_path: Path to the document
-            metadata: Additional metadata for the document
-
+            title: Document title
+            file_path: Path to the document file
+            metadata: Optional metadata dictionary
+            
         Returns:
-            ID of the inserted document
+            Document ID
         """
-        if metadata is None:
-            metadata = {}
-
         try:
             with self._get_cursor() as (conn, cursor):
+                # Use Json adapter from psycopg2.extras for proper JSONB handling
                 cursor.execute(
                     """
-                    INSERT INTO therapy_documents (therapy_type, document_name, document_path, metadata)
+                    INSERT INTO therapy_documents (therapy_type, title, file_path, metadata)
                     VALUES (%s, %s, %s, %s)
                     RETURNING id
-                """,
-                    (therapy_type.lower(), document_name, document_path, Json(metadata)),
+                    """,
+                    (therapy_type, title, file_path, Json(metadata) if metadata else None)
                 )
-
                 document_id = cursor.fetchone()[0]
                 return document_id
-
         except Exception as e:
             logger.error(f"Error adding document: {str(e)}")
             raise
 
     def add_chunks(self, document_id: int, chunks: List[Dict[str, Any]]) -> int:
-        """Add text chunks with embeddings to the store with batch processing."""
-        if not chunks:
-            return 0
-
-        # Better batch size based on GPU memory
-        BATCH_SIZE = 10 if self.gpu_layers > 0 else 5
-        total_added = 0
-
-        # Add progress indication to console
-        from tqdm import tqdm
-
-        chunk_batches = list(range(0, len(chunks), BATCH_SIZE))
-
-        with tqdm(
-            total=len(chunk_batches),
-            desc="Processing chunk batches",
-            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
-        ) as pbar:
-            for i in chunk_batches:
-                batch = chunks[i : i + BATCH_SIZE]
-                batch_texts = [chunk["text"] for chunk in batch]
-
-                try:
-                    # Pre-process texts - truncate long texts before sending to API
-                    for j, text in enumerate(batch_texts):
-                        if len(text) > 8000:
-                            logger.info(
-                                f"Text at index {j} truncated from {len(text)} to 8000 characters"
-                            )
-                            batch_texts[j] = text[:8000]
-
-                    embeddings = self._get_embeddings_batch(batch_texts)
-
-                    values = []
-                    for chunk_index, (chunk, embedding) in enumerate(
-                        zip(batch, embeddings)
-                    ):
-                        values.append(
-                            (
-                                document_id,
-                                i + chunk_index,  # Global chunk index
-                                chunk["text"][
-                                    :8000
-                                ],  # Ensure text is truncated for database
-                                embedding.tolist(),
-                                json.dumps(chunk.get("metadata", {})),
-                            )
-                        )
-
-                    with self._get_cursor() as (conn, cursor):
-                        execute_values(
-                            cursor,
-                            """
-                            INSERT INTO therapy_chunks 
-                                (document_id, chunk_index, chunk_text, embedding, metadata)
-                            VALUES %s
-                            ON CONFLICT (document_id, chunk_index) 
-                            DO UPDATE SET 
-                                chunk_text = EXCLUDED.chunk_text,
-                                embedding = EXCLUDED.embedding,
-                                metadata = EXCLUDED.metadata
-                            """,
-                            values,
-                        )
-                        total_added += len(batch)
-                        pbar.update(1)
-
-                except Exception as e:
-                    logger.error(f"Error processing batch {i//BATCH_SIZE}: {str(e)}")
-                    # Continue with next batch instead of failing completely
-                    pbar.update(1)
-                    continue
-
-        return total_added
-
-    def search_similar_chunks(
-        self,
-        query: str,
-        therapy_type: Optional[str] = None,
-        limit: int = 5,
-        min_similarity: float = 0.6,
-    ) -> List[Dict[str, Any]]:
-        """Search for chunks similar to the query with improved filtering.
-
+        """Add chunks to the vector store efficiently using execute_values.
+        
         Args:
-            query: Search query
-            therapy_type: Optional filter for therapy type ('cbt', 'dbt', or None for both)
-            limit: Maximum number of results to return
-            min_similarity: Minimum similarity threshold (0-1)
-
+            document_id: ID of the document these chunks belong to
+            chunks: List of chunk dictionaries with text and metadata
+            
         Returns:
-            List of similar chunks with similarity scores
+            Number of chunks added
         """
         try:
-            # Get query embedding
-            query_embedding = self._get_embedding(query)
-
+            processed_chunks = []
+            for i, chunk in enumerate(chunks):
+                # Generate embedding for each chunk
+                text = chunk.get("text", "")
+                if not text:
+                    continue
+                    
+                embedding = self.generate_embedding(text)
+                processed_chunks.append((
+                    document_id,
+                    text,
+                    embedding,
+                    Json(chunk.get("metadata", {})),
+                    i  # sequence number
+                ))
+            
             with self._get_cursor() as (conn, cursor):
-                # Build query based on whether therapy_type is specified
-                # Added minimum similarity threshold
-                if therapy_type:
-                    sql = """
-                        SELECT tc.chunk_text, tc.metadata, td.therapy_type, 
-                               1 - (tc.embedding <=> %s::vector) as similarity
-                        FROM therapy_chunks tc
-                        JOIN therapy_documents td ON tc.document_id = td.id
-                        WHERE td.therapy_type = %s AND 1 - (tc.embedding <=> %s::vector) > %s
-                        ORDER BY similarity DESC
-                        LIMIT %s
+                # Use execute_values for efficient bulk insertion
+                execute_values(
+                    cursor,
                     """
-                    cursor.execute(
-                        sql,
-                        (
-                            query_embedding.tolist(),
-                            therapy_type.lower(),
-                            query_embedding.tolist(),
-                            min_similarity,
-                            limit,
-                        ),
-                    )
-                else:
-                    sql = """
-                        SELECT tc.chunk_text, tc.metadata, td.therapy_type, 
-                               1 - (tc.embedding <=> %s::vector) as similarity
-                        FROM therapy_chunks tc
-                        JOIN therapy_documents td ON tc.document_id = td.id
-                        WHERE 1 - (tc.embedding <=> %s::vector) > %s
-                        ORDER BY similarity DESC
-                        LIMIT %s
-                    """
-                    cursor.execute(
-                        sql,
-                        (
-                            query_embedding.tolist(),
-                            query_embedding.tolist(),
-                            min_similarity,
-                            limit,
-                        ),
-                    )
-
-                results = []
-                for chunk_text, metadata, doc_therapy_type, similarity in cursor.fetchall():
-                    results.append(
-                        {
-                            "text": chunk_text,
-                            "therapy_type": doc_therapy_type,
-                            "metadata": metadata,
-                            "similarity": float(similarity),
-                        }
-                    )
-
-                return results
-
+                    INSERT INTO therapy_chunks 
+                    (document_id, text, embedding, metadata, sequence)
+                    VALUES %s
+                    """,
+                    processed_chunks,
+                    template="(%s, %s, %s::vector, %s, %s)"
+                )
+                
+                return len(processed_chunks)
         except Exception as e:
-            logger.error(f"Error searching similar chunks: {str(e)}")
+            logger.error(f"Error adding chunks: {str(e)}")
             raise
 
-    def determine_therapy_approach(self, query: str) -> Tuple[str, float, List[Dict]]:
-        """Determine which therapy approach (CBT or DBT) is more suitable for the query.
+    def batch_add_chunks(self, chunks_by_document: Dict[int, List[Dict[str, Any]]]) -> Dict[int, int]:
+        """Add chunks for multiple documents in efficient batches.
+        
+        Args:
+            chunks_by_document: Dictionary with document IDs as keys and chunk lists as values
+            
+        Returns:
+            Dictionary with document IDs as keys and number of chunks added as values
+        """
+        results = {}
+        for doc_id, chunks in chunks_by_document.items():
+            try:
+                chunks_added = self.add_chunks(doc_id, chunks)
+                results[doc_id] = chunks_added
+            except Exception as e:
+                logger.error(f"Error adding chunks for document {doc_id}: {str(e)}")
+                results[doc_id] = 0
+                
+        return results
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=1, max=10),
+        reraise=True
+    )
+    def search_similar_chunks(self, query: str, therapy_type: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search for chunks similar to the query with improved retrieval.
 
         Args:
-            query: User query or description of symptoms/situation
+            query: Query text
+            therapy_type: Optional filter for therapy type ('cbt' or 'dbt')
+            limit: Maximum number of chunks to return
 
         Returns:
-            Tuple of (recommended_therapy_type, confidence_score, supporting_chunks)
+            List of chunks with similarity scores
         """
-        try:
-            # Get relevant chunks from both therapy types
-            cbt_chunks = self.search_similar_chunks(query, therapy_type="cbt", limit=3)
-            dbt_chunks = self.search_similar_chunks(query, therapy_type="dbt", limit=3)
+        query_embedding = self.generate_embedding(query)
 
-            # Calculate average similarity scores
-            cbt_avg_score = (
-                sum(chunk["similarity"] for chunk in cbt_chunks) / len(cbt_chunks)
-                if cbt_chunks
-                else 0
-            )
-            dbt_avg_score = (
-                sum(chunk["similarity"] for chunk in dbt_chunks) / len(dbt_chunks)
-                if dbt_chunks
-                else 0
-            )
+        with self._get_cursor() as (_, cursor):
+            # fetch top candidates without threshold
+            sql = """
+            SELECT tc.id, tc.text, td.therapy_type,
+                   1 - (tc.embedding <=> %s::vector) AS similarity
+              FROM therapy_chunks tc
+              JOIN therapy_documents td ON tc.document_id = td.id
+             WHERE 1=1
+            """
+            params = [query_embedding]
+            if therapy_type:
+                sql += " AND td.therapy_type = %s"
+                params.append(therapy_type)
+            sql += " ORDER BY similarity DESC LIMIT %s"
+            params.append(self.max_retrieval_count * 2)
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
 
-            # Determine which approach has higher relevance
-            if cbt_avg_score > dbt_avg_score:
-                recommended_therapy = "cbt"
-                confidence = cbt_avg_score
-                supporting_chunks = cbt_chunks
+        # compute quantile threshold
+        sims = [row[3] for row in rows]
+        if sims:
+            sims_sorted = sorted(sims, reverse=True)
+            idx = max(0, min(len(sims_sorted)-1, int(len(sims_sorted) * self.similarity_quantile)))
+            threshold_quantile = sims_sorted[idx]
+        else:
+            threshold_quantile = self.similarity_threshold
+
+        # choose stronger of global vs quantile
+        base_threshold = max(self.similarity_threshold, threshold_quantile)
+
+        # filter by per-therapy cutoff
+        filtered = []
+        for id, text, ttype, sim in rows:
+            cutoff = self.similarity_threshold_cbt if ttype=="cbt" else self.similarity_threshold_dbt
+            if sim >= max(base_threshold, cutoff):
+                filtered.append((id, text, ttype, sim))
+
+        # limit and format results
+        results = []
+        for id, text, ttype, sim in filtered[:limit]:
+            results.append({"id": id, "text": text, "therapy_type": ttype, "similarity": sim})
+        return results
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=1, max=5),
+        reraise=True
+    )
+    def _keyword_search(self, query: str, therapy_type: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+        """Perform keyword-based search as complement to vector search."""
+        # Extract keywords from query
+        keywords = self._extract_keywords(query)
+        if not keywords:
+            return []
+
+        keyword_conditions = ' | '.join(keywords)
+
+        with self._get_cursor() as (_, cursor):
+            sql = """
+            SELECT 
+                tc.id,
+                tc.text,
+                tc.document_id,
+                tc.metadata,
+                td.therapy_type,
+                ts_rank_cd(to_tsvector('english', tc.text), to_tsquery('english', %s)) AS rank
+            FROM therapy_chunks tc
+            JOIN therapy_documents td ON tc.document_id = td.id
+            WHERE to_tsvector('english', tc.text) @@ to_tsquery('english', %s)
+            """
+
+            params = [keyword_conditions, keyword_conditions]
+
+            if therapy_type:
+                sql += " AND td.therapy_type = %s"
+                params.append(therapy_type)
+
+            sql += " ORDER BY rank DESC LIMIT %s"
+            params.append(limit * 2)  # Get more for better merging
+
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+            results = []
+            for row in rows:
+                chunk_id, text, doc_id, metadata, therapy_type, rank = row
+                # Scale rank to 0-1 range similar to cosine similarity
+                scaled_similarity = min(rank / 10.0, 1.0)  # Normalize rank score
+
+                result = {
+                    "id": chunk_id,
+                    "text": text,
+                    "document_id": doc_id,
+                    "therapy_type": therapy_type,
+                    "similarity": scaled_similarity,
+                    "metadata": metadata or {},
+                    "source": "keyword"
+                }
+                results.append(result)
+
+            return results
+
+    def _extract_keywords(self, query: str) -> List[str]:
+        """Extract meaningful keywords from query for text search."""
+        # Remove stopwords and get meaningful terms
+        stop_words = {'a', 'an', 'the', 'and', 'or', 'but', 'if', 'because', 'as', 'what', 
+                     'when', 'where', 'how', 'i', 'you', 'he', 'she', 'we', 'they', 'it', 'to', 'in',
+                     'for', 'with', 'feel', 'feeling', 'felt', 'am', 'is', 'are', 'was', 'were', 'be'}
+
+        # Normalize and tokenize
+        words = re.findall(r'\b[a-z]{3,}\b', query.lower())
+        keywords = [word for word in words if word not in stop_words]
+
+        # Add word combinations for phrases (bigrams)
+        tokens = query.lower().split()
+        bigrams = []
+        for i in range(len(tokens) - 1):
+            w1 = tokens[i]
+            w2 = tokens[i + 1]
+            if len(w1) > 2 and len(w2) > 2 and w1 not in stop_words and w2 not in stop_words:
+                bigrams.append(f"{w1} <-> {w2}")
+
+        return keywords + bigrams[:3]  # Limit bigrams to avoid query complexity
+
+    def _merge_search_results(self, vector_results: List[Dict], keyword_results: List[Dict]) -> List[Dict]:
+        """Merge vector and keyword search results with weighted scoring."""
+        # Create map of existing results by ID
+        result_map = {r["id"]: r for r in vector_results}
+
+        # Process keyword results
+        for kr in keyword_results:
+            if kr["id"] in result_map:
+                # Existing result - blend the scores with weights
+                existing = result_map[kr["id"]]
+                vector_score = existing["similarity"] * self.semantic_weight
+                keyword_score = kr["similarity"] * self.keyword_weight
+                existing["similarity"] = vector_score + keyword_score
+                existing["hybrid_score"] = True
             else:
-                recommended_therapy = "dbt"
-                confidence = dbt_avg_score
-                supporting_chunks = dbt_chunks
+                # New result - scale the keyword score
+                kr["similarity"] = kr["similarity"] * self.keyword_weight
+                kr["hybrid_score"] = True
+                result_map[kr["id"]] = kr
 
-            return recommended_therapy, confidence, supporting_chunks
+        # Convert back to list and sort
+        merged_results = list(result_map.values())
+        merged_results.sort(key=lambda x: x["similarity"], reverse=True)
+
+        return merged_results
+
+    def _rerank_results(self, query: str, results: List[Dict]) -> List[Dict]:
+        """Rerank results using more sophisticated factors."""
+        if not results:
+            return results
+
+        # We'll implement a simple but effective reranking
+        # 1. Extract key terms from the query
+        query_terms = set(self._extract_keywords(query.lower()))
+        if not query_terms:
+            return results
+
+        # 2. For each result, calculate term overlap and adjust scores
+        for result in results:
+            text = result["text"].lower()
+
+            # Calculate term density
+            term_matches = sum(1 for term in query_terms if term in text)
+            term_density = term_matches / max(1, len(query_terms))
+
+            # Check for paragraph structure and readability
+            sentences = len(re.findall(r'[.!?]\s', text))
+            readability_score = min(sentences / 20.0, 1.0)  # More sentences = more complete info
+
+            # Combine original similarity with our new factors
+            original_score = result["similarity"]
+            result["similarity"] = original_score * 0.7 + term_density * 0.2 + readability_score * 0.1
+
+        # Re-sort based on adjusted scores
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        return results
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=1, max=5),
+        reraise=True
+    )
+    def determine_therapy_approach(self, query: str) -> Tuple[str, float, List[Dict]]:
+        """Determine which therapy approach is most appropriate with weighted voting.
+
+        Args:
+            query: User's query
+
+        Returns:
+            Tuple of (therapy_type, confidence_score, supporting_chunks)
+        """
+        # Get relevant chunks from both therapy types
+        try:
+            similar_chunks = self.search_similar_chunks(query, limit=5)
+
+            if not similar_chunks:
+                return "unknown", 0.0, []
+
+            # Calculate weighted votes for each therapy type
+            votes = {"cbt": 0.0, "dbt": 0.0}
+
+            # Filter chunks with low similarity
+            quality_chunks = [c for c in similar_chunks if c["similarity"] >= self.similarity_threshold]
+
+            if not quality_chunks:
+                # Fall back to best matches even if below threshold
+                quality_chunks = similar_chunks[:2]
+
+            # Calculate total similarity for normalization
+            total_similarity = sum(chunk["similarity"] for chunk in quality_chunks)
+
+            if total_similarity == 0:
+                return "unknown", 0.0, []
+
+            # Weighted voting based on similarity scores
+            for chunk in quality_chunks:
+                therapy = chunk["therapy_type"].lower()
+                if therapy in votes:
+                    # Weight vote by normalized similarity
+                    votes[therapy] += chunk["similarity"] / total_similarity
+
+            # Determine winner and calculate confidence
+            cbt_score = votes.get("cbt", 0.0)
+            dbt_score = votes.get("dbt", 0.0)
+
+            if cbt_score > dbt_score:
+                therapy_type = "cbt"
+                # Calculate confidence - adjusted for stronger distinction
+                raw_confidence = cbt_score / max(cbt_score + dbt_score, 1.0)
+                confidence = self._calibrate_confidence(raw_confidence, cbt_score, dbt_score)
+            else:
+                therapy_type = "dbt"
+                raw_confidence = dbt_score / max(cbt_score + dbt_score, 1.0)
+                confidence = self._calibrate_confidence(raw_confidence, dbt_score, cbt_score)
+
+            # Return with supporting chunks of the selected therapy
+            supporting_chunks = [c for c in quality_chunks if c["therapy_type"].lower() == therapy_type]
+
+            return therapy_type, confidence, supporting_chunks
 
         except Exception as e:
-            logger.error(f"Error determining therapy approach: {str(e)}")
-            return "unknown", 0.0, []
+            logger.error(f"Error determining therapy approach: {str(e)}", exc_info=True)
+            # More robust error handling with retry
+            raise
+
+    def _calibrate_confidence(self, raw_confidence: float, winner_score: float, loser_score: float) -> float:
+        """Calibrate confidence scores to be more realistic and less overconfident."""
+        # Apply sigmoid-like scaling to make confidence distribution more useful
+        margin = winner_score - loser_score
+
+        # Small margins should reduce confidence
+        if margin < 0.1:
+            return max(0.5, raw_confidence * 0.8)
+        elif margin < 0.3:
+            return min(0.9, raw_confidence * 1.1) 
+        else:
+            # Large margins can be more confident
+            return min(0.95, raw_confidence * 1.2)
 
 
 # Create instance for easy import

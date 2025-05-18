@@ -36,7 +36,14 @@ urlpatterns = [
 
 # Example request body for the send_message endpoint
 # POST request to /api/v1/chatbot/9/send_message/
-# JSON body:
+# JSON body (simple format):
 # {
 #   "content": "Hello, can you help me with my anxiety?"
+# }
+#
+# OR JSON body (structured format):
+# {
+#   "user_message": {
+#     "content": "Hello, can you help me with my anxiety?"
+#   }
 # }

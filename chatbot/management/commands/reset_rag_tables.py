@@ -301,6 +301,15 @@ class Command(BaseCommand):
                 )
             )
 
+            # Recreate vector store tables with updated embedding dimension
+            self.stdout.write("Recreating RAG vector store tables...")
+            try:
+                from chatbot.services.rag.vector_store import vector_store
+                vector_store._setup_vector_store()
+                self.stdout.write(self.style.SUCCESS("Vector store tables recreated successfully!"))
+            except Exception as e:
+                self.stderr.write(self.style.ERROR(f"Error recreating vector store tables: {str(e)}"))
+
             # Cancel the alarm since we completed successfully
             signal.alarm(0)
 

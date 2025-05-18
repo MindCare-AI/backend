@@ -43,8 +43,12 @@ class PDFExtractor:
             logger.info("To install the spaCy model, run: python manage.py download_spacy_model")
         
         self.max_workers = min(2, os.cpu_count() or 2)  # Limit workers to reduce memory usage
-        # simple in-memory cache for OCRed pages
+        # Improved cache with size limit to prevent memory issues
         self.ocr_cache: Dict[str, str] = {}
+        self.max_cache_size = 50  # Maximum number of pages to cache
+        # OCR quality settings
+        self.ocr_min_text_threshold = 50  # Minimum character count to consider embedded text sufficient
+        self.ocr_resolution = 300  # DPI for OCR
 
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """Extract text from a PDF file using pdfplumber, with OCR fallback.
@@ -63,26 +67,93 @@ class PDFExtractor:
         try:
             text_content = []
             with pdfplumber.open(pdf_path) as pdf:
+                total_pages = len(pdf.pages)
                 for i, page in enumerate(pdf.pages):
-                    text = page.extract_text() or ""
-                    # if embedded text is too short, run OCR
-                    if len(text.strip()) < 50:
+                    # Try to extract text directly first
+                    try:
+                        text = page.extract_text() or ""
+                    except Exception as e:
+                        logger.warning(f"Error extracting text from page {i+1}/{total_pages}: {e}")
+                        text = ""
+
+                    # Check if text is sufficient or needs OCR
+                    if len(text.strip()) < self.ocr_min_text_threshold:
                         cache_key = f"{pdf_path}::page_{i}"
                         if cache_key in self.ocr_cache:
                             ocr_text = self.ocr_cache[cache_key]
+                            logger.debug(f"Using cached OCR for page {i+1}/{total_pages}")
                         else:
-                            img = page.to_image(resolution=300).original
-                            ocr_text = pytesseract.image_to_string(img)
-                            self.ocr_cache[cache_key] = ocr_text
-                        text = ocr_text or text
+                            try:
+                                # Get page image
+                                img = page.to_image(resolution=self.ocr_resolution).original
+                                
+                                # Try different orientations if needed (detect rotation)
+                                ocr_text = self._process_image_with_ocr(img)
+                                
+                                # Manage cache size
+                                if len(self.ocr_cache) >= self.max_cache_size:
+                                    # Remove a random item if cache is full
+                                    self.ocr_cache.pop(next(iter(self.ocr_cache)))
+                                
+                                # Store in cache
+                                self.ocr_cache[cache_key] = ocr_text
+                                logger.debug(f"OCR completed for page {i+1}/{total_pages}")
+                            
+                            except Exception as ocr_error:
+                                logger.error(f"OCR failed for page {i+1}/{total_pages}: {ocr_error}")
+                                ocr_text = ""
+                                
+                        text = ocr_text if ocr_text else text
+                    
+                    # Add page number for better context
                     if text:
-                        text_content.append(text)
-
-            return "\n".join(text_content)
+                        text_with_page = f"[Page {i+1}]\n{text}"
+                        text_content.append(text_with_page)
+                        
+            return "\n\n".join(text_content)
 
         except Exception as e:
             logger.error(f"Error extracting text from PDF {pdf_path}: {str(e)}")
             raise
+
+    def _process_image_with_ocr(self, img) -> str:
+        """Process an image with OCR, trying different orientations if needed.
+        
+        Args:
+            img: The image to process
+            
+        Returns:
+            Extracted text
+        """
+        # First try with default orientation
+        text = pytesseract.image_to_string(img)
+        
+        # If very little text is found, try other orientations
+        if len(text.strip()) < 20:
+            try:
+                from PIL import Image
+                import numpy as np
+                
+                # Convert to numpy array for rotation
+                img_array = np.array(img)
+                
+                # Try 90 degree rotation
+                rotated_img = Image.fromarray(np.rot90(img_array))
+                rotated_text = pytesseract.image_to_string(rotated_img)
+                
+                # Use the text with more content
+                if len(rotated_text.strip()) > len(text.strip()):
+                    text = rotated_text
+                    
+            except ImportError:
+                logger.warning("PIL or numpy not available for image rotation")
+                
+        # Set tesseract custom config for better extraction
+        custom_config = r'--oem 3 --psm 1'  # Automatic page segmentation with orientation and script detection
+        improved_text = pytesseract.image_to_string(img, config=custom_config)
+        
+        # Return the better result
+        return improved_text if len(improved_text.strip()) > len(text.strip()) else text
 
     def clean_text(self, text: str) -> str:
         """Clean extracted text to remove artifacts and normalize formatting.

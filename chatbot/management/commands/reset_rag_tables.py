@@ -72,7 +72,7 @@ class Command(BaseCommand):
             sys.exit(1)
 
         # Register the timeout handler
-        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.signal(signal.SIGABR, timeout_handler)
         signal.alarm(hard_timeout)
 
         conn = None

@@ -6,7 +6,7 @@ django-cors-headers
 dj-rest-auth
 drf-spectacular
 psycopg2-binary
-python-magic-bin
+python-magic
 python-dotenv
 channels
 channels-redis

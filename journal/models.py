@@ -13,6 +13,8 @@ class JournalCategory(models.Model):
         on_delete=models.CASCADE,
         related_name="journal_categories",
     )
+    color = models.CharField(max_length=20, default="#4287f5")  # Add this
+    icon = models.CharField(max_length=50, null=True, blank=True)  # Add this
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -107,12 +107,19 @@ class CommentSerializer(serializers.ModelSerializer):
         return obj.author.get_full_name() or obj.author.username
 
     def get_author_profile_pic(self, obj):
-        if hasattr(obj.author, "profile") and hasattr(
-            obj.author.profile, "profile_image"
-        ):
-            if obj.author.profile.profile_image:
-                return obj.author.profile.profile_image.url
-        return None
+        user = obj.author
+        url = None
+        if hasattr(user, "patient_profile") and getattr(user.patient_profile, "profile_pic", None):
+            url = user.patient_profile.profile_pic.url
+        elif hasattr(user, "profile") and getattr(user.profile, "profile_image", None):
+            url = user.profile.profile_image.url
+        elif hasattr(user, "therapist_profile") and getattr(user.therapist_profile, "profile_picture", None):
+            url = user.therapist_profile.profile_picture.url
+        elif hasattr(user, "profile_picture") and user.profile_picture:
+            url = user.profile_picture.url
+        if url and self.context.get("request"):
+            url = self.context["request"].build_absolute_uri(url)
+        return url
 
     def get_reactions_count(self, obj):
         return obj.reactions_count
@@ -209,12 +216,19 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.author.get_full_name() or obj.author.username
 
     def get_author_profile_pic(self, obj):
-        if hasattr(obj.author, "profile") and hasattr(
-            obj.author.profile, "profile_image"
-        ):
-            if obj.author.profile.profile_image:
-                return obj.author.profile.profile_image.url
-        return None
+        user = obj.author
+        url = None
+        if hasattr(user, "patient_profile") and getattr(user.patient_profile, "profile_pic", None):
+            url = user.patient_profile.profile_pic.url
+        elif hasattr(user, "profile") and getattr(user.profile, "profile_image", None):
+            url = user.profile.profile_image.url
+        elif hasattr(user, "therapist_profile") and getattr(user.therapist_profile, "profile_picture", None):
+            url = user.therapist_profile.profile_picture.url
+        elif hasattr(user, "profile_picture") and user.profile_picture:
+            url = user.profile_picture.url
+        if url and self.context.get("request"):
+            url = self.context["request"].build_absolute_uri(url)
+        return url
 
     def create(self, validated_data):
         file = validated_data.pop("file", None)

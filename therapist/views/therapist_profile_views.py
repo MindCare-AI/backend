@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from therapist.models.therapist_profile import TherapistProfile
-from therapist.serializers.therapist_profile import TherapistProfileSerializer
+from therapist.serializers.therapist_profile import TherapistProfileSerializer, TherapistProfilePublicSerializer
 from therapist.serializers.verification import (
     TherapistVerificationSerializer,
     VerificationStatusSerializer,
@@ -28,6 +28,7 @@ from django.core.cache import cache
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.exceptions import ValidationError
 from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
@@ -424,11 +425,8 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             )
 
 
-class PublicTherapistListView(generics.ListAPIView):
-    """
-    Lists all verified therapist profiles.
-    """
-
-    queryset = TherapistProfile.objects.filter(is_verified=True)
-    serializer_class = TherapistProfileSerializer
-    permission_classes = [permissions.AllowAny]
+class PublicTherapistListView(APIView):
+    def get(self, request):
+        therapists = TherapistProfile.objects.filter(is_verified=True)
+        serializer = TherapistProfilePublicSerializer(therapists, many=True, context={'include_availability': True})
+        return Response(serializer.data)

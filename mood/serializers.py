@@ -17,6 +17,7 @@ class MoodLogSerializer(serializers.ModelSerializer):
             "mood_rating",
             "energy_level",
             "activities",
+            "notes",  # Add this
             "journal_entry_id",
             "is_journaled",
             "logged_at",

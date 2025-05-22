@@ -47,13 +47,32 @@ class MoodLogViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = MoodLog.objects.filter(user=self.request.user)
 
-        # Date range filtering using 'logged_at' instead of 'timestamp'
+        # Date range filtering
         start_date = self.request.query_params.get("start_date")
         end_date = self.request.query_params.get("end_date")
         if start_date:
             queryset = queryset.filter(logged_at__gte=start_date)
         if end_date:
             queryset = queryset.filter(logged_at__lte=end_date)
+
+        # Mood rating range filtering
+        min_rating = self.request.query_params.get("minRating")
+        max_rating = self.request.query_params.get("maxRating")
+        if min_rating:
+            queryset = queryset.filter(mood_rating__gte=min_rating)
+        if max_rating:
+            queryset = queryset.filter(mood_rating__lte=max_rating)
+
+        # Activities filtering (comma-separated)
+        activities = self.request.query_params.get("activities")
+        if activities:
+            activity_list = [a.strip() for a in activities.split(",") if a.strip()]
+            queryset = queryset.filter(activities__in=activity_list)
+
+        # Search text in notes
+        search_text = self.request.query_params.get("searchText")
+        if search_text:
+            queryset = queryset.filter(notes__icontains=search_text)
 
         return queryset
 

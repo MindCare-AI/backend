@@ -3,6 +3,7 @@ from django.urls import path
 from .views.one_to_one import OneToOneConversationViewSet, OneToOneMessageViewSet
 from .views.group import GroupConversationViewSet, GroupMessageViewSet
 from .views.offline import OfflineMessageSyncView
+from messaging.views.all_conversations import AllConversationsView
 
 urlpatterns = [
     # ==============================
@@ -145,5 +146,11 @@ urlpatterns = [
     # ==============================
     path(
         "offline/messages/", OfflineMessageSyncView.as_view(), name="offline_messages"
+    ),
+    # ==============================
+    # All Conversations Endpoint
+    # ==============================
+    path(
+        "all/", AllConversationsView.as_view(), name="all_conversations"
     ),
 ]

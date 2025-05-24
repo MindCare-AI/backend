@@ -11,9 +11,6 @@ from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 
-# Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
-# • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
-# • extend_schema_view: Applies common schema settings to all view methods of a viewset.
 from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,

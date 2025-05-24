@@ -403,20 +403,55 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        """Get group conversation with cache handling"""
-        conversation_id = kwargs.get("pk")
-        cache_key = f"group_conversation_{conversation_id}"
+        """Get group conversation with messages and participants"""
+        try:
+            # Get the conversation instance
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            response_data = serializer.data
 
-        # Try to get from cache first
-        cached_conversation = cache.get(cache_key)
-        if cached_conversation:
-            return Response(cached_conversation)
+            # Add participant information
+            participants = instance.participants.all()
+            response_data["participants_details"] = [
+                {
+                    "id": participant.id,
+                    "username": participant.username,
+                    "first_name": participant.first_name,
+                    "last_name": participant.last_name,
+                    "email": participant.email,
+                }
+                for participant in participants
+            ]
 
-        response = super().retrieve(request, *args, **kwargs)
+            # Get messages for this conversation
+            messages = instance.messages.all().order_by("timestamp")
+            message_serializer = GroupMessageSerializer(messages, many=True)
+            response_data["messages"] = message_serializer.data
 
-        # Cache the response for 30 minutes (groups change more often than 1-1 chats)
-        cache.set(cache_key, response.data, timeout=1800)
-        return response
+            # Mark unread messages as read
+            unread_messages = [
+                message
+                for message in messages
+                if message.sender != request.user
+                and request.user not in message.read_by.all()
+            ]
+            for message in unread_messages:
+                message.read_by.add(request.user)
+
+            # Only cache response data without messages to avoid stale message data
+            cache_key = f"group_conversation_{instance.id}_basic"
+            basic_data = dict(response_data)
+            basic_data.pop("messages", None)
+            cache.set(cache_key, basic_data, timeout=1800)
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving group conversation: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["get"], url_path="search_messages")
     def search_messages(self, request):
@@ -495,7 +530,7 @@ class GroupMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelViewSet
         """Filter messages to include only those in groups the user participates in."""
         user = self.request.user
         return GroupMessage.objects.filter(conversation__participants=user).order_by(
-            "-timestamp"
+            "timestamp"  # Changed from "-timestamp" to ascending order
         )
 
     def perform_create(self, serializer):

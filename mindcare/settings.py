@@ -442,9 +442,13 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-# WebSocket specific settings
-# WEBSOCKET_URL = os.getenv('WEBSOCKET_URL', 'ws://localhost:8000')
-# WEBSOCKET_ALLOWED_ORIGINS = os.getenv('WEBSOCKET_ALLOWED_ORIGINS', '').split(',')
+# WebSocket Configuration - Updated for better stability
+WEBSOCKET_URL = os.getenv('WEBSOCKET_URL', 'ws://localhost:8000')
+WEBSOCKET_ALLOWED_ORIGINS = os.getenv('WEBSOCKET_ALLOWED_ORIGINS', '').split(',')
+WEBSOCKET_HEARTBEAT_INTERVAL = 45  # Increased from 30 to 45 seconds
+WEBSOCKET_STALE_THRESHOLD = 300   # Increased from 120 to 300 seconds (5 minutes)
+WEBSOCKET_CLEANUP_INTERVAL = 600  # Increased from 300 to 600 seconds (10 minutes)
+WEBSOCKET_MAX_CONNECTIONS_PER_USER = 5
 
 # JWT settings for WebSocket authentication
 SIMPLE_JWT = {

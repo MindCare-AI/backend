@@ -19,6 +19,7 @@ from ..serializers.user import (
     UserSerializer,
     UserTypeSerializer,
     UserRegistrationSerializer,
+    UserListSerializer,  # Add this import
 )
 
 from rest_framework.decorators import api_view, permission_classes, renderer_classes
@@ -85,6 +86,8 @@ class UserListView(ListAPIView):
     ),
 )
 class CustomUserViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]  # Add permission class
+    
     def list(self, request):
         return Response({"message": "List of users"})
 
@@ -93,6 +96,26 @@ class CustomUserViewSet(viewsets.ViewSet):
 
     def update_preferences(self, request, pk=None):
         return Response({"message": f"Update preferences for user {pk}"})
+
+    @extend_schema(
+        description="List all users with basic information",
+        summary="List All Users",
+        tags=["User"],
+        responses={200: UserListSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], url_path="list-all")
+    def list_all_users(self, request):
+        """Get a list of all users with basic information."""
+        try:
+            users = CustomUser.objects.all().order_by("username")
+            serializer = UserListSerializer(users, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error fetching user list: {str(e)}")
+            return Response(
+                {"error": "Failed to fetch user list"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -235,7 +258,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class SetUserTypeView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]  # Changed from CanSetUserType
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
         user_type_choices = {
@@ -251,19 +274,34 @@ class SetUserTypeView(viewsets.ViewSet):
 
     def create(self, request):
         user = request.user
-        # Add a check to prevent changing user_type if already set
+
+        # Check if user_type is already set (optional: remove if you want to allow changes)
         if user.user_type and not user.is_superuser:
             return Response(
                 {"error": "User type can only be set once"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Import the updated serializer
+        from ..serializers.user import UserTypeSerializer
+
         serializer = UserTypeSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {"message": "User type updated successfully"}, status=status.HTTP_200_OK
-            )
+            try:
+                serializer.save()
+                return Response(
+                    {
+                        "message": "User type updated successfully",
+                        "user_type": user.user_type,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except Exception as e:
+                logger.error(f"Error setting user type: {str(e)}", exc_info=True)
+                return Response(
+                    {"error": f"Failed to set user type: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

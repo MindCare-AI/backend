@@ -1,6 +1,7 @@
 # messaging/consumers.py
 import json
 import logging
+import asyncio
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
@@ -8,16 +9,67 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from messaging.models.one_to_one import OneToOneMessage
 from messaging.models.group import GroupMessage
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-class ChatConsumer(AsyncWebsocketConsumer):
+class BaseWebSocketConsumer(AsyncWebsocketConsumer):
+    """Base WebSocket consumer with common functionality"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conversation_groups = set()
+
+    async def get_user_conversation_groups(self):
+        """Get all conversation groups the user participates in"""
+        try:
+            user_groups = []
+
+            # Get one-to-one conversations
+            from messaging.models.one_to_one import OneToOneConversation
+
+            one_to_one_convos = await self.get_user_one_to_one_conversations()
+            for convo in one_to_one_convos:
+                user_groups.append(f"conversation_{convo.id}")
+
+            # Get group conversations
+            from messaging.models.group import GroupConversation
+
+            group_convos = await self.get_user_group_conversations()
+            for convo in group_convos:
+                user_groups.append(f"conversation_{convo.id}")
+
+            return user_groups
+        except Exception as e:
+            logger.error(f"Error getting user conversation groups: {str(e)}")
+            return []
+
+    @database_sync_to_async
+    def get_user_one_to_one_conversations(self):
+        """Get user's one-to-one conversations"""
+        from messaging.models.one_to_one import OneToOneConversation
+
+        return list(OneToOneConversation.objects.filter(participants=self.user))
+
+    @database_sync_to_async
+    def get_user_group_conversations(self):
+        """Get user's group conversations"""
+        from messaging.models.group import GroupConversation
+
+        return list(GroupConversation.objects.filter(participants=self.user))
+
+
+class ChatConsumer(BaseWebSocketConsumer):
     """
     WebSocket consumer for handling real-time messaging.
     Supports both one-to-one and group conversations.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conversation_groups = set()
 
     async def connect(self):
         """Handle WebSocket connection"""
@@ -28,33 +80,38 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.conversation_group_name = f"conversation_{self.conversation_id}"
             self.user_group_name = f"user_{self.user.id}"
 
+            # Setup heartbeat monitoring with more lenient settings
+            self.last_ping = timezone.now()
+            self.heartbeat_interval = getattr(settings, "WEBSOCKET_HEARTBEAT_INTERVAL", 30)
+            self.heartbeat_task = None
+
             # Check if user is anonymous
             if self.user.is_anonymous:
-                logger.warning(
-                    f"Anonymous user tried to connect to {self.conversation_group_name}"
-                )
+                logger.warning(f"Anonymous user tried to connect to {self.conversation_group_name}")
                 await self.close()
                 return
 
             # Validate user's access to the conversation
             has_access = await self.check_conversation_access()
             if not has_access:
-                logger.warning(
-                    f"User {self.user.id} tried to access unauthorized conversation {self.conversation_id}"
-                )
+                logger.warning(f"User {self.user.id} tried to access unauthorized conversation {self.conversation_id}")
                 await self.close()
                 return
 
             # Add to conversation group
-            await self.channel_layer.group_add(
-                self.conversation_group_name, self.channel_name
-            )
+            await self.channel_layer.group_add(self.conversation_group_name, self.channel_name)
 
             # Add to user-specific group for private notifications
             await self.channel_layer.group_add(self.user_group_name, self.channel_name)
 
             # Accept the connection
             await self.accept()
+
+            # Start heartbeat task with error handling
+            try:
+                self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
+            except Exception as e:
+                logger.error(f"Failed to start heartbeat task: {str(e)}")
 
             # Notify about user presence
             await self.channel_layer.group_send(
@@ -70,9 +127,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Update user's online status
             await self.update_user_status(True)
 
-            logger.info(
-                f"User {self.user.id} connected to conversation {self.conversation_id}"
-            )
+            logger.info(f"User {self.user.id} connected to conversation {self.conversation_id}")
 
         except Exception as e:
             logger.error(f"Error in connect: {str(e)}", exc_info=True)
@@ -81,10 +136,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection"""
         try:
+            # Cancel the heartbeat task if it exists
+            if hasattr(self, "heartbeat_task") and self.heartbeat_task:
+                self.heartbeat_task.cancel()
+                try:
+                    await self.heartbeat_task  # Await cancellation to ensure cleanup
+                except asyncio.CancelledError:
+                    pass
+
             # Leave conversation group
-            await self.channel_layer.group_discard(
-                self.conversation_group_name, self.channel_name
-            )
+            if hasattr(self, "conversation_group_name"):
+                await self.channel_layer.group_discard(
+                    self.conversation_group_name, self.channel_name
+                )
 
             # Leave user-specific group
             if hasattr(self, "user_group_name"):
@@ -97,28 +161,42 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.update_user_status(False)
 
                 # Notify about user going offline
-                await self.channel_layer.group_send(
-                    self.conversation_group_name,
-                    {
-                        "type": "user_offline",
-                        "user_id": str(self.user.id),
-                        "username": self.user.username,
-                        "timestamp": timezone.now().isoformat(),
-                    },
-                )
+                if hasattr(self, "conversation_group_name"):
+                    await self.channel_layer.group_send(
+                        self.conversation_group_name,
+                        {
+                            "type": "user_offline",
+                            "user_id": str(self.user.id),
+                            "username": self.user.username,
+                            "timestamp": timezone.now().isoformat(),
+                        },
+                    )
 
                 logger.info(
-                    f"User {self.user.id} disconnected from conversation {self.conversation_id}"
+                    f"User {self.user.id} disconnected from conversation {getattr(self, 'conversation_id', 'unknown')}"
                 )
 
         except Exception as e:
             logger.error(f"Error in disconnect: {str(e)}", exc_info=True)
 
     async def receive(self, text_data):
-        """Handle incoming WebSocket data"""
+        """Handle incoming WebSocket data with improved heartbeat handling"""
         try:
             data = json.loads(text_data)
             message_type = data.get("type", "")
+
+            # Update last ping time for any received message
+            self.last_ping = timezone.now()
+
+            # Handle heartbeat/ping messages
+            if message_type in ["ping", "pong", "heartbeat"]:
+                # Respond to client pings
+                if message_type == "ping":
+                    await self.send(text_data=json.dumps({"type": "pong"}))
+                return
+            elif message_type == "reconnect":
+                await self.send(text_data=json.dumps({"type": "reconnect_ack", "success": True}))
+                return
 
             # Handle different message types
             if message_type == "message":
@@ -136,6 +214,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
             logger.error("Invalid JSON received")
         except Exception as e:
             logger.error(f"Error in receive: {str(e)}", exc_info=True)
+
+    async def send_heartbeat(self):
+        """Send periodic heartbeats with improved error handling"""
+        try:
+            while True:
+                await asyncio.sleep(self.heartbeat_interval)
+
+                # Check if connection is stale - more lenient timeout
+                time_since_last_ping = (timezone.now() - self.last_ping).total_seconds()
+                max_stale_time = self.heartbeat_interval * 5  # Increased tolerance
+
+                if time_since_last_ping > max_stale_time:
+                    logger.info(f"Connection idle for user {self.user.id} ({time_since_last_ping}s), sending heartbeat")
+
+                # Always send heartbeat, don't close for missing responses
+                try:
+                    await self.send(text_data=json.dumps({"type": "heartbeat"}))
+                except Exception as send_error:
+                    logger.error(f"Failed to send heartbeat: {str(send_error)}")
+                    # Break the loop if we can't send, connection is likely dead
+                    break
+
+        except asyncio.CancelledError:
+            logger.debug("Heartbeat task cancelled normally")
+        except Exception as e:
+            logger.error(f"Error in heartbeat task: {str(e)}")
 
     async def handle_new_message(self, data):
         """Handle a new message event"""

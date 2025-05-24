@@ -102,11 +102,15 @@ class BaseMessage(models.Model):
 
     class Meta:
         abstract = True
-        ordering = ["-timestamp"]
+        ordering = ["timestamp"]  # Changed from ["-timestamp"] to ascending order
         indexes = [
-            models.Index(fields=["-timestamp"]),
-            models.Index(fields=["sender", "-timestamp"]),
-            models.Index(fields=["message_type", "-timestamp"]),
+            models.Index(fields=["timestamp"]),  # Changed from ["-timestamp"]
+            models.Index(
+                fields=["sender", "timestamp"]
+            ),  # Changed from ["sender", "-timestamp"]
+            models.Index(
+                fields=["message_type", "timestamp"]
+            ),  # Changed from ["message_type", "-timestamp"]
         ]
 
     def soft_delete(self, deleted_by_user):

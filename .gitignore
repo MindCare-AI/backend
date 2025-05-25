@@ -14,7 +14,7 @@ logs/
 # Database files
 *.sqlite3
 
- 
+.env
 rag_data/
 # Static and media files
 staticfiles/

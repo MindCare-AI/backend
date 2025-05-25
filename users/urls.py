@@ -55,5 +55,9 @@ urlpatterns = [
     ),
     path("search/", UserViewSet.as_view({"get": "search"}), name="user-search"),
     path("me/", me, name="user-me"),
-    path('list-all/', CustomUserViewSet.as_view({'get': 'list_all_users'}), name='user-list-all'),
+    path(
+        "list-all/",
+        CustomUserViewSet.as_view({"get": "list_all_users"}),
+        name="user-list-all",
+    ),
 ]

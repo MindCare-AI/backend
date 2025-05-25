@@ -1,9 +1,9 @@
 # chatbot/services/chatbot_service.py
 from typing import Dict, Any
 import logging
-from django.conf import settings
 import re
 import requests
+from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 from AI_engine.services.conversation_summary import conversation_summary_service
@@ -20,7 +20,7 @@ class ChatbotService:
 
     SENSITIVE_CONTENT_CATEGORIES = [
         "hate_speech",
-        "self_harm",
+        "self_harm", 
         "violence",
         "sexual_content",
         "harassment",
@@ -46,28 +46,28 @@ Follow these rules strictly:
 
     FEW_SHOT_EXAMPLES = """\
 ### Example 1
-USER: “I have racing thoughts and can’t focus on work.”
+USER: "I have racing thoughts and can't focus on work."
 ASSISTANT:
 1. Overview of CBT  
    CBT (Cognitive Behavioral Therapy) focuses on identifying and challenging cognitive distortions.  
 2. Key Principles: • Cognitive Distortions • Behavioral Activation  
 3. Technique Steps:  
    1. Keep a thought record when you notice racing thoughts.  
-   2. Schedule a 5-minute focused “work sprint” followed by a reward break.  
+   2. Schedule a 5-minute focused "work sprint" followed by a reward break.  
 4. Closing Statement  
-   You’re making progress by noticing patterns—keep practicing these steps!
+   You're making progress by noticing patterns—keep practicing these steps!
 
 ### Example 2
-USER: “I feel overwhelmed by intense emotions and don’t know what to do.”
+USER: "I feel overwhelmed by intense emotions and don't know what to do."
 ASSISTANT:
 1. Overview of DBT  
    DBT (Dialectical Behavior Therapy) combines acceptance and change strategies to regulate emotions.  
 2. Key Principles: • Distress Tolerance • Emotion Regulation  
 3. Technique Steps:  
    1. Use TIPP: Temperature, Intense exercise, Paced breathing, Progressive relaxation.  
-   2. Practice “wise mind” mindfulness for 2 minutes when emotions surge.  
+   2. Practice "wise mind" mindfulness for 2 minutes when emotions surge.  
 4. Closing Statement  
-   You’re not alone—these skills can help you regain balance.
+   You're not alone—these skills can help you regain balance.
 """
 
     def __init__(self):
@@ -81,12 +81,11 @@ ASSISTANT:
         self.lookback_days = getattr(settings, "CHATBOT_LOOKBACK_DAYS", 30)
 
     def get_response(self, user, message, conversation_id, conversation_history):
-        # 1. Summarize older context (if any)
+        # 1. Get RAG recommendation
         context = conversation_summary_service.get_conversation_context(
             conversation_id, user
         )
 
-        # 2. Decide therapy approach via RAG
         rec = therapy_rag_service.get_therapy_approach(
             query=message,
             user_data={
@@ -97,40 +96,116 @@ ASSISTANT:
         method = rec.get("recommended_approach", "unknown")
         conf = rec.get("confidence", 0.0)
 
-        # 3. Build an explanatory reply
-        content = (
-            f"I've reviewed your message and recent conversation context.\n\n"
-            f"• Context summary: {context.get('summary','No summary available')}\n\n"
-            f"Based on my analysis, I recommend *{method.upper()}* (confidence: {conf:.2f}).\n"
-            f"Key evidence: {rec.get('supporting_evidence',[])}\n"
-            f"Suggested techniques: {[t.get('name') for t in rec.get('recommended_techniques',[])]}\n\n"
-            f"Feel free to ask more or let me know how you'd like to proceed!"
-        )
-
-        # 4. Attach metadata including the chosen method and full rec
-        metadata = {
-            "chatbot_method": method,
-            "therapy_recommendation": rec,
-        }
-
-        return {"content": content, "metadata": metadata}
-
-    def _get_therapy_recommendation(
-        self, message: str, user_data: Dict = None
-    ) -> Dict[str, Any]:
-        """Get therapy approach recommendation using RAG service.
-        This method now fully relies on the RAG service.
-        """
+        # 2. Use GEMINI + RAG for actual response generation
         try:
-            recommendation = therapy_rag_service.get_therapy_approach(
-                message, user_data
+            # Build enhanced prompt with RAG context
+            user_data = self._get_user_data(user)
+            conversation_context = self._prepare_conversation_context(
+                user, conversation_id, conversation_history
             )
+            
+            prompt = self._build_prompt(
+                message=message,
+                conversation_context=conversation_context,
+                user_data=user_data,
+                user=user,
+                therapy_recommendation=rec
+            )
+            
+            # Generate response using Gemini API
+            gemini_response = self._call_gemini_api(prompt)
+            
+            content = gemini_response.get("text", "I'm having trouble generating a response.")
+            
+            metadata = {
+                "chatbot_method": method,
+                "therapy_recommendation": rec,
+                "ai_system": "Gemini + Local RAG",
+                "model": "gemini-2.0-flash",
+                "vector_store": "local_file_based",
+                "rag_confidence": conf
+            }
+
+            return {"content": content, "metadata": metadata}
+
+        except Exception as e:
+            logger.error(f"Error with Gemini API: {str(e)}")
+            # Fallback to current simple response
+            content = (
+                f"I've analyzed your message using our local AI system.\n\n"
+                f"• Context summary: {context.get('summary','No summary available')}\n\n"
+                f"Based on my RAG analysis, I recommend *{method.upper()}* therapy (confidence: {conf:.2f}).\n"
+                f"Key evidence: {rec.get('supporting_evidence',[])[:3]}\n"
+                f"Suggested techniques: {[t.get('name') for t in rec.get('recommended_techniques',[])]}\n\n"
+                f"This recommendation comes from analyzing {len(rec.get('supporting_chunks', []))} relevant therapy documents.\n"
+                f"Feel free to ask more specific questions about {method.upper()} techniques!"
+            )
+            
+            metadata = {
+                "chatbot_method": method,
+                "therapy_recommendation": rec,
+                "ai_system": "Ollama + Local RAG (Fallback)",
+                "model": "mistral",
+                "vector_store": "local_file_based"
+            }
+
+            return {"content": content, "metadata": metadata}
+
+    def get_response_with_gemini(self, user, message, conversation_id, conversation_history):
+        # 1. Get RAG recommendation first
+        context = conversation_summary_service.get_conversation_context(
+            conversation_id, user
+        )
+        
+        rec = therapy_rag_service.get_therapy_approach(
+            query=message,
+            user_data={
+                "recent_messages": context.get("recent_messages"),
+                "analysis": context.get("summary"),
+            },
+        )
+        
+        # 2. Build enhanced prompt for Gemini
+        therapy_context = f"""
+Based on RAG analysis:
+- Recommended therapy: {rec.get('recommended_approach', 'unknown')}
+- Confidence: {rec.get('confidence', 0):.2f}
+- Key techniques: {[t.get('name') for t in rec.get('recommended_techniques', [])]}
+- Supporting evidence: {rec.get('supporting_evidence', [])}
+
+User message: "{message}"
+
+Provide a therapeutic response using the recommended approach.
+"""
+        
+        # 3. Call Gemini API
+        try:
+            gemini_response = self._call_gemini_api(therapy_context)
+            content = gemini_response.get("text", "I apologize, but I'm having trouble generating a response right now.")
+            
+            metadata = {
+                "chatbot_method": rec.get('recommended_approach'),
+                "therapy_recommendation": rec,
+                "ai_system": "Gemini + Local RAG",
+                "model": "gemini-2.0-flash",
+                "rag_confidence": rec.get('confidence', 0)
+            }
+            
+            return {"content": content, "metadata": metadata}
+            
+        except Exception as e:
+            logger.error(f"Gemini API error: {str(e)}")
+            # Fallback to current system
+            return self.get_response(user, message, conversation_id, conversation_history)
+
+    def _get_therapy_recommendation(self, message: str, user_data: Dict = None) -> Dict[str, Any]:
+        """Get therapy approach recommendation using RAG service."""
+        try:
+            recommendation = therapy_rag_service.get_therapy_approach(message, user_data)
             logger.info(f"Therapy recommendation: {recommendation}")
             return recommendation
         except Exception as e:
-            logger.warning(
-                f"Error getting therapy recommendation from RAG service: {str(e)}"
-            )
+            logger.warning(f"Error getting therapy recommendation from RAG service: {str(e)}")
             return {
                 "recommended_approach": "unknown",
                 "confidence": 0.0,
@@ -185,19 +260,14 @@ ASSISTANT:
 
             if response.status_code == 200:
                 result = response.json()
-                # Extract the actual text response from Gemini's response structure
                 response_text = result["candidates"][0]["content"]["parts"][0]["text"]
                 return {
                     "text": response_text,
                     "metadata": {"model": "gemini-pro", "finish_reason": "stop"},
                 }
             else:
-                logger.error(
-                    f"Gemini API request failed with status {response.status_code}: {response.text}"
-                )
-                raise ChatbotAPIError(
-                    f"Gemini API request failed with status {response.status_code}"
-                )
+                logger.error(f"Gemini API request failed with status {response.status_code}: {response.text}")
+                raise ChatbotAPIError(f"Gemini API request failed with status {response.status_code}")
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Gemini API request error: {str(e)}")
@@ -248,9 +318,7 @@ ASSISTANT:
 
         return result
 
-    def _handle_harmful_content(
-        self, user, message: str, category: str
-    ) -> Dict[str, Any]:
+    def _handle_harmful_content(self, user, message: str, category: str) -> Dict[str, Any]:
         """Generate therapeutic response for harmful content"""
 
         # Create specialized prompt for handling harmful content
@@ -279,9 +347,7 @@ User message category: {category}
             logger.error(f"Error handling harmful content: {str(e)}")
             return self._error_response("Unable to process harmful content")
 
-    def _prepare_conversation_context(
-        self, user, conversation_id: str, conversation_history: list = None
-    ) -> Dict[str, Any]:
+    def _prepare_conversation_context(self, user, conversation_id: str, conversation_history: list = None) -> Dict[str, Any]:
         """
         Prepare conversation context with strict enforcement of the 6 message limit
         and create a summary of older messages when needed
@@ -323,9 +389,7 @@ User message category: {category}
         # Return just the recent messages if no summary needed or if summary creation failed
         return {"recent_messages": recent_messages, "has_summary": False}
 
-    def _check_and_update_conversation_summary(
-        self, user, conversation_id: str, conversation_history: list = None
-    ) -> None:
+    def _check_and_update_conversation_summary(self, user, conversation_id: str, conversation_history: list = None) -> None:
         """Check if summary needs updating and schedule the update"""
         if not conversation_history or len(conversation_history) <= self.history_limit:
             return
@@ -517,14 +581,7 @@ User message category: {category}
             logger.warning(f"Could not retrieve enhanced AI analysis: {str(e)}")
             return None
 
-    def _build_prompt(
-        self,
-        message: str,
-        conversation_context: Dict = None,
-        user_data: Dict = None,
-        user=None,
-        therapy_recommendation: Dict = None,
-    ) -> str:
+    def _build_prompt(self, message: str, conversation_context: Dict = None, user_data: Dict = None, user=None, therapy_recommendation: Dict = None) -> str:
         """Build an improved prompt integrating user data, therapy recommendations and conversation history."""
         # Get user's name for personalization
         user_name = user.get_full_name() or user.username if user else "User"
@@ -581,22 +638,18 @@ User message category: {category}
                     for log in mood_logs[:3]:
                         if log.get("activities"):
                             activities.extend(log.get("activities", []))
-
+                    
                     # Get unique activities
                     unique_activities = list(set(activities))[:5]
-
-                    # Calculate mood stats
-                    avg_mood = (
-                        sum(mood_ratings) / len(mood_ratings) if mood_ratings else 0
-                    )
+                    avg_mood = sum(mood_ratings) / len(mood_ratings) if mood_ratings else 0
 
                     # Determine trend
-                    mood_trend = "declining"
+                    mood_trend = "stable"
                     if len(mood_ratings) > 1:
                         if mood_ratings[0] < mood_ratings[-1]:
                             mood_trend = "improving"
-                        elif mood_ratings[0] == mood_ratings[-1]:
-                            mood_trend = "stable"
+                        elif mood_ratings[0] > mood_ratings[-1]:
+                            mood_trend = "declining"
 
                     enhanced_context.append(f"SYSTEM: {user_name}'s recent mood data:")
                     enhanced_context.append(
@@ -605,7 +658,9 @@ User message category: {category}
                     if unique_activities:
                         enhanced_context.append(
                             f"- Recent activities: {', '.join(unique_activities)}"
-                        )  # 2. Emotional Context Awareness - AI Analysis of Emotions and Mental State
+                        )
+
+        # 2. Emotional Context Awareness - AI Analysis of Emotions and Mental State
         if user_data and user_data.get("analysis"):
             analysis = user_data["analysis"]
 
@@ -886,21 +941,19 @@ User message category: {category}
             r"overdose",
             r"self-harm",
         ]
-
+        
         message_lower = message.lower()
         for keyword in crisis_keywords:
             if re.search(keyword, message_lower):
                 return True
-
         return False
 
-    def _error_response(self, message: str) -> Dict[str, any]:
+    def _error_response(self, message: str) -> Dict[str, Any]:
         """Generate error response"""
         return {
             "content": "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.",
             "metadata": {"error": message},
         }
-
 
 # Create singleton instance
 chatbot_service = ChatbotService()

@@ -87,7 +87,7 @@ class UserListView(ListAPIView):
 )
 class CustomUserViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]  # Add permission class
-    
+
     def list(self, request):
         return Response({"message": "List of users"})
 

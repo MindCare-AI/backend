@@ -28,14 +28,12 @@ class BaseWebSocketConsumer(AsyncWebsocketConsumer):
             user_groups = []
 
             # Get one-to-one conversations
-            from messaging.models.one_to_one import OneToOneConversation
 
             one_to_one_convos = await self.get_user_one_to_one_conversations()
             for convo in one_to_one_convos:
                 user_groups.append(f"conversation_{convo.id}")
 
             # Get group conversations
-            from messaging.models.group import GroupConversation
 
             group_convos = await self.get_user_group_conversations()
             for convo in group_convos:
@@ -82,24 +80,32 @@ class ChatConsumer(BaseWebSocketConsumer):
 
             # Setup heartbeat monitoring with more lenient settings
             self.last_ping = timezone.now()
-            self.heartbeat_interval = getattr(settings, "WEBSOCKET_HEARTBEAT_INTERVAL", 30)
+            self.heartbeat_interval = getattr(
+                settings, "WEBSOCKET_HEARTBEAT_INTERVAL", 30
+            )
             self.heartbeat_task = None
 
             # Check if user is anonymous
             if self.user.is_anonymous:
-                logger.warning(f"Anonymous user tried to connect to {self.conversation_group_name}")
+                logger.warning(
+                    f"Anonymous user tried to connect to {self.conversation_group_name}"
+                )
                 await self.close()
                 return
 
             # Validate user's access to the conversation
             has_access = await self.check_conversation_access()
             if not has_access:
-                logger.warning(f"User {self.user.id} tried to access unauthorized conversation {self.conversation_id}")
+                logger.warning(
+                    f"User {self.user.id} tried to access unauthorized conversation {self.conversation_id}"
+                )
                 await self.close()
                 return
 
             # Add to conversation group
-            await self.channel_layer.group_add(self.conversation_group_name, self.channel_name)
+            await self.channel_layer.group_add(
+                self.conversation_group_name, self.channel_name
+            )
 
             # Add to user-specific group for private notifications
             await self.channel_layer.group_add(self.user_group_name, self.channel_name)
@@ -127,7 +133,9 @@ class ChatConsumer(BaseWebSocketConsumer):
             # Update user's online status
             await self.update_user_status(True)
 
-            logger.info(f"User {self.user.id} connected to conversation {self.conversation_id}")
+            logger.info(
+                f"User {self.user.id} connected to conversation {self.conversation_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error in connect: {str(e)}", exc_info=True)
@@ -195,7 +203,9 @@ class ChatConsumer(BaseWebSocketConsumer):
                     await self.send(text_data=json.dumps({"type": "pong"}))
                 return
             elif message_type == "reconnect":
-                await self.send(text_data=json.dumps({"type": "reconnect_ack", "success": True}))
+                await self.send(
+                    text_data=json.dumps({"type": "reconnect_ack", "success": True})
+                )
                 return
 
             # Handle different message types
@@ -226,7 +236,9 @@ class ChatConsumer(BaseWebSocketConsumer):
                 max_stale_time = self.heartbeat_interval * 5  # Increased tolerance
 
                 if time_since_last_ping > max_stale_time:
-                    logger.info(f"Connection idle for user {self.user.id} ({time_since_last_ping}s), sending heartbeat")
+                    logger.info(
+                        f"Connection idle for user {self.user.id} ({time_since_last_ping}s), sending heartbeat"
+                    )
 
                 # Always send heartbeat, don't close for missing responses
                 try:

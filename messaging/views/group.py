@@ -443,11 +443,13 @@ class GroupConversationViewSet(viewsets.ModelViewSet):
             basic_data = dict(response_data)
             basic_data.pop("messages", None)
             cache.set(cache_key, basic_data, timeout=1800)
-            
+
             return Response(response_data)
-            
+
         except Exception as e:
-            logger.error(f"Error retrieving group conversation: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error retrieving group conversation: {str(e)}", exc_info=True
+            )
             return Response(
                 {"detail": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

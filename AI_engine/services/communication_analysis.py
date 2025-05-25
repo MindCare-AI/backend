@@ -36,7 +36,7 @@ class CommunicationAnalysisService:
             # Import here to avoid circular imports
             from messaging.models.one_to_one import OneToOneMessage
             from messaging.models.group import GroupMessage
-            from chatbot.models import ChatbotMessage
+            from chatbot.models import ChatMessage
 
             # Get one-to-one messages
             sent_messages = OneToOneMessage.objects.filter(
@@ -67,11 +67,11 @@ class CommunicationAnalysisService:
             )
 
             # Get chatbot interactions
-            chatbot_messages_sent = ChatbotMessage.objects.filter(
+            chatbot_messages_sent = ChatMessage.objects.filter(
                 sender=user, is_bot=False, timestamp__range=(start_date, end_date)
             ).select_related("conversation")
 
-            chatbot_messages_received = ChatbotMessage.objects.filter(
+            chatbot_messages_received = ChatMessage.objects.filter(
                 conversation__user=user,
                 is_bot=True,
                 timestamp__range=(start_date, end_date),

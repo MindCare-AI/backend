@@ -11,7 +11,13 @@ from drf_spectacular.utils import extend_schema
 
 from .models import ChatbotConversation, ChatMessage
 from .serializers import ChatMessageSerializer, ChatbotConversationSerializer
+
+# Import chatbot service
 from .services.chatbot_service import chatbot_service
+from .utils.rag_utils import answer_therapy_question
+
+# Use the regular chatbot service which will be modified to use local RAG
+active_chatbot_service = chatbot_service
 
 logger = logging.getLogger(__name__)
 
@@ -133,21 +139,31 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 conversation=conversation
             ).order_by("timestamp")
 
-            # Get chatbot response
-            bot_response = chatbot_service.get_response(
-                user=request.user,
-                message=user_message.content,
-                conversation_id=str(conversation.id),
-                conversation_history=[
-                    {
-                        "id": msg.id,
-                        "content": msg.content,
-                        "is_bot": msg.is_bot,
-                        "timestamp": msg.timestamp,
-                    }
-                    for msg in conversation_messages
-                ],
-            )
+            # Determine if this is a therapy-related question
+            def is_therapy_question(content):
+                # Simple keyword-based check; replace with your own logic as needed
+                therapy_keywords = ["therapy", "mental health", "counseling", "depression", "anxiety"]
+                return any(keyword in content.lower() for keyword in therapy_keywords)
+
+            if is_therapy_question(user_message.content):
+                # Use the RAG system for therapy questions
+                bot_response = answer_therapy_question(user_message.content)
+            else:
+                # Get chatbot response using the active service (GPU or standard)
+                bot_response = active_chatbot_service.get_response(
+                    user=request.user,
+                    message=user_message.content,
+                    conversation_id=str(conversation.id),
+                    conversation_history=[
+                        {
+                            "id": msg.id,
+                            "content": msg.content,
+                            "is_bot": msg.is_bot,
+                            "timestamp": msg.timestamp,
+                        }
+                        for msg in conversation_messages
+                    ],
+                )
 
             # Create bot's response message
             bot_message_data = {
@@ -184,3 +200,42 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 {"error": "Failed to process message"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(
+        methods=["GET"],
+        responses={200: dict},
+    )
+    @action(detail=False, methods=["GET"], url_path="system-info")
+    def system_info(self, request):
+        """Get system information about the chatbot service."""
+        try:
+            # Get RAG service info
+            rag_info = {
+                "service_name": "Standard RAG Service",
+                "vector_store_type": "PostgreSQL",
+            }
+
+            # Try to get database stats
+            try:
+                from django.db import connection
+
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT COUNT(*) FROM therapy_documents")
+                    doc_count = cursor.fetchone()[0]
+                    cursor.execute("SELECT COUNT(*) FROM therapy_chunks")
+                    chunk_count = cursor.fetchone()[0]
+                    rag_info["document_count"] = doc_count
+                    rag_info["chunk_count"] = chunk_count
+            except Exception as e:
+                rag_info["db_error"] = str(e)
+
+        except Exception as e:
+            rag_info = {"error": str(e)}
+
+        return Response(
+            {
+                "using_gpu_service": False,
+                "service_type": "Standard",
+                "rag_info": rag_info,
+            }
+        )

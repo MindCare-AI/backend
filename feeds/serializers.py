@@ -109,11 +109,15 @@ class CommentSerializer(serializers.ModelSerializer):
     def get_author_profile_pic(self, obj):
         user = obj.author
         url = None
-        if hasattr(user, "patient_profile") and getattr(user.patient_profile, "profile_pic", None):
+        if hasattr(user, "patient_profile") and getattr(
+            user.patient_profile, "profile_pic", None
+        ):
             url = user.patient_profile.profile_pic.url
         elif hasattr(user, "profile") and getattr(user.profile, "profile_image", None):
             url = user.profile.profile_image.url
-        elif hasattr(user, "therapist_profile") and getattr(user.therapist_profile, "profile_picture", None):
+        elif hasattr(user, "therapist_profile") and getattr(
+            user.therapist_profile, "profile_picture", None
+        ):
             url = user.therapist_profile.profile_picture.url
         elif hasattr(user, "profile_picture") and user.profile_picture:
             url = user.profile_picture.url
@@ -218,11 +222,15 @@ class PostSerializer(serializers.ModelSerializer):
     def get_author_profile_pic(self, obj):
         user = obj.author
         url = None
-        if hasattr(user, "patient_profile") and getattr(user.patient_profile, "profile_pic", None):
+        if hasattr(user, "patient_profile") and getattr(
+            user.patient_profile, "profile_pic", None
+        ):
             url = user.patient_profile.profile_pic.url
         elif hasattr(user, "profile") and getattr(user.profile, "profile_image", None):
             url = user.profile.profile_image.url
-        elif hasattr(user, "therapist_profile") and getattr(user.therapist_profile, "profile_picture", None):
+        elif hasattr(user, "therapist_profile") and getattr(
+            user.therapist_profile, "profile_picture", None
+        ):
             url = user.therapist_profile.profile_picture.url
         elif hasattr(user, "profile_picture") and user.profile_picture:
             url = user.profile_picture.url

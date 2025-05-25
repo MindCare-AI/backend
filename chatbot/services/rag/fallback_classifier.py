@@ -50,7 +50,7 @@ class TherapyClassifier:
         r"worry",
         # Test-specific indicators
         r"procrastinating",
-        r"afraid I'll fail",
+        r"afraid i'll fail",
         r"inadequate",
         r"comparing myself to others",
         r"social media and feeling",
@@ -325,3 +325,115 @@ class TherapyClassifier:
 
 # Create instance
 therapy_classifier = TherapyClassifier()
+
+
+class FallbackClassifier:
+    """Simple keyword-based classifier as fallback when RAG is unavailable"""
+
+    def __init__(self):
+        self.cbt_keywords = [
+            "thoughts",
+            "thinking",
+            "worry",
+            "anxious",
+            "depression",
+            "negative",
+            "catastrophizing",
+            "rumination",
+            "perfectionism",
+            "black and white",
+            "cognitive",
+            "behavior",
+            "habit",
+            "goal",
+            "problem solving",
+        ]
+
+        self.dbt_keywords = [
+            "emotions",
+            "overwhelming",
+            "intense",
+            "anger",
+            "rage",
+            "impulsive",
+            "relationship",
+            "boundaries",
+            "conflict",
+            "abandonment",
+            "rejection",
+            "self-harm",
+            "borderline",
+            "mood swings",
+            "emptiness",
+            "identity",
+        ]
+
+    def classify_therapy_need(self, query: str) -> Dict[str, Any]:
+        """Simple keyword-based classification"""
+        try:
+            query_lower = query.lower()
+
+            cbt_score = sum(
+                1 for keyword in self.cbt_keywords if keyword in query_lower
+            )
+            dbt_score = sum(
+                1 for keyword in self.dbt_keywords if keyword in query_lower
+            )
+
+            if cbt_score > dbt_score:
+                approach = "cbt"
+                confidence = min(0.8, 0.4 + (cbt_score * 0.1))
+            elif dbt_score > cbt_score:
+                approach = "dbt" 
+                confidence = min(0.8, 0.4 + (dbt_score * 0.1))
+            else:
+                approach = "unknown"
+                confidence = 0.3
+                
+            return {
+                "recommended_approach": approach,
+                "approach": approach,
+                "confidence": confidence,
+                "therapy_info": self._get_therapy_info(approach),
+                "recommended_techniques": self._get_basic_techniques(approach),
+                "supporting_evidence": ["Keyword-based classification"],
+                "alternative_approach": "dbt" if approach == "cbt" else "cbt"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in fallback classification: {str(e)}")
+            return {
+                "recommended_approach": "unknown",
+                "approach": "unknown", 
+                "confidence": 0.2,
+                "therapy_info": {"name": "General Support", "description": "General therapeutic support"},
+                "recommended_techniques": [],
+                "supporting_evidence": [],
+                "alternative_approach": "unknown"
+            }
+
+    def _get_therapy_info(self, approach: str) -> Dict[str, Any]:
+        """Get basic therapy information"""
+        info = {
+            "cbt": {
+                "name": "Cognitive Behavioral Therapy",
+                "description": "Focus on thoughts and behaviors"
+            },
+            "dbt": {
+                "name": "Dialectical Behavior Therapy", 
+                "description": "Focus on emotions and relationships"
+            }
+        }
+        return info.get(approach, {"name": "General", "description": "General support"})
+
+    def _get_basic_techniques(self, approach: str) -> list:
+        """Get basic techniques for approach"""
+        techniques = {
+            "cbt": [{"name": "Thought Records", "description": "Track negative thoughts"}],
+            "dbt": [{"name": "Mindfulness", "description": "Present moment awareness"}]
+        }
+        return techniques.get(approach, [])
+
+
+# Create singleton instance
+fallback_classifier = FallbackClassifier()

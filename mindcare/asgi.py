@@ -6,9 +6,11 @@ from messaging.routing import websocket_urlpatterns
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mindcare.settings")
 
+django_asgi_app = get_asgi_application()
+
 application = ProtocolTypeRouter(
     {
-        "http": get_asgi_application(),
+        "http": django_asgi_app,
         "websocket": UnifiedWebSocketAuthMiddleware(URLRouter(websocket_urlpatterns)),
     }
 )

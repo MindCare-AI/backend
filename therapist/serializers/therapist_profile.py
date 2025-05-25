@@ -322,25 +322,37 @@ class TherapistAvailabilitySerializer(serializers.ModelSerializer):
 
 class TherapistProfilePublicSerializer(serializers.ModelSerializer):
     """Serializer for public display of therapist profiles"""
+
     availability = serializers.SerializerMethodField()
     first_name = serializers.CharField(source="user.first_name", read_only=True)
     last_name = serializers.CharField(source="user.last_name", read_only=True)
-    
+
     class Meta:
         model = TherapistProfile
         fields = [
-            'id', 'first_name', 'last_name', 'profile_picture',
-            'bio', 'specializations', 'years_of_experience',
-            'education', 'license_number', 'languages', 'is_verified',
-            'rating', 'hourly_rate', 'availability'
+            "id",
+            "first_name",
+            "last_name",
+            "profile_picture",
+            "bio",
+            "specializations",
+            "years_of_experience",
+            "education",
+            "license_number",
+            "languages",
+            "is_verified",
+            "rating",
+            "hourly_rate",
+            "availability",
         ]
-    
+
     def get_availability(self, obj):
         # Only include availability if requested in context
-        if not self.context.get('include_availability', False):
+        if not self.context.get("include_availability", False):
             return None
-            
+
         # Get the therapist's availability
         from therapist.serializers.availability import TherapistAvailabilitySerializer
+
         availability_serializer = TherapistAvailabilitySerializer(obj)
-        return availability_serializer.data.get('available_days', {})
+        return availability_serializer.data.get("available_days", {})

@@ -5,11 +5,22 @@ from journal.models import JournalEntry, JournalCategory
 
 class JournalCategorySerializer(serializers.ModelSerializer):
     entries_count = serializers.SerializerMethodField()
-    title = serializers.CharField(source="name", read_only=True)  # Add this for frontend compatibility
+    title = serializers.CharField(
+        source="name", read_only=True
+    )  # Add this for frontend compatibility
 
     class Meta:
         model = JournalCategory
-        fields = ["id", "name", "title", "color", "icon", "created_at", "updated_at", "entries_count"]
+        fields = [
+            "id",
+            "name",
+            "title",
+            "color",
+            "icon",
+            "created_at",
+            "updated_at",
+            "entries_count",
+        ]
         read_only_fields = ["created_at", "updated_at", "entries_count", "title"]
 
     def get_entries_count(self, obj):

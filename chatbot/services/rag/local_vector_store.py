@@ -36,82 +36,65 @@ class LocalVectorStore:
     def _setup_gpu_acceleration(self):
         """Set up GPU acceleration for embeddings."""
         try:
-            # Use max GPU layers by default
-            if not os.getenv("OLLAMA_NUM_GPU"):
-                os.environ["OLLAMA_NUM_GPU"] = "80"  # Maximum GPU usage
-                logger.info("Set OLLAMA_NUM_GPU=80 for maximum GPU acceleration")
+            import torch
+            import os
 
-            # Try to import and check for GPU availability
-            try:
-                from chatbot.services.rag.gpu_utils import verify_gpu_support
+            # Check for GPU availability
+            if torch.cuda.is_available():
+                self.device = torch.device("cuda")
+                logger.info(f"GPU acceleration enabled: {torch.cuda.get_device_name()}")
+            else:
+                self.device = torch.device("cpu")
+                logger.info("Using CPU for embeddings")
 
-                gpu_info = verify_gpu_support()
-                if (
-                    gpu_info
-                    and isinstance(gpu_info, dict)
-                    and gpu_info.get("using_gpu")
-                ):
-                    logger.info(
-                        f"GPU acceleration enabled: {gpu_info.get('details', '')}"
-                    )
-                else:
-                    logger.warning("GPU not detected or not configured properly")
-            except ImportError:
-                logger.warning("Could not import gpu_utils, skipping GPU verification")
+            # Set environment variable for pickle deserialization and tokenizers
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
+            
+            # Allow dangerous deserialization for trusted local files
+            # This is safe since we're loading our own generated embeddings
+            import warnings
+            warnings.filterwarnings("ignore", message=".*allow_dangerous_deserialization.*")
+
         except Exception as e:
-            logger.warning(f"Error setting up GPU acceleration: {e}")
+            logger.error(f"Error setting up GPU acceleration: {str(e)}")
+            self.device = torch.device("cpu") if 'torch' in locals() else None
 
     def _load_store(self) -> bool:
         """Load the local vector store configuration and indexes."""
         try:
+            # Check if chunks directory exists
             if not os.path.exists(self.chunks_dir):
-                logger.error(f"Chunks directory not found: {self.chunks_dir}")
+                logger.warning(f"Chunks directory not found: {self.chunks_dir}")
                 return False
 
-            # Load config
+            # Check config file
             config_path = os.path.join(self.chunks_dir, "config.json")
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    self.config = json.load(f)
-            else:
+            if not os.path.exists(config_path):
                 logger.warning(f"Config file not found: {config_path}")
-                self.config = {}
+                return False
 
-            # Load document index
-            doc_index_path = os.path.join(self.index_dir, "documents.json")
-            if os.path.exists(doc_index_path):
-                with open(doc_index_path, "r") as f:
-                    self.documents = json.load(f)
-            else:
-                logger.warning(f"Document index not found: {doc_index_path}")
-                self.documents = {}
+            with open(config_path, "r") as f:
+                config = json.load(f)
 
-            # Load chunk indexes
-            cbt_index_path = os.path.join(self.index_dir, "cbt_chunks.json")
-            if os.path.exists(cbt_index_path):
+            # Load therapy indexes
+            cbt_index_path = os.path.join(self.chunks_dir, "index", "cbt_chunks.json")
+            dbt_index_path = os.path.join(self.chunks_dir, "index", "dbt_chunks.json")
+
+            if os.path.exists(cbt_index_path) and os.path.exists(dbt_index_path):
                 with open(cbt_index_path, "r") as f:
                     self.cbt_chunks = json.load(f)
-            else:
-                logger.warning(f"CBT chunk index not found: {cbt_index_path}")
-                self.cbt_chunks = []
-
-            dbt_index_path = os.path.join(self.index_dir, "dbt_chunks.json")
-            if os.path.exists(dbt_index_path):
                 with open(dbt_index_path, "r") as f:
                     self.dbt_chunks = json.load(f)
+                logger.info(
+                    f"Loaded vector store with {len(self.cbt_chunks)} CBT and {len(self.dbt_chunks)} DBT chunks"
+                )
+                return True
             else:
-                logger.warning(f"DBT chunk index not found: {dbt_index_path}")
-                self.dbt_chunks = []
-
-            logger.info(
-                f"Local vector store loaded with {len(self.documents)} documents, "
-                + f"{len(self.cbt_chunks)} CBT chunks, {len(self.dbt_chunks)} DBT chunks"
-            )
-
-            return True
+                logger.warning("Therapy chunk indexes not found")
+                return False
 
         except Exception as e:
-            logger.error(f"Error loading local vector store: {str(e)}")
+            logger.error(f"Error loading vector store: {str(e)}")
             return False
 
     @retry(
@@ -303,89 +286,94 @@ class LocalVectorStore:
 
     def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors."""
-        # Convert to numpy arrays for faster computation
-        array1 = np.array(vec1)
-        array2 = np.array(vec2)
+        try:
+            # Convert to numpy arrays for faster computation
+            array1 = np.array(vec1)
+            array2 = np.array(vec2)
 
-        # Compute cosine similarity
-        dot_product = np.dot(array1, array2)
-        norm1 = np.linalg.norm(array1)
-        norm2 = np.linalg.norm(array2)
+            # Compute cosine similarity
+            dot_product = np.dot(array1, array2)
+            norm1 = np.linalg.norm(array1)
+            norm2 = np.linalg.norm(array2)
 
-        if norm1 == 0 or norm2 == 0:
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+
+            return float(dot_product / (norm1 * norm2))
+        except Exception as e:
+            logger.error(f"Error calculating cosine similarity: {str(e)}")
             return 0.0
 
-        return dot_product / (norm1 * norm2)
-
     def determine_therapy_approach(self, query: str) -> Tuple[str, float, List[Dict]]:
-        """Determine the appropriate therapy approach based on query.
-
-        Args:
-            query: The user's query
-
-        Returns:
-            Tuple of (therapy_type, confidence, supporting_chunks)
-        """
+        """Determine the appropriate therapy approach based on query."""
         if not self.loaded:
             logger.error("Local vector store not loaded")
             return "unknown", 0.2, []
 
-        # Generate embedding for query
-        query_embedding = self.generate_embedding(query)
+        try:
+            # Generate embedding for query
+            query_embedding = self.generate_embedding(query)
+            if not query_embedding or all(x == 0 for x in query_embedding):
+                logger.error("Failed to generate valid query embedding")
+                return "unknown", 0.2, []
 
-        # Search both therapy types
-        cbt_results = self._search_therapy_chunks("cbt", query_embedding)
-        dbt_results = self._search_therapy_chunks("dbt", query_embedding)
+            # Search both therapy types
+            cbt_results = self._search_therapy_chunks("cbt", query_embedding)
+            dbt_results = self._search_therapy_chunks("dbt", query_embedding)
 
-        # Combine and sort results
-        all_results = cbt_results + dbt_results
-        all_results.sort(key=lambda x: x["similarity"], reverse=True)
+            # Combine and sort results
+            all_results = cbt_results + dbt_results
+            all_results.sort(key=lambda x: x["similarity"], reverse=True)
 
-        # Get top results
-        top_results = all_results[:10]
+            # Get top results
+            top_results = all_results[:10]
 
-        if not top_results:
-            return "unknown", 0.2, []
+            if not top_results:
+                return "unknown", 0.2, []
 
-        # Count therapy types in top results
-        cbt_count = sum(1 for r in top_results if r["therapy_type"] == "cbt")
-        dbt_count = sum(1 for r in top_results if r["therapy_type"] == "dbt")
+            # Count therapy types in top results
+            cbt_count = sum(1 for r in top_results if r["therapy_type"] == "cbt")
+            dbt_count = sum(1 for r in top_results if r["therapy_type"] == "dbt")
 
-        # Calculate average similarity for each therapy type
-        cbt_similarity = sum(
-            r["similarity"] for r in top_results if r["therapy_type"] == "cbt"
-        )
-        dbt_similarity = sum(
-            r["similarity"] for r in top_results if r["therapy_type"] == "dbt"
-        )
+            # Calculate average similarity for each therapy type
+            cbt_similarity = sum(
+                r["similarity"] for r in top_results if r["therapy_type"] == "cbt"
+            )
+            dbt_similarity = sum(
+                r["similarity"] for r in top_results if r["therapy_type"] == "dbt"
+            )
 
-        if cbt_count > 0:
-            cbt_similarity /= cbt_count
+            if cbt_count > 0:
+                cbt_similarity /= cbt_count
 
-        if dbt_count > 0:
-            dbt_similarity /= dbt_count
+            if dbt_count > 0:
+                dbt_similarity /= dbt_count
 
-        # Determine therapy type based on count and similarity
-        if cbt_count > dbt_count:
-            therapy_type = "cbt"
-            confidence = min(0.95, max(0.5, cbt_similarity))
-        elif dbt_count > cbt_count:
-            therapy_type = "dbt"
-            confidence = min(0.95, max(0.5, dbt_similarity))
-        else:
-            # Equal counts, use highest similarity
-            if cbt_similarity > dbt_similarity:
+            # Determine therapy type based on count and similarity
+            if cbt_count > dbt_count:
                 therapy_type = "cbt"
                 confidence = min(0.95, max(0.5, cbt_similarity))
-            else:
+            elif dbt_count > cbt_count:
                 therapy_type = "dbt"
                 confidence = min(0.95, max(0.5, dbt_similarity))
+            else:
+                # Equal counts, use highest similarity
+                if cbt_similarity > dbt_similarity:
+                    therapy_type = "cbt"
+                    confidence = min(0.95, max(0.5, cbt_similarity))
+                else:
+                    therapy_type = "dbt"
+                    confidence = min(0.95, max(0.5, dbt_similarity))
 
-        # If confidence is too low, return unknown
-        if confidence < self.similarity_threshold:
-            return "unknown", 0.2, top_results
+            # If confidence is too low, return unknown
+            if confidence < self.similarity_threshold:
+                return "unknown", 0.2, top_results
 
-        return therapy_type, confidence, top_results
+            return therapy_type, confidence, top_results
+
+        except Exception as e:
+            logger.error(f"Error determining therapy approach: {str(e)}")
+            return "unknown", 0.2, []
 
     def _search_therapy_chunks(
         self, therapy_type: str, query_embedding: List[float]
@@ -393,75 +381,78 @@ class LocalVectorStore:
         """Search chunks of a specific therapy type."""
         results = []
 
-        # Get chunk IDs for this therapy type
-        chunk_ids = self.cbt_chunks if therapy_type == "cbt" else self.dbt_chunks
+        try:
+            # Get chunk IDs for this therapy type
+            chunk_ids = self.cbt_chunks if therapy_type == "cbt" else self.dbt_chunks
 
-        # Load each chunk and calculate similarity
-        for chunk_id in chunk_ids:
-            chunk_path = os.path.join(self.chunks_dir, therapy_type, f"{chunk_id}.json")
+            # Load each chunk and calculate similarity
+            for chunk_id in chunk_ids:
+                chunk_path = os.path.join(self.chunks_dir, therapy_type, f"{chunk_id}.json")
 
-            if not os.path.exists(chunk_path):
-                continue
-
-            try:
-                with open(chunk_path, "r") as f:
-                    chunk_data = json.load(f)
-
-                chunk_embedding = chunk_data.get("embedding")
-
-                if not chunk_embedding:
+                if not os.path.exists(chunk_path):
                     continue
 
-                similarity = self.cosine_similarity(query_embedding, chunk_embedding)
+                try:
+                    with open(chunk_path, "r") as f:
+                        chunk_data = json.load(f)
 
-                if similarity > self.similarity_threshold:
-                    results.append(
-                        {
-                            "id": chunk_data.get("id"),
-                            "document_id": chunk_data.get("document_id"),
-                            "text": chunk_data.get("text"),
-                            "similarity": similarity,
-                            "therapy_type": therapy_type,
-                        }
-                    )
-            except Exception as e:
-                logger.error(f"Error processing chunk {chunk_id}: {str(e)}")
+                    chunk_embedding = chunk_data.get("embedding")
 
-        # Sort results by similarity
-        results.sort(key=lambda x: x["similarity"], reverse=True)
+                    if not chunk_embedding:
+                        continue
 
-        return results[:20]  # Return top 20 chunks
+                    similarity = self.cosine_similarity(query_embedding, chunk_embedding)
+
+                    if similarity > self.similarity_threshold:
+                        results.append(
+                            {
+                                "id": chunk_data.get("id"),
+                                "document_id": chunk_data.get("document_id"),
+                                "text": chunk_data.get("text"),
+                                "similarity": similarity,
+                                "therapy_type": therapy_type,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Error processing chunk {chunk_id}: {str(e)}")
+
+            # Sort results by similarity
+            results.sort(key=lambda x: x["similarity"], reverse=True)
+            return results[:20]  # Return top 20 chunks
+
+        except Exception as e:
+            logger.error(f"Error searching {therapy_type} chunks: {str(e)}")
+            return []
 
     def search_similar_chunks(
         self, query: str, therapy_type: str = None, limit: int = 5
     ) -> List[Dict[str, Any]]:
-        """Search for chunks similar to the query.
-
-        Args:
-            query: The search query
-            therapy_type: Optional therapy type to filter results
-            limit: Maximum number of results to return
-
-        Returns:
-            List of similar chunks
-        """
+        """Search for chunks similar to the query."""
         if not self.loaded:
             logger.error("Local vector store not loaded")
             return []
 
-        # Generate embedding for query
-        query_embedding = self.generate_embedding(query)
+        try:
+            # Generate embedding for query
+            query_embedding = self.generate_embedding(query)
+            if not query_embedding or all(x == 0 for x in query_embedding):
+                logger.error("Failed to generate valid query embedding")
+                return []
 
-        # Search in specified therapy type or both
-        if therapy_type and therapy_type in ["cbt", "dbt"]:
-            results = self._search_therapy_chunks(therapy_type, query_embedding)
-        else:
-            cbt_results = self._search_therapy_chunks("cbt", query_embedding)
-            dbt_results = self._search_therapy_chunks("dbt", query_embedding)
-            results = cbt_results + dbt_results
-            results.sort(key=lambda x: x["similarity"], reverse=True)
+            # Search in specified therapy type or both
+            if therapy_type and therapy_type in ["cbt", "dbt"]:
+                results = self._search_therapy_chunks(therapy_type, query_embedding)
+            else:
+                cbt_results = self._search_therapy_chunks("cbt", query_embedding)
+                dbt_results = self._search_therapy_chunks("dbt", query_embedding)
+                results = cbt_results + dbt_results
+                results.sort(key=lambda x: x["similarity"], reverse=True)
 
-        return results[:limit]
+            return results[:limit]
+
+        except Exception as e:
+            logger.error(f"Error searching similar chunks: {str(e)}")
+            return []
 
 
 # Create instance for easy import

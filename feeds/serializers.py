@@ -80,6 +80,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     author_name = serializers.SerializerMethodField()
     author_profile_pic = serializers.SerializerMethodField()
+    author_user_type = serializers.CharField(source='author.user_type', read_only=True)
     reactions_count = serializers.SerializerMethodField()
     replies_count = serializers.IntegerField(source="replies.count", read_only=True)
     current_user_reaction = serializers.SerializerMethodField()
@@ -92,6 +93,7 @@ class CommentSerializer(serializers.ModelSerializer):
             "author",
             "author_name",
             "author_profile_pic",
+            "author_user_type",
             "content",
             "parent",
             "created_at",
@@ -177,6 +179,7 @@ class PostSerializer(serializers.ModelSerializer):
     comments_count = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
     author_profile_pic = serializers.SerializerMethodField()
+    author_user_type = serializers.CharField(source='author.user_type', read_only=True)
     author_details = serializers.SerializerMethodField()
     poll_options = PollOptionSerializer(many=True, read_only=True)
     total_reactions = serializers.SerializerMethodField()
@@ -189,6 +192,7 @@ class PostSerializer(serializers.ModelSerializer):
             "author",
             "author_name",
             "author_profile_pic",
+            "author_user_type",
             "author_details",
             "content",
             "post_type",

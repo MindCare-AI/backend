@@ -20,7 +20,7 @@ class ChatbotService:
 
     SENSITIVE_CONTENT_CATEGORIES = [
         "hate_speech",
-        "self_harm", 
+        "self_harm",
         "violence",
         "sexual_content",
         "harassment",
@@ -103,27 +103,29 @@ ASSISTANT:
             conversation_context = self._prepare_conversation_context(
                 user, conversation_id, conversation_history
             )
-            
+
             prompt = self._build_prompt(
                 message=message,
                 conversation_context=conversation_context,
                 user_data=user_data,
                 user=user,
-                therapy_recommendation=rec
+                therapy_recommendation=rec,
             )
-            
+
             # Generate response using Gemini API
             gemini_response = self._call_gemini_api(prompt)
-            
-            content = gemini_response.get("text", "I'm having trouble generating a response.")
-            
+
+            content = gemini_response.get(
+                "text", "I'm having trouble generating a response."
+            )
+
             metadata = {
                 "chatbot_method": method,
                 "therapy_recommendation": rec,
                 "ai_system": "Gemini + Local RAG",
                 "model": "gemini-2.0-flash",
                 "vector_store": "local_file_based",
-                "rag_confidence": conf
+                "rag_confidence": conf,
             }
 
             return {"content": content, "metadata": metadata}
@@ -140,23 +142,25 @@ ASSISTANT:
                 f"This recommendation comes from analyzing {len(rec.get('supporting_chunks', []))} relevant therapy documents.\n"
                 f"Feel free to ask more specific questions about {method.upper()} techniques!"
             )
-            
+
             metadata = {
                 "chatbot_method": method,
                 "therapy_recommendation": rec,
                 "ai_system": "Ollama + Local RAG (Fallback)",
                 "model": "mistral",
-                "vector_store": "local_file_based"
+                "vector_store": "local_file_based",
             }
 
             return {"content": content, "metadata": metadata}
 
-    def get_response_with_gemini(self, user, message, conversation_id, conversation_history):
+    def get_response_with_gemini(
+        self, user, message, conversation_id, conversation_history
+    ):
         # 1. Get RAG recommendation first
         context = conversation_summary_service.get_conversation_context(
             conversation_id, user
         )
-        
+
         rec = therapy_rag_service.get_therapy_approach(
             query=message,
             user_data={
@@ -164,7 +168,7 @@ ASSISTANT:
                 "analysis": context.get("summary"),
             },
         )
-        
+
         # 2. Build enhanced prompt for Gemini
         therapy_context = f"""
 Based on RAG analysis:
@@ -177,35 +181,46 @@ User message: "{message}"
 
 Provide a therapeutic response using the recommended approach.
 """
-        
+
         # 3. Call Gemini API
         try:
             gemini_response = self._call_gemini_api(therapy_context)
-            content = gemini_response.get("text", "I apologize, but I'm having trouble generating a response right now.")
-            
+            content = gemini_response.get(
+                "text",
+                "I apologize, but I'm having trouble generating a response right now.",
+            )
+
             metadata = {
-                "chatbot_method": rec.get('recommended_approach'),
+                "chatbot_method": rec.get("recommended_approach"),
                 "therapy_recommendation": rec,
                 "ai_system": "Gemini + Local RAG",
                 "model": "gemini-2.0-flash",
-                "rag_confidence": rec.get('confidence', 0)
+                "rag_confidence": rec.get("confidence", 0),
             }
-            
+
             return {"content": content, "metadata": metadata}
-            
+
         except Exception as e:
             logger.error(f"Gemini API error: {str(e)}")
             # Fallback to current system
-            return self.get_response(user, message, conversation_id, conversation_history)
+            return self.get_response(
+                user, message, conversation_id, conversation_history
+            )
 
-    def _get_therapy_recommendation(self, message: str, user_data: Dict = None) -> Dict[str, Any]:
+    def _get_therapy_recommendation(
+        self, message: str, user_data: Dict = None
+    ) -> Dict[str, Any]:
         """Get therapy approach recommendation using RAG service."""
         try:
-            recommendation = therapy_rag_service.get_therapy_approach(message, user_data)
+            recommendation = therapy_rag_service.get_therapy_approach(
+                message, user_data
+            )
             logger.info(f"Therapy recommendation: {recommendation}")
             return recommendation
         except Exception as e:
-            logger.warning(f"Error getting therapy recommendation from RAG service: {str(e)}")
+            logger.warning(
+                f"Error getting therapy recommendation from RAG service: {str(e)}"
+            )
             return {
                 "recommended_approach": "unknown",
                 "confidence": 0.0,
@@ -266,8 +281,12 @@ Provide a therapeutic response using the recommended approach.
                     "metadata": {"model": "gemini-pro", "finish_reason": "stop"},
                 }
             else:
-                logger.error(f"Gemini API request failed with status {response.status_code}: {response.text}")
-                raise ChatbotAPIError(f"Gemini API request failed with status {response.status_code}")
+                logger.error(
+                    f"Gemini API request failed with status {response.status_code}: {response.text}"
+                )
+                raise ChatbotAPIError(
+                    f"Gemini API request failed with status {response.status_code}"
+                )
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Gemini API request error: {str(e)}")
@@ -318,7 +337,9 @@ Provide a therapeutic response using the recommended approach.
 
         return result
 
-    def _handle_harmful_content(self, user, message: str, category: str) -> Dict[str, Any]:
+    def _handle_harmful_content(
+        self, user, message: str, category: str
+    ) -> Dict[str, Any]:
         """Generate therapeutic response for harmful content"""
 
         # Create specialized prompt for handling harmful content
@@ -347,7 +368,9 @@ User message category: {category}
             logger.error(f"Error handling harmful content: {str(e)}")
             return self._error_response("Unable to process harmful content")
 
-    def _prepare_conversation_context(self, user, conversation_id: str, conversation_history: list = None) -> Dict[str, Any]:
+    def _prepare_conversation_context(
+        self, user, conversation_id: str, conversation_history: list = None
+    ) -> Dict[str, Any]:
         """
         Prepare conversation context with strict enforcement of the 6 message limit
         and create a summary of older messages when needed
@@ -389,7 +412,9 @@ User message category: {category}
         # Return just the recent messages if no summary needed or if summary creation failed
         return {"recent_messages": recent_messages, "has_summary": False}
 
-    def _check_and_update_conversation_summary(self, user, conversation_id: str, conversation_history: list = None) -> None:
+    def _check_and_update_conversation_summary(
+        self, user, conversation_id: str, conversation_history: list = None
+    ) -> None:
         """Check if summary needs updating and schedule the update"""
         if not conversation_history or len(conversation_history) <= self.history_limit:
             return
@@ -581,7 +606,14 @@ User message category: {category}
             logger.warning(f"Could not retrieve enhanced AI analysis: {str(e)}")
             return None
 
-    def _build_prompt(self, message: str, conversation_context: Dict = None, user_data: Dict = None, user=None, therapy_recommendation: Dict = None) -> str:
+    def _build_prompt(
+        self,
+        message: str,
+        conversation_context: Dict = None,
+        user_data: Dict = None,
+        user=None,
+        therapy_recommendation: Dict = None,
+    ) -> str:
         """Build an improved prompt integrating user data, therapy recommendations and conversation history."""
         # Get user's name for personalization
         user_name = user.get_full_name() or user.username if user else "User"
@@ -638,10 +670,12 @@ User message category: {category}
                     for log in mood_logs[:3]:
                         if log.get("activities"):
                             activities.extend(log.get("activities", []))
-                    
+
                     # Get unique activities
                     unique_activities = list(set(activities))[:5]
-                    avg_mood = sum(mood_ratings) / len(mood_ratings) if mood_ratings else 0
+                    avg_mood = (
+                        sum(mood_ratings) / len(mood_ratings) if mood_ratings else 0
+                    )
 
                     # Determine trend
                     mood_trend = "stable"
@@ -941,7 +975,7 @@ User message category: {category}
             r"overdose",
             r"self-harm",
         ]
-        
+
         message_lower = message.lower()
         for keyword in crisis_keywords:
             if re.search(keyword, message_lower):
@@ -954,6 +988,7 @@ User message category: {category}
             "content": "I apologize, but I'm having trouble processing your message right now. Please try again in a moment.",
             "metadata": {"error": message},
         }
+
 
 # Create singleton instance
 chatbot_service = ChatbotService()

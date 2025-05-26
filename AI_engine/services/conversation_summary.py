@@ -247,9 +247,9 @@ Please provide a comprehensive summary in JSON format with these fields:
                 logger.warning(f"Invalid conversation ID format: {conversation_id}")
                 return {
                     "error": "Invalid conversation ID format",
-                    "success": False, 
+                    "success": False,
                     "recent_messages": [],
-                    "has_summary": False
+                    "has_summary": False,
                 }
 
             # Get the most recent summary
@@ -295,7 +295,12 @@ Please provide a comprehensive summary in JSON format with these fields:
 
         except Exception as e:
             logger.error(f"Error getting conversation context: {str(e)}", exc_info=True)
-            return {"error": str(e), "success": False, "recent_messages": [], "has_summary": False}
+            return {
+                "error": str(e),
+                "success": False,
+                "recent_messages": [],
+                "has_summary": False,
+            }
 
     def get_or_create_summary(
         self, conversation_id: str, user, messages: list

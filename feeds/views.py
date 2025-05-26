@@ -56,16 +56,18 @@ class PostViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Enhanced queryset with optimized loading"""
-        queryset = Post.objects.select_related(
-            "author"
-        ).prefetch_related(
-            "media_files",
-            "reactions",
-            "poll_options",
-            Prefetch("comments", queryset=Comment.objects.select_related("author")),
-        ).annotate(
-            total_reactions=Count("reactions", distinct=True),
-            total_comments=Count("comments", distinct=True),
+        queryset = (
+            Post.objects.select_related("author")
+            .prefetch_related(
+                "media_files",
+                "reactions",
+                "poll_options",
+                Prefetch("comments", queryset=Comment.objects.select_related("author")),
+            )
+            .annotate(
+                total_reactions=Count("reactions", distinct=True),
+                total_comments=Count("comments", distinct=True),
+            )
         )
 
         # Apply filters
@@ -120,10 +122,14 @@ class PostViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(queryset)
         if page is not None:
-            serializer = self.get_serializer(page, many=True, context={"request": request})
+            serializer = self.get_serializer(
+                page, many=True, context={"request": request}
+            )
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(queryset, many=True, context={"request": request})
+        serializer = self.get_serializer(
+            queryset, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):

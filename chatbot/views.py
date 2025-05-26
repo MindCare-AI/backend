@@ -8,15 +8,15 @@ from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.db import transaction
 
 from .models import ChatbotConversation, ChatMessage
 from .serializers import (
-    ChatMessageSerializer, 
+    ChatMessageSerializer,
     ChatbotConversationSerializer,
     ChatbotConversationUpdateSerializer,
-    ChatbotConversationListSerializer
+    ChatbotConversationListSerializer,
 )
 
 # Import chatbot service
@@ -61,27 +61,28 @@ class ChatbotViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Enhanced queryset with optimized loading and user filtering"""
-        queryset = ChatbotConversation.objects.filter(
-            user=self.request.user
-        ).select_related('user').prefetch_related('messages').annotate(
-            message_count=Count('messages')
+        queryset = (
+            ChatbotConversation.objects.filter(user=self.request.user)
+            .select_related("user")
+            .prefetch_related("messages")
+            .annotate(message_count=Count("messages"))
         )
 
         # Apply time-based filters
-        time_filter = self.request.query_params.get('time_filter')
+        time_filter = self.request.query_params.get("time_filter")
         if time_filter:
             now = timezone.now()
-            if time_filter == '24h':
+            if time_filter == "24h":
                 queryset = queryset.filter(last_activity__gte=now - timedelta(hours=24))
-            elif time_filter == '7d':
+            elif time_filter == "7d":
                 queryset = queryset.filter(last_activity__gte=now - timedelta(days=7))
-            elif time_filter == '30d':
+            elif time_filter == "30d":
                 queryset = queryset.filter(last_activity__gte=now - timedelta(days=30))
 
         # Filter by active status
-        is_active = self.request.query_params.get('is_active')
+        is_active = self.request.query_params.get("is_active")
         if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+            queryset = queryset.filter(is_active=is_active.lower() == "true")
 
         return queryset
 
@@ -97,15 +98,15 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
                 description="Filter by time: '24h', '7d', '30d'",
-                enum=["24h", "7d", "30d"]
+                enum=["24h", "7d", "30d"],
             ),
             OpenApiParameter(
                 name="is_active",
                 type=OpenApiTypes.BOOL,
                 location=OpenApiParameter.QUERY,
-                description="Filter by active status"
+                description="Filter by active status",
             ),
-        ]
+        ],
     )
     def list(self, request, *args, **kwargs):
         """Enhanced list with proper serialization context and auto-creation"""
@@ -116,9 +117,9 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         if not queryset.exists():
             with transaction.atomic():
                 conversation = ChatbotConversation.objects.create(
-                    user=request.user, 
-                    title="Welcome Chat", 
-                    metadata={"auto_created": True, "type": "welcome"}
+                    user=request.user,
+                    title="Welcome Chat",
+                    metadata={"auto_created": True, "type": "welcome"},
                 )
                 welcome_text = (
                     "Welcome to your personal chatbot companion! We're delighted to have you here. "
@@ -140,7 +141,9 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(queryset)
 
         if page is not None:
-            serializer = self.get_serializer(page, many=True, context={"request": request})
+            serializer = self.get_serializer(
+                page, many=True, context={"request": request}
+            )
             for conversation in serializer.data:
                 # Get the last 5 messages for each conversation
                 messages = ChatMessage.objects.filter(
@@ -151,17 +154,19 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 ).data
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(queryset, many=True, context={"request": request})
+        serializer = self.get_serializer(
+            queryset, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
     @extend_schema(
         description="Retrieve a specific chatbot conversation with full details",
-        responses={200: ChatbotConversationSerializer}
+        responses={200: ChatbotConversationSerializer},
     )
     def retrieve(self, request, *args, **kwargs):
         """Enhanced retrieve with message history"""
         instance = self.get_object()
-        
+
         # Ensure user owns this conversation
         if instance.user != request.user:
             return Response(
@@ -171,25 +176,25 @@ class ChatbotViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance, context={"request": request})
         response_data = serializer.data
-        
+
         # Add recent messages
         messages = instance.messages.all().order_by("timestamp")
         response_data["messages"] = ChatMessageSerializer(
             messages, many=True, context={"request": request}
         ).data
-        
+
         return Response(response_data)
 
     @extend_schema(
         description="Update chatbot conversation details (title, metadata, status)",
         request=ChatbotConversationUpdateSerializer,
-        responses={200: ChatbotConversationSerializer}
+        responses={200: ChatbotConversationSerializer},
     )
     def update(self, request, *args, **kwargs):
         """Enhanced update with proper validation"""
-        partial = kwargs.pop('partial', False)
+        partial = kwargs.pop("partial", False)
         instance = self.get_object()
-        
+
         # Ensure user owns this conversation
         if instance.user != request.user:
             return Response(
@@ -199,10 +204,10 @@ class ChatbotViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        
+
         with transaction.atomic():
             updated_instance = serializer.save()
-            
+
             # Log the update
             logger.info(
                 f"Conversation {updated_instance.id} updated by user {request.user.id}. "
@@ -218,11 +223,11 @@ class ChatbotViewSet(viewsets.ModelViewSet):
     @extend_schema(
         description="Partially update chatbot conversation (PATCH)",
         request=ChatbotConversationUpdateSerializer,
-        responses={200: ChatbotConversationSerializer}
+        responses={200: ChatbotConversationSerializer},
     )
     def partial_update(self, request, *args, **kwargs):
         """Handle partial updates (PATCH requests)"""
-        kwargs['partial'] = True
+        kwargs["partial"] = True
         return self.update(request, *args, **kwargs)
 
     @extend_schema(
@@ -230,13 +235,13 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         responses={
             204: {"description": "Conversation deleted successfully"},
             403: {"description": "Permission denied"},
-            404: {"description": "Conversation not found"}
-        }
+            404: {"description": "Conversation not found"},
+        },
     )
     def destroy(self, request, *args, **kwargs):
         """Enhanced delete with proper cleanup"""
         instance = self.get_object()
-        
+
         # Ensure user owns this conversation
         if instance.user != request.user:
             return Response(
@@ -247,10 +252,10 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             conversation_id = instance.id
             message_count = instance.messages.count()
-            
+
             # Delete the conversation (messages will be cascade deleted)
             instance.delete()
-            
+
             # Log the deletion
             logger.info(
                 f"Conversation {conversation_id} deleted by user {request.user.id}. "
@@ -258,8 +263,10 @@ class ChatbotViewSet(viewsets.ModelViewSet):
             )
 
         return Response(
-            {"message": f"Conversation deleted successfully. {message_count} messages removed."},
-            status=status.HTTP_204_NO_CONTENT
+            {
+                "message": f"Conversation deleted successfully. {message_count} messages removed."
+            },
+            status=status.HTTP_204_NO_CONTENT,
         )
 
     @extend_schema(
@@ -314,8 +321,19 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 # Determine if this is a therapy-related question
                 def is_therapy_question(content):
                     # Simple keyword-based check; replace with your own logic as needed
-                    therapy_keywords = ["therapy", "mental health", "counseling", "depression", "anxiety", "help", "feel", "stress"]
-                    return any(keyword in content.lower() for keyword in therapy_keywords)
+                    therapy_keywords = [
+                        "therapy",
+                        "mental health",
+                        "counseling",
+                        "depression",
+                        "anxiety",
+                        "help",
+                        "feel",
+                        "stress",
+                    ]
+                    return any(
+                        keyword in content.lower() for keyword in therapy_keywords
+                    )
 
                 if is_therapy_question(user_message.content):
                     # Use the RAG system for therapy questions
@@ -338,11 +356,11 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                     )
 
                 # Ensure bot_response has required 'content' key
-                if not isinstance(bot_response, dict) or 'content' not in bot_response:
+                if not isinstance(bot_response, dict) or "content" not in bot_response:
                     logger.error(f"Invalid bot response format: {bot_response}")
                     bot_response = {
                         "content": "I apologize, but I'm experiencing technical difficulties. Please try again later.",
-                        "metadata": {"error": "Invalid response format"}
+                        "metadata": {"error": "Invalid response format"},
                     }
 
                 # Create bot's response message
@@ -351,26 +369,31 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                     "conversation": conversation.id,
                     "sender": None,
                     "is_bot": True,
-                    "metadata": bot_response.get("metadata", {})
+                    "metadata": bot_response.get("metadata", {}),
                 }
 
                 bot_message_serializer = ChatMessageSerializer(data=bot_message_data)
                 if not bot_message_serializer.is_valid():
                     return Response(
-                        bot_message_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+                        bot_message_serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
                 bot_message = bot_message_serializer.save(conversation=conversation)
 
                 # Update conversation's last activity
                 conversation.last_activity = timezone.now()
-                conversation.save(update_fields=['last_activity'])
+                conversation.save(update_fields=["last_activity"])
 
             # Return both user message and bot response with complete serialized data
             return Response(
                 {
-                    "user_message": ChatMessageSerializer(user_message, context={"request": request}).data,
-                    "bot_response": ChatMessageSerializer(bot_message, context={"request": request}).data,
+                    "user_message": ChatMessageSerializer(
+                        user_message, context={"request": request}
+                    ).data,
+                    "bot_response": ChatMessageSerializer(
+                        bot_message, context={"request": request}
+                    ).data,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -389,22 +412,22 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 name="limit",
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description="Number of messages to return (default: 50)"
+                description="Number of messages to return (default: 50)",
             ),
             OpenApiParameter(
                 name="offset",
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
-                description="Number of messages to skip"
+                description="Number of messages to skip",
             ),
         ],
-        responses={200: ChatMessageSerializer(many=True)}
+        responses={200: ChatMessageSerializer(many=True)},
     )
     @action(detail=True, methods=["GET"], url_path="messages")
     def get_messages(self, request, pk=None):
         """Get messages for a conversation with pagination"""
         conversation = self.get_object()
-        
+
         # Ensure user owns this conversation
         if conversation.user != request.user:
             return Response(
@@ -413,9 +436,9 @@ class ChatbotViewSet(viewsets.ModelViewSet):
             )
 
         # Get pagination parameters
-        limit = int(request.query_params.get('limit', 50))
-        offset = int(request.query_params.get('offset', 0))
-        
+        limit = int(request.query_params.get("limit", 50))
+        offset = int(request.query_params.get("offset", 0))
+
         # Validate pagination parameters
         if limit > 200:
             limit = 200
@@ -424,32 +447,36 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         if offset < 0:
             offset = 0
 
-        messages = ChatMessage.objects.filter(
-            conversation=conversation
-        ).order_by("timestamp")[offset:offset + limit]
+        messages = ChatMessage.objects.filter(conversation=conversation).order_by(
+            "timestamp"
+        )[offset : offset + limit]
 
-        serializer = ChatMessageSerializer(messages, many=True, context={"request": request})
-        
+        serializer = ChatMessageSerializer(
+            messages, many=True, context={"request": request}
+        )
+
         total_messages = conversation.messages.count()
-        
-        return Response({
-            "messages": serializer.data,
-            "total": total_messages,
-            "limit": limit,
-            "offset": offset,
-            "has_more": offset + limit < total_messages
-        })
+
+        return Response(
+            {
+                "messages": serializer.data,
+                "total": total_messages,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + limit < total_messages,
+            }
+        )
 
     @extend_schema(
         description="Archive/unarchive a conversation (set is_active status)",
         request={"type": "object", "properties": {"is_active": {"type": "boolean"}}},
-        responses={200: ChatbotConversationSerializer}
+        responses={200: ChatbotConversationSerializer},
     )
     @action(detail=True, methods=["POST"], url_path="toggle_active")
     def toggle_active(self, request, pk=None):
         """Toggle the active status of a conversation"""
         conversation = self.get_object()
-        
+
         # Ensure user owns this conversation
         if conversation.user != request.user:
             return Response(
@@ -457,22 +484,26 @@ class ChatbotViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        is_active = request.data.get('is_active')
+        is_active = request.data.get("is_active")
         if is_active is None:
             # Toggle current status
             conversation.is_active = not conversation.is_active
         else:
             conversation.is_active = bool(is_active)
 
-        conversation.save(update_fields=['is_active'])
-        
-        serializer = ChatbotConversationSerializer(conversation, context={"request": request})
-        
+        conversation.save(update_fields=["is_active"])
+
+        serializer = ChatbotConversationSerializer(
+            conversation, context={"request": request}
+        )
+
         action = "activated" if conversation.is_active else "archived"
-        return Response({
-            "message": f"Conversation {action} successfully",
-            "conversation": serializer.data
-        })
+        return Response(
+            {
+                "message": f"Conversation {action} successfully",
+                "conversation": serializer.data,
+            }
+        )
 
     @extend_schema(
         methods=["GET"],
@@ -518,14 +549,14 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         responses={
             200: {"description": "Conversation cleared successfully"},
             403: {"description": "Permission denied"},
-            404: {"description": "Conversation not found"}
-        }
+            404: {"description": "Conversation not found"},
+        },
     )
     @action(detail=True, methods=["post"], url_path="clear")
     def clear_conversation(self, request, pk=None):
         """Clear all messages from a conversation"""
         conversation = self.get_object()
-        
+
         # Ensure user owns this conversation
         if conversation.user != request.user:
             return Response(
@@ -536,22 +567,25 @@ class ChatbotViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             # Count messages before deletion
             message_count = conversation.messages.count()
-            
+
             # Delete all messages in the conversation
             conversation.messages.all().delete()
-            
+
             # Update conversation's last activity
             conversation.last_activity = timezone.now()
-            conversation.save(update_fields=['last_activity'])
-            
+            conversation.save(update_fields=["last_activity"])
+
             # Log the clearing
             logger.info(
                 f"Conversation {conversation.id} cleared by user {request.user.id}. "
                 f"Deleted {message_count} messages."
             )
 
-        return Response({
-            "message": f"Conversation cleared successfully. {message_count} messages removed.",
-            "conversation_id": conversation.id,
-            "messages_deleted": message_count
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "message": f"Conversation cleared successfully. {message_count} messages removed.",
+                "conversation_id": conversation.id,
+                "messages_deleted": message_count,
+            },
+            status=status.HTTP_200_OK,
+        )

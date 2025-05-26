@@ -49,15 +49,18 @@ class LocalVectorStore:
 
             # Set environment variable for pickle deserialization and tokenizers
             os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            
+
             # Allow dangerous deserialization for trusted local files
             # This is safe since we're loading our own generated embeddings
             import warnings
-            warnings.filterwarnings("ignore", message=".*allow_dangerous_deserialization.*")
+
+            warnings.filterwarnings(
+                "ignore", message=".*allow_dangerous_deserialization.*"
+            )
 
         except Exception as e:
             logger.error(f"Error setting up GPU acceleration: {str(e)}")
-            self.device = torch.device("cpu") if 'torch' in locals() else None
+            self.device = torch.device("cpu") if "torch" in locals() else None
 
     def _load_store(self) -> bool:
         """Load the local vector store configuration and indexes."""
@@ -387,7 +390,9 @@ class LocalVectorStore:
 
             # Load each chunk and calculate similarity
             for chunk_id in chunk_ids:
-                chunk_path = os.path.join(self.chunks_dir, therapy_type, f"{chunk_id}.json")
+                chunk_path = os.path.join(
+                    self.chunks_dir, therapy_type, f"{chunk_id}.json"
+                )
 
                 if not os.path.exists(chunk_path):
                     continue
@@ -401,7 +406,9 @@ class LocalVectorStore:
                     if not chunk_embedding:
                         continue
 
-                    similarity = self.cosine_similarity(query_embedding, chunk_embedding)
+                    similarity = self.cosine_similarity(
+                        query_embedding, chunk_embedding
+                    )
 
                     if similarity > self.similarity_threshold:
                         results.append(

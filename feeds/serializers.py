@@ -1,8 +1,7 @@
 # feeds/serializers.py
 from rest_framework import serializers
-from feeds.models import Post, Comment, Topic, Reaction, PollOption, PollVote
+from feeds.models import Post, Comment, Topic, Reaction, PollOption
 from django.contrib.contenttypes.models import ContentType
-from users.models import CustomUser
 from media_handler.models import MediaFile
 from media_handler.serializers import MediaFileSerializer
 
@@ -80,7 +79,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
     author_name = serializers.SerializerMethodField()
     author_profile_pic = serializers.SerializerMethodField()
-    author_user_type = serializers.CharField(source='author.user_type', read_only=True)
+    author_user_type = serializers.CharField(source="author.user_type", read_only=True)
     reactions_count = serializers.SerializerMethodField()
     replies_count = serializers.IntegerField(source="replies.count", read_only=True)
     current_user_reaction = serializers.SerializerMethodField()
@@ -179,7 +178,7 @@ class PostSerializer(serializers.ModelSerializer):
     comments_count = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
     author_profile_pic = serializers.SerializerMethodField()
-    author_user_type = serializers.CharField(source='author.user_type', read_only=True)
+    author_user_type = serializers.CharField(source="author.user_type", read_only=True)
     author_details = serializers.SerializerMethodField()
     poll_options = PollOptionSerializer(many=True, read_only=True)
     total_reactions = serializers.SerializerMethodField()
@@ -212,7 +211,13 @@ class PostSerializer(serializers.ModelSerializer):
             "comments_count",
             "poll_options",
         ]
-        read_only_fields = ["author", "visibility", "created_at", "updated_at", "views_count"]
+        read_only_fields = [
+            "author",
+            "visibility",
+            "created_at",
+            "updated_at",
+            "views_count",
+        ]
 
     def get_reactions_summary(self, obj):
         """Get detailed reactions summary"""
@@ -263,7 +268,9 @@ class PostSerializer(serializers.ModelSerializer):
             "last_name": user.last_name,
             "full_name": user.get_full_name(),
             "user_type": user.user_type,
-            "email": user.email if self.context.get("request") and self.context["request"].user == user else None,
+            "email": user.email
+            if self.context.get("request") and self.context["request"].user == user
+            else None,
         }
 
     def get_author_profile_pic(self, obj):
@@ -321,7 +328,9 @@ class PostSerializer(serializers.ModelSerializer):
                 data["_debug_info"] = {
                     "user_id": request.user.id,
                     "is_authenticated": True,
-                    "timestamp": instance.created_at.isoformat() if instance.created_at else None,
+                    "timestamp": instance.created_at.isoformat()
+                    if instance.created_at
+                    else None,
                 }
 
         return data

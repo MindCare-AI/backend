@@ -384,12 +384,12 @@ class FallbackClassifier:
                 approach = "cbt"
                 confidence = min(0.8, 0.4 + (cbt_score * 0.1))
             elif dbt_score > cbt_score:
-                approach = "dbt" 
+                approach = "dbt"
                 confidence = min(0.8, 0.4 + (dbt_score * 0.1))
             else:
                 approach = "unknown"
                 confidence = 0.3
-                
+
             return {
                 "recommended_approach": approach,
                 "approach": approach,
@@ -397,19 +397,22 @@ class FallbackClassifier:
                 "therapy_info": self._get_therapy_info(approach),
                 "recommended_techniques": self._get_basic_techniques(approach),
                 "supporting_evidence": ["Keyword-based classification"],
-                "alternative_approach": "dbt" if approach == "cbt" else "cbt"
+                "alternative_approach": "dbt" if approach == "cbt" else "cbt",
             }
-            
+
         except Exception as e:
             logger.error(f"Error in fallback classification: {str(e)}")
             return {
                 "recommended_approach": "unknown",
-                "approach": "unknown", 
+                "approach": "unknown",
                 "confidence": 0.2,
-                "therapy_info": {"name": "General Support", "description": "General therapeutic support"},
+                "therapy_info": {
+                    "name": "General Support",
+                    "description": "General therapeutic support",
+                },
                 "recommended_techniques": [],
                 "supporting_evidence": [],
-                "alternative_approach": "unknown"
+                "alternative_approach": "unknown",
             }
 
     def _get_therapy_info(self, approach: str) -> Dict[str, Any]:
@@ -417,20 +420,22 @@ class FallbackClassifier:
         info = {
             "cbt": {
                 "name": "Cognitive Behavioral Therapy",
-                "description": "Focus on thoughts and behaviors"
+                "description": "Focus on thoughts and behaviors",
             },
             "dbt": {
-                "name": "Dialectical Behavior Therapy", 
-                "description": "Focus on emotions and relationships"
-            }
+                "name": "Dialectical Behavior Therapy",
+                "description": "Focus on emotions and relationships",
+            },
         }
         return info.get(approach, {"name": "General", "description": "General support"})
 
     def _get_basic_techniques(self, approach: str) -> list:
         """Get basic techniques for approach"""
         techniques = {
-            "cbt": [{"name": "Thought Records", "description": "Track negative thoughts"}],
-            "dbt": [{"name": "Mindfulness", "description": "Present moment awareness"}]
+            "cbt": [
+                {"name": "Thought Records", "description": "Track negative thoughts"}
+            ],
+            "dbt": [{"name": "Mindfulness", "description": "Present moment awareness"}],
         }
         return techniques.get(approach, [])
 

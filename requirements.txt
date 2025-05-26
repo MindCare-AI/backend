@@ -193,3 +193,6 @@ easyocr
 tenacity
 pdfplumber
 spacy
+langchain
+langchain_community
+pypdf

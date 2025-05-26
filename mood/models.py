@@ -57,7 +57,9 @@ class MoodLog(models.Model):
         null=True,
         help_text="Select one activity from a fixed list",
     )
-    notes = models.TextField(blank=True, null=True, help_text="Optional notes about your mood")
+    notes = models.TextField(
+        blank=True, null=True, help_text="Optional notes about your mood"
+    )
     logged_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

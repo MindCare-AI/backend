@@ -1,6 +1,7 @@
 # users/serializers/user.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.apps import apps
 
 # Update imports to use app-specific serializers
 from patient.serializers.patient_profile import PatientProfileSerializer
@@ -45,32 +46,71 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
 
 class UserTypeSerializer(serializers.ModelSerializer):
-    user_type = serializers.ChoiceField(
-        choices=CustomUser.USER_TYPE_CHOICES,
-        style={
-            "base_template": "input.html",  # default input widget
-            "template": "rest_framework/vertical/radio.html",  # render as radio buttons
-        },
-        help_text="Select your role in the system. This can only be set once.",
-        label="User Role",
-    )
-
     class Meta:
         model = CustomUser
         fields = ["user_type"]
-        read_only_fields = ["id", "email"]
 
     def validate_user_type(self, value):
-        valid_types = [choice[0] for choice in CustomUser.USER_TYPE_CHOICES]
-        if value not in valid_types:
+        """Validate that user_type is one of the allowed choices"""
+        if value not in ["patient", "therapist"]:
             raise serializers.ValidationError(
-                f"Invalid user type. Must be one of: {', '.join(valid_types)}"
+                "User type must be either 'patient' or 'therapist'"
             )
         return value
 
     def update(self, instance, validated_data):
-        instance.user_type = validated_data.get("user_type", instance.user_type)
+        """Handle user type update and create associated profiles"""
+        user_type = validated_data.get("user_type")
+
+        # Update the user type
+        instance.user_type = user_type
         instance.save()
+
+        # Create associated profile based on user type
+        if user_type == "therapist":
+            # Get the TherapistProfile model dynamically to avoid import issues
+            TherapistProfile = apps.get_model("therapist", "TherapistProfile")
+
+            # Create or get therapist profile with proper defaults that respect constraints
+            therapist_profile, created = TherapistProfile.objects.get_or_create(
+                user=instance,
+                defaults={
+                    # Don't set license_number at all - let the model handle the default
+                    "bio": "",
+                    "years_of_experience": 0,
+                    "verification_status": "pending",
+                    "specializations": [],
+                    "education": [],
+                    "experience": [],
+                    "available_days": {},
+                    "languages": [],
+                    "therapy_types": [],
+                    "insurance_providers": [],
+                },
+            )
+            if created:
+                logger.info(f"Created therapist profile for user {instance.id}")
+
+        elif user_type == "patient":
+            # Get the PatientProfile model dynamically
+            try:
+                PatientProfile = apps.get_model("patient", "PatientProfile")
+                patient_profile, created = PatientProfile.objects.get_or_create(
+                    user=instance,
+                    defaults={
+                        "date_of_birth": None,
+                        "emergency_contact": "",
+                        "medical_history": "",
+                    },
+                )
+                if created:
+                    logger.info(f"Created patient profile for user {instance.id}")
+            except LookupError:
+                # PatientProfile model doesn't exist yet, skip creation
+                logger.warning(
+                    "PatientProfile model not found, skipping profile creation"
+                )
+
         return instance
 
 
@@ -228,3 +268,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             user_type=validated_data.get("user_type", "patient"),
         )
         return user
+
+
+class UserListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ["id", "username", "user_type"]
+        read_only_fields = ["id", "username", "user_type"]

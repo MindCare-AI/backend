@@ -27,7 +27,7 @@ class ConversationSummaryService:
         """
         try:
             # Import here to avoid circular imports
-            from chatbot.models import ChatbotMessage, ChatbotConversation
+            from chatbot.models import ChatMessage, ChatbotConversation
             from messaging.models.one_to_one import (
                 OneToOneMessage,
                 OneToOneConversation,
@@ -36,7 +36,7 @@ class ConversationSummaryService:
             # Determine conversation type and get messages
             try:
                 ChatbotConversation.objects.get(id=conversation_id)
-                messages = ChatbotMessage.objects.filter(
+                messages = ChatMessage.objects.filter(
                     conversation_id=conversation_id
                 ).order_by("timestamp")
             except ChatbotConversation.DoesNotExist:
@@ -238,7 +238,19 @@ Please provide a comprehensive summary in JSON format with these fields:
         """
         try:
             # Import here to avoid circular imports
-            from chatbot.models import ChatbotMessage
+            from chatbot.models import ChatMessage
+
+            # Validate conversation_id - it should be a valid integer for ChatMessage
+            try:
+                conversation_id_int = int(conversation_id)
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid conversation ID format: {conversation_id}")
+                return {
+                    "error": "Invalid conversation ID format",
+                    "success": False,
+                    "recent_messages": [],
+                    "has_summary": False,
+                }
 
             # Get the most recent summary
             latest_summary = (
@@ -250,8 +262,8 @@ Please provide a comprehensive summary in JSON format with these fields:
             )
 
             # Get the 6 most recent messages
-            recent_messages = ChatbotMessage.objects.filter(
-                conversation_id=conversation_id
+            recent_messages = ChatMessage.objects.filter(
+                conversation_id=conversation_id_int
             ).order_by("-timestamp")[:6]
 
             # Format the recent messages
@@ -283,7 +295,12 @@ Please provide a comprehensive summary in JSON format with these fields:
 
         except Exception as e:
             logger.error(f"Error getting conversation context: {str(e)}", exc_info=True)
-            return {"error": str(e), "success": False, "recent_messages": []}
+            return {
+                "error": str(e),
+                "success": False,
+                "recent_messages": [],
+                "has_summary": False,
+            }
 
     def get_or_create_summary(
         self, conversation_id: str, user, messages: list

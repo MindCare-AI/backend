@@ -11,9 +11,6 @@ from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 
-# Import extend_schema and extend_schema_view to enrich Swagger/OpenAPI docs.
-# • extend_schema: Adds detailed metadata (description, summary, tags, etc.) to a specific view method.
-# • extend_schema_view: Applies common schema settings to all view methods of a viewset.
 from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
@@ -29,7 +26,7 @@ from ..serializers.one_to_one import (
 
 # New corrected import
 # Removed Firebase import
-# from ..services/firebase import push_message  # DELETE THIS LINE
+# from ..services.firebase import push_message  # DELETE THIS LINE
 import logging
 from ..mixins.edit_history import EditHistoryMixin
 from ..mixins.reactions import ReactionMixin
@@ -187,38 +184,35 @@ class OneToOneConversationViewSet(viewsets.ModelViewSet):
         summary="List Conversation Messages",
         tags=["One-to-One Conversation"],
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], url_path="messages")
     def messages(self, request, pk=None):
-        try:
-            conversation = self.get_object()
-            page_size = int(request.query_params.get("page_size", 20))
-            before_id = request.query_params.get("before_id")
-            after_id = request.query_params.get("after_id")
+        """Get all messages for a conversation with proper pagination and consistent response format."""
+        conversation = self.get_object()
 
-            messages = conversation.messages.all()
-            if before_id:
-                before_message = OneToOneMessage.objects.get(id=before_id)
-                messages = messages.filter(timestamp__lt=before_message.timestamp)
-            if after_id:
-                after_message = OneToOneMessage.objects.get(id=after_id)
-                messages = messages.filter(timestamp__gt=after_message.timestamp)
-            messages = messages.order_by("-timestamp")[:page_size]
-            serializer = OneToOneMessageSerializer(messages, many=True)
+        # Get messages in chronological order (oldest first)
+        messages = OneToOneMessage.objects.filter(conversation=conversation).order_by(
+            "timestamp"
+        )
 
-            unread_messages = messages.exclude(sender=request.user).exclude(
-                read_by=request.user
+        # Apply pagination
+        page = self.paginate_queryset(messages)
+        if page is not None:
+            serializer = OneToOneMessageSerializer(
+                page, many=True, context={"request": request}
             )
-            for message in unread_messages:
-                message.read_by.add(request.user)
+            response = self.get_paginated_response(serializer.data)
+            return response
 
-            return Response(
-                {"results": serializer.data, "has_more": messages.count() == page_size}
-            )
-        except Exception as e:
-            return Response(
-                {"detail": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        # If pagination is not configured
+        serializer = OneToOneMessageSerializer(
+            messages, many=True, context={"request": request}
+        )
+        return Response(
+            {
+                "results": serializer.data,
+                "count": messages.count(),
+            }
+        )
 
     @extend_schema(
         description="Set the conversation status as 'typing' for the authenticated user.",
@@ -365,9 +359,10 @@ class OneToOneMessageViewSet(ReactionMixin, EditHistoryMixin, viewsets.ModelView
 
     def get_queryset(self):
         """Filter messages to include only those in conversations the user participates in."""
-        return OneToOneMessage.objects.filter(
-            conversation__participants=self.request.user
-        ).order_by("-timestamp")
+        user = self.request.user
+        return OneToOneMessage.objects.filter(conversation__participants=user).order_by(
+            "timestamp"  # Changed from "-timestamp" to ascending order
+        )
 
     @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
     def list(self, request, *args, **kwargs):

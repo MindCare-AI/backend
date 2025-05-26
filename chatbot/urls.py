@@ -2,35 +2,53 @@
 from django.urls import path
 from .views import ChatbotViewSet
 
-chatbot_list = ChatbotViewSet.as_view(
-    {
-        "get": "list",
-        "post": "create",
-    }
-)
-
-chatbot_detail = ChatbotViewSet.as_view(
-    {
-        "get": "retrieve",
-        "put": "update",
-        "patch": "partial_update",
-        "delete": "destroy",
-    }
-)
-
-chatbot_send_message = ChatbotViewSet.as_view(
-    {
-        "post": "send_message",
-    }
-)
+app_name = "chatbot"
 
 urlpatterns = [
-    path("", chatbot_list, name="chatbot-conversation-list"),
-    path("", chatbot_detail, name="chatbot-conversation-detail"),
+    # Conversation CRUD operations
+    path(
+        "",
+        ChatbotViewSet.as_view({"get": "list", "post": "create"}),
+        name="conversation-list",
+    ),
+    path(
+        "<int:pk>/",
+        ChatbotViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
+        name="conversation-detail",
+    ),
+    # Conversation actions
     path(
         "<int:pk>/send_message/",
-        chatbot_send_message,
-        name="chatbot-send-message",
+        ChatbotViewSet.as_view({"post": "send_message"}),
+        name="conversation-send-message",
+    ),
+    path(
+        "<int:pk>/messages/",
+        ChatbotViewSet.as_view({"get": "get_messages"}),
+        name="conversation-messages",
+    ),
+    path(
+        "<int:pk>/toggle_active/",
+        ChatbotViewSet.as_view({"post": "toggle_active"}),
+        name="conversation-toggle-active",
+    ),
+    path(
+        "<int:pk>/clear/",
+        ChatbotViewSet.as_view({"post": "clear_conversation"}),
+        name="conversation-clear",
+    ),
+    # System information
+    path(
+        "system-info/",
+        ChatbotViewSet.as_view({"get": "system_info"}),
+        name="system-info",
     ),
 ]
 

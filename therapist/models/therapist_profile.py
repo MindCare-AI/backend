@@ -28,7 +28,13 @@ class TherapistProfile(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         default=0,
     )
-    license_number = models.CharField(max_length=100, unique=True)
+    license_number = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        default="",  # Add default empty string
+        help_text="Professional license number (can be added later)",
+    )
     license_expiry = models.DateField(null=True, blank=True)
     available_days = models.JSONField(
         default=dict, help_text="Dictionary of available days and time slots"
@@ -80,6 +86,22 @@ class TherapistProfile(models.Model):
         help_text="Default session duration in minutes",
         validators=[MinValueValidator(15), MaxValueValidator(180)],
     )
+
+    class Meta:
+        ordering = ["user__username"]
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["is_verified", "verification_status"]),
+        ]
+        # Add a custom constraint that only enforces uniqueness when license_number is not null
+        constraints = [
+            models.UniqueConstraint(
+                fields=["license_number"],
+                condition=models.Q(license_number__isnull=False)
+                & ~models.Q(license_number__exact=""),
+                name="unique_license_number_when_not_null",
+            )
+        ]
 
     def __str__(self):
         return f"Therapist Profile - {self.user.username}"
@@ -142,6 +164,10 @@ class TherapistProfile(models.Model):
                 raise ValidationError(f"Invalid available_days format: {str(e)}")
 
     def save(self, *args, **kwargs):
+        # Convert empty string to None to avoid unique constraint violations
+        if self.license_number == "":
+            self.license_number = None
+
         self.profile_completion = self._calculate_profile_completion()
         super().save(*args, **kwargs)
 
@@ -229,10 +255,3 @@ class TherapistProfile(models.Model):
                 available.append(current)
             current += timedelta(days=1)
         return available
-
-    class Meta:
-        ordering = ["user__username"]
-        indexes = [
-            models.Index(fields=["user"]),
-            models.Index(fields=["is_verified", "verification_status"]),
-        ]

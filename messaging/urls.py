@@ -32,11 +32,6 @@ urlpatterns = [
         name="one_to_one_messages",
     ),
     path(
-        "one_to_one/<int:pk>/typing/",
-        OneToOneConversationViewSet.as_view({"post": "typing"}),
-        name="one_to_one_typing",
-    ),
-    path(
         "one_to_one/<int:pk>/search/",
         OneToOneConversationViewSet.as_view({"get": "search"}),
         name="one_to_one_search",
@@ -150,7 +145,5 @@ urlpatterns = [
     # ==============================
     # All Conversations Endpoint
     # ==============================
-    path(
-        "all/", AllConversationsView.as_view(), name="all_conversations"
-    ),
+    path("all/", AllConversationsView.as_view(), name="all_conversations"),
 ]

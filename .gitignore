@@ -14,12 +14,12 @@ logs/
 # Database files
 *.sqlite3
 
- 
-
+.env
+rag_data/
 # Static and media files
 staticfiles/
 media/
-
+chatbot/data/chunks/
 
 # IDE & OS-specific files
 .vscode/

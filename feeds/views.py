@@ -1,4 +1,4 @@
-from django.db.models import F, Count
+from django.db.models import F, Count, Prefetch
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import viewsets, status, filters
 from rest_framework.permissions import IsAuthenticated
@@ -6,7 +6,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from drf_spectacular.utils import extend_schema, OpenApiResponse
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from rest_framework import serializers
 from django.db import transaction
 from django.core.cache import cache
@@ -37,7 +38,8 @@ class FeedPagination(PageNumberPagination):
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    renderer_classes = (JSONRenderer, BrowsableAPIRenderer)
     permission_classes = [IsAuthenticated]
     pagination_class = FeedPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -53,11 +55,25 @@ class PostViewSet(viewsets.ModelViewSet):
         return PostSerializer
 
     def get_queryset(self):
-        queryset = Post.objects.all()
+        """Enhanced queryset with optimized loading"""
+        queryset = Post.objects.select_related(
+            "author"
+        ).prefetch_related(
+            "media_files",
+            "reactions",
+            "poll_options",
+            Prefetch("comments", queryset=Comment.objects.select_related("author")),
+        ).annotate(
+            total_reactions=Count("reactions", distinct=True),
+            total_comments=Count("comments", distinct=True),
+        )
+
+        # Apply filters
         author = self.request.query_params.get("author")
         if author:
             queryset = queryset.filter(author=author)
-        return queryset
+
+        return self._apply_filters(queryset)
 
     def _apply_filters(self, queryset):
         # Filter by topic
@@ -95,7 +111,31 @@ class PostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        """Enhanced create with proper context"""
         serializer.save(author=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        """Enhanced list with proper serialization context"""
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True, context={"request": request})
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True, context={"request": request})
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Enhanced retrieve with view count increment"""
+        instance = self.get_object()
+
+        # Increment view count
+        Post.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
+        instance.refresh_from_db()
+
+        serializer = self.get_serializer(instance, context={"request": request})
+        return Response(serializer.data)
 
     @extend_schema(
         description="React to a post or get post reactions",

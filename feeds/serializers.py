@@ -168,13 +168,19 @@ class PollOptionSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    file = serializers.FileField(required=False)
+    """Enhanced Post serializer with complete data exposure"""
+
+    file = serializers.FileField(required=False, write_only=True)
     media_files = MediaFileSerializer(many=True, read_only=True)
     reactions_summary = serializers.SerializerMethodField()
     current_user_reaction = serializers.SerializerMethodField()
-    comments_count = serializers.IntegerField(read_only=True)
+    comments_count = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
     author_profile_pic = serializers.SerializerMethodField()
+    author_details = serializers.SerializerMethodField()
+    poll_options = PollOptionSerializer(many=True, read_only=True)
+    total_reactions = serializers.SerializerMethodField()
+    is_liked_by_user = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -183,6 +189,7 @@ class PostSerializer(serializers.ModelSerializer):
             "author",
             "author_name",
             "author_profile_pic",
+            "author_details",
             "content",
             "post_type",
             "topics",
@@ -196,14 +203,19 @@ class PostSerializer(serializers.ModelSerializer):
             "tags",
             "reactions_summary",
             "current_user_reaction",
+            "total_reactions",
+            "is_liked_by_user",
             "comments_count",
+            "poll_options",
         ]
-        read_only_fields = ["author", "visibility", "created_at", "updated_at"]
+        read_only_fields = ["author", "visibility", "created_at", "updated_at", "views_count"]
 
     def get_reactions_summary(self, obj):
+        """Get detailed reactions summary"""
         return obj.get_reactions_summary()
 
     def get_current_user_reaction(self, obj):
+        """Get current user's reaction to this post"""
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             content_type = ContentType.objects.get_for_model(Post)
@@ -216,8 +228,39 @@ class PostSerializer(serializers.ModelSerializer):
                 return None
         return None
 
+    def get_total_reactions(self, obj):
+        """Get total reaction count"""
+        return obj.reactions.count()
+
+    def get_is_liked_by_user(self, obj):
+        """Check if current user liked this post"""
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            content_type = ContentType.objects.get_for_model(Post)
+            return obj.reactions.filter(
+                user=request.user, reaction_type="like"
+            ).exists()
+        return False
+
+    def get_comments_count(self, obj):
+        """Get total comments count"""
+        return obj.comments.count()
+
     def get_author_name(self, obj):
         return obj.author.get_full_name() or obj.author.username
+
+    def get_author_details(self, obj):
+        """Get detailed author information"""
+        user = obj.author
+        return {
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "full_name": user.get_full_name(),
+            "user_type": user.user_type,
+            "email": user.email if self.context.get("request") and self.context["request"].user == user else None,
+        }
 
     def get_author_profile_pic(self, obj):
         user = obj.author
@@ -262,63 +305,39 @@ class PostSerializer(serializers.ModelSerializer):
             return "audio"
         return "document"
 
+    def to_representation(self, instance):
+        """Ensure all data is properly serialized"""
+        data = super().to_representation(instance)
+
+        # Ensure all computed fields are included
+        request = self.context.get("request")
+        if request:
+            # Add extra debugging info in development
+            if hasattr(request, "user") and request.user.is_authenticated:
+                data["_debug_info"] = {
+                    "user_id": request.user.id,
+                    "is_authenticated": True,
+                    "timestamp": instance.created_at.isoformat() if instance.created_at else None,
+                }
+
+        return data
+
 
 class PostDetailSerializer(PostSerializer):
     """Serializer for post detail view with comments"""
 
     comments = serializers.SerializerMethodField()
+    reactions = serializers.SerializerMethodField()
 
     class Meta(PostSerializer.Meta):
-        fields = PostSerializer.Meta.fields + ["comments"]
+        fields = PostSerializer.Meta.fields + ["comments", "reactions"]
 
     def get_comments(self, obj):
         """Get top-level comments on the post"""
-        comments = obj.comments.filter(parent=None).order_by("-created_at")[:5]
+        comments = obj.comments.filter(parent=None).order_by("-created_at")[:10]
         return CommentSerializer(comments, many=True, context=self.context).data
 
-
-class PollVoteSerializer(serializers.ModelSerializer):
-    """Serializer for poll votes"""
-
-    class Meta:
-        model = PollVote
-        fields = ["id", "poll_option", "user", "voted_at"]
-        read_only_fields = ["user", "voted_at"]
-
-    def create(self, validated_data):
-        """Associate the vote with the authenticated user"""
-        validated_data["user"] = self.context["request"].user
-        return super().create(validated_data)
-
-    def validate(self, data):
-        """Validate that the user hasn't already voted on this poll"""
-        user = self.context["request"].user
-        poll_option = data["poll_option"]
-        post = poll_option.post
-
-        existing_votes = PollVote.objects.filter(poll_option__post=post, user=user)
-
-        if existing_votes.exists():
-            raise serializers.ValidationError("You have already voted on this poll")
-
-        return data
-
-
-class UserProfileMinimalSerializer(serializers.ModelSerializer):
-    """Minimal serializer for user profiles in feed responses"""
-
-    name = serializers.SerializerMethodField()
-    profile_pic = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CustomUser
-        fields = ["id", "username", "name", "profile_pic", "user_type"]
-
-    def get_name(self, obj):
-        return obj.get_full_name() or obj.username
-
-    def get_profile_pic(self, obj):
-        if hasattr(obj, "profile") and hasattr(obj.profile, "profile_image"):
-            if obj.profile.profile_image:
-                return obj.profile.profile_image.url
-        return None
+    def get_reactions(self, obj):
+        """Get all reactions on the post"""
+        reactions = obj.reactions.all().order_by("-created_at")[:20]
+        return ReactionSerializer(reactions, many=True, context=self.context).data

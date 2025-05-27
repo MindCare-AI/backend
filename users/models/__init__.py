@@ -7,7 +7,6 @@ from .settings import UserSettings
 __all__ = [
     "CustomUser",
     "Profile",
-    "PatientProfile",
     "UserPreferences",
     "UserSettings",
 ]

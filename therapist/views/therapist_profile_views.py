@@ -121,6 +121,13 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             raise DRFValidationError({"user": "User field cannot be modified"})
 
         try:
+            # Ensure JSON fields have proper defaults before saving
+            validated_data = serializer.validated_data
+            json_fields = ['experience', 'specializations', 'treatment_approaches', 'languages']
+            for field in json_fields:
+                if field in validated_data and validated_data[field] is None:
+                    validated_data[field] = []
+                    
             serializer.save()
         except DjangoValidationError as e:
             # propagate your model.clean() messages verbatim
@@ -132,7 +139,7 @@ class TherapistProfileViewSet(viewsets.ModelViewSet):
             logger.error(
                 f"Unexpected error updating therapist profile: {e}", exc_info=True
             )
-            raise DRFValidationError("Could not update therapist profile")
+            raise DRFValidationError(f"Could not update therapist profile: {str(e)}")
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)

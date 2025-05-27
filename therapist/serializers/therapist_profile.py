@@ -176,6 +176,30 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
     def get_username(self, obj):
         return obj.user.username
 
+    def validate_experience(self, value):
+        """Ensure experience is never None"""
+        if value is None:
+            return []
+        return value
+
+    def validate_specializations(self, value):
+        """Ensure specializations is never None"""
+        if value is None:
+            return []
+        return value
+
+    def validate_treatment_approaches(self, value):
+        """Ensure treatment_approaches is never None"""
+        if value is None:
+            return []
+        return value
+
+    def validate_languages(self, value):
+        """Ensure languages is never None"""
+        if value is None:
+            return []
+        return value
+
     def update(self, instance, validated_data):
         user_data = validated_data.pop("user", None)
         if user_data:
@@ -183,6 +207,11 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             for attr, value in user_data.items():
                 setattr(user, attr, value)
             user.save()
+
+        # Ensure JSON fields are never None
+        for field in ['experience', 'specializations', 'treatment_approaches', 'languages']:
+            if field in validated_data and validated_data[field] is None:
+                validated_data[field] = []
 
         for attr, value in validated_data.items():
             if isinstance(value, set):

@@ -19,7 +19,6 @@ from ..serializers.user import (
     UserSerializer,
     UserTypeSerializer,
     UserRegistrationSerializer,
-    UserListSerializer,  # Add this import
 )
 
 from rest_framework.decorators import api_view, permission_classes, renderer_classes
@@ -86,8 +85,6 @@ class UserListView(ListAPIView):
     ),
 )
 class CustomUserViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]  # Add permission class
-
     def list(self, request):
         return Response({"message": "List of users"})
 
@@ -97,26 +94,6 @@ class CustomUserViewSet(viewsets.ViewSet):
     def update_preferences(self, request, pk=None):
         return Response({"message": f"Update preferences for user {pk}"})
 
-    @extend_schema(
-        description="List all users with basic information",
-        summary="List All Users",
-        tags=["User"],
-        responses={200: UserListSerializer(many=True)},
-    )
-    @action(detail=False, methods=["get"], url_path="list-all")
-    def list_all_users(self, request):
-        """Get a list of all users with basic information."""
-        try:
-            users = CustomUser.objects.all().order_by("username")
-            serializer = UserListSerializer(users, many=True)
-            return Response(serializer.data)
-        except Exception as e:
-            logger.error(f"Error fetching user list: {str(e)}")
-            return Response(
-                {"error": "Failed to fetch user list"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
@@ -125,9 +102,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
-            return CustomUser.objects.all().select_related('preferences', 'settings')
-        return CustomUser.objects.filter(id=user.id).select_related(
-            'preferences', 'settings'
+            return CustomUser.objects.all().prefetch_related("preferences", "settings")
+        return CustomUser.objects.filter(id=user.id).prefetch_related(
+            "preferences", "settings"
         )
 
     @action(detail=True, methods=["patch"])
@@ -137,7 +114,7 @@ class UserViewSet(viewsets.ModelViewSet):
             preferences, created = UserPreferences.objects.get_or_create(user=user)
 
             serializer = UserPreferencesSerializer(
-                preferences, data=request.data, partial=True, context={'request': request}
+                preferences, data=request.data, partial=True
             )
 
             if serializer.is_valid():
@@ -258,7 +235,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class SetUserTypeView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]  # Changed from CanSetUserType
 
     def list(self, request):
         user_type_choices = {
@@ -274,34 +251,19 @@ class SetUserTypeView(viewsets.ViewSet):
 
     def create(self, request):
         user = request.user
-
-        # Check if user_type is already set (optional: remove if you want to allow changes)
+        # Add a check to prevent changing user_type if already set
         if user.user_type and not user.is_superuser:
             return Response(
                 {"error": "User type can only be set once"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Import the updated serializer
-        from ..serializers.user import UserTypeSerializer
-
         serializer = UserTypeSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
-            try:
-                serializer.save()
-                return Response(
-                    {
-                        "message": "User type updated successfully",
-                        "user_type": user.user_type,
-                    },
-                    status=status.HTTP_200_OK,
-                )
-            except Exception as e:
-                logger.error(f"Error setting user type: {str(e)}", exc_info=True)
-                return Response(
-                    {"error": f"Failed to set user type: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            serializer.save()
+            return Response(
+                {"message": "User type updated successfully"}, status=status.HTTP_200_OK
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -354,40 +316,5 @@ def me(request):
     """
     Retrieve current user's full information including user type.
     """
-    try:
-        # Ensure preferences and settings exist with proper defaults
-        from users.models.preferences import UserPreferences
-        
-        preferences, created = UserPreferences.objects.get_or_create(
-            user=request.user,
-            defaults={
-                'theme': 'light',
-                'dark_mode': False,
-                'language': 'en',
-                'timezone': 'UTC',
-                'notification_preferences': {},
-                'email_notifications': True,
-                'push_notifications': True,
-                'in_app_notifications': True,
-            }
-        )
-        
-        settings, created = UserSettings.objects.get_or_create(
-            user=request.user,
-            defaults={
-                'privacy_level': 'medium',
-                'two_factor_enabled': False,
-            }
-        )
-        
-        # Refresh user from database with related objects
-        user = CustomUser.objects.select_related('preferences', 'settings').get(id=request.user.id)
-        serializer = UserSerializer(user)
-        return Response(serializer.data)
-        
-    except Exception as e:
-        logger.error(f"Error in me endpoint: {str(e)}", exc_info=True)
-        return Response(
-            {"error": "Could not retrieve user profile"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)

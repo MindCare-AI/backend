@@ -1,11 +1,12 @@
 # AI_engine/urls.py
 from django.urls import path
 from rest_framework import routers
-from .views import AIAnalysisViewSet, AIInsightViewSet, TherapyRecommendationViewSet
+from .views import AIAnalysisViewSet, AIInsightViewSet, TherapyRecommendationViewSet, CommunicationAnalysisViewSet
 
 # Create router only for the AIAnalysisViewSet which is a full ModelViewSet
 router = routers.DefaultRouter()
 router.register(r"analysis", AIAnalysisViewSet, basename="ai-analysis")
+router.register(r"communication", CommunicationAnalysisViewSet, basename="ai-communication")
 
 urlpatterns = [
     # AI Insights endpoints with explicitly defined actions
@@ -54,6 +55,27 @@ urlpatterns = [
         "recommendations/<int:pk>/rate/",
         TherapyRecommendationViewSet.as_view({"post": "rate_effectiveness"}),
         name="ai-recommendations-rate",
+    ),
+    # Communication Analysis endpoints
+    path(
+        "communication/",
+        CommunicationAnalysisViewSet.as_view({"get": "list"}),
+        name="ai-communication-list",
+    ),
+    path(
+        "communication/<int:pk>/",
+        CommunicationAnalysisViewSet.as_view({"get": "retrieve"}),
+        name="ai-communication-detail",
+    ),
+    path(
+        "communication/analyze-patterns/",
+        CommunicationAnalysisViewSet.as_view({"post": "analyze_patterns"}),
+        name="ai-communication-analyze-patterns",
+    ),
+    path(
+        "communication/therapeutic-relationship/",
+        CommunicationAnalysisViewSet.as_view({"get": "therapeutic_relationship"}),
+        name="ai-communication-therapeutic-relationship",
     ),
 ]
 

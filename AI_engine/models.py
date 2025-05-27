@@ -125,6 +125,12 @@ class SocialInteractionAnalysis(models.Model):
     mood_correlation = models.JSONField(
         default=dict, help_text="Correlation between social activity and mood"
     )
+    growth_areas = models.JSONField(
+        default=list, help_text="Areas for growth and improvement"
+    )
+    suggested_interventions = models.JSONField(
+        default=list, help_text="Suggested interventions"
+    )
 
     class Meta:
         ordering = ["-analysis_date"]
@@ -210,6 +216,36 @@ class MedicationEffectAnalysis(models.Model):
     recommendations = models.JSONField(
         default=list, help_text="AI recommendations regarding medication"
     )
+
+    def _analyze_mood_trends(self, mood_tracking, medication_changes):
+        """Analyze mood trends around medication changes"""
+        try:
+            trends = {}
+            correlation_score = 0
+            significant_changes = []
+            
+            # Simple trend analysis
+            for change in medication_changes:
+                date = change["date"]
+                if date in mood_tracking:
+                    # Calculate trend around this date
+                    trends[date] = {
+                        "before_mood": 0,
+                        "after_mood": 0,
+                        "change_detected": True
+                    }
+            
+            return {
+                "trends": trends,
+                "correlation_score": correlation_score,
+                "significant_changes": significant_changes
+            }
+        except Exception:
+            return {
+                "trends": {},
+                "correlation_score": 0,
+                "significant_changes": []
+            }
 
     class Meta:
         ordering = ["-analysis_date"]

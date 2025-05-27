@@ -80,17 +80,12 @@ def is_therapy_question(question: str) -> bool:
 
 def answer_therapy_question(question: str) -> Dict[str, Any]:
     """
-    Answer therapy-related questions using the local RAG system.
-
-    Args:
-        question: The user's therapy question
-
-    Returns:
-        Dict containing the response and metadata
+    Answer therapy-related questions using the local RAG system with improved accuracy.
     """
     try:
         # Import here to avoid circular imports
         from chatbot.services.rag.local_vector_store import local_vector_store
+        from chatbot.services.rag.fallback_classifier import therapy_classifier
 
         # Check if vector store is loaded
         if not local_vector_store.loaded:
@@ -101,20 +96,39 @@ def answer_therapy_question(question: str) -> Dict[str, Any]:
                 error="Vector store not loaded",
             )
 
-        # Determine therapy approach
-        therapy_type, confidence, relevant_chunks = (
-            local_vector_store.determine_therapy_approach(question)
-        )
+        # Use a hybrid approach: combine vector similarity with keyword classification
+        therapy_type, confidence, relevant_chunks = local_vector_store.determine_therapy_approach(question)
+        
+        # Get classification from fallback classifier as well
+        classified_type, classified_confidence, explanation = therapy_classifier.classify(question)
+        
+        # If vector confidence is low but classifier confidence is high, use classifier result
+        if confidence < 0.6 and classified_confidence > 0.7:
+            therapy_type = classified_type
+            confidence = classified_confidence
+            logger.info(f"Using classifier recommendation: {therapy_type} ({confidence:.2f}) over vector recommendation")
+        
+        # If both are confident but disagree, weigh them
+        elif confidence > 0.6 and classified_confidence > 0.6 and therapy_type != classified_type:
+            # Use the one with higher confidence
+            if classified_confidence > confidence + 0.1:  # Significant difference
+                therapy_type = classified_type
+                confidence = classified_confidence
+                logger.info(f"Classifier recommendation {classified_type} ({classified_confidence:.2f}) overrides vector recommendation {therapy_type} ({confidence:.2f})")
+        
+        # Enhanced logging of decision process
+        logger.info(f"Final therapy approach: {therapy_type} (confidence: {confidence:.2f})")
+        logger.info(f"Vector recommended: {therapy_type} ({confidence:.2f}), Classifier recommended: {classified_type} ({classified_confidence:.2f})")
 
-        if therapy_type == "unknown" or confidence < 0.5:
-            # Provide general support response
+        # If confidence still too low, provide general support
+        if confidence < 0.5 or therapy_type == "unknown":
             return _create_general_support_response(question)
 
         # Get relevant context from chunks
         if not relevant_chunks:
             return _create_general_support_response(question)
 
-        # Use the top chunks to create context
+        # Use the top chunks to create context - prioritize highest similarity chunks
         context_chunks = relevant_chunks[:3]  # Use top 3 most relevant chunks
 
         # Build context from relevant chunks
@@ -138,6 +152,8 @@ def answer_therapy_question(question: str) -> Dict[str, Any]:
                     "confidence": confidence,
                     "relevant_chunks": len(relevant_chunks),
                     "context_used": len(context_chunks),
+                    "classifier_match": therapy_type == classified_type,
+                    "classification_explanation": explanation if classified_type == therapy_type else None,
                 },
                 "rag_used": True,
                 "fallback": False,

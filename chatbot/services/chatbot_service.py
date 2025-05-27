@@ -989,6 +989,98 @@ User message category: {category}
             "metadata": {"error": message},
         }
 
+    def _determine_chatbot_method(self, metadata: Dict[str, Any]) -> str:
+        """Determine the chatbot method based on response metadata"""
+        # Check if RAG was used based on metadata indicators
+        if metadata.get("ai_system") and "RAG" in metadata.get("ai_system", ""):
+            rag_confidence = metadata.get("rag_confidence", 0)
+            therapy_recommendation = metadata.get("therapy_recommendation", {})
+
+            # If RAG confidence is meaningful, use it to determine method
+            if rag_confidence and rag_confidence > 0.3:
+                return "rag"
+
+            # Check for therapy approach recommendations
+            if therapy_recommendation:
+                approach = therapy_recommendation.get("recommended_approach")
+                confidence = therapy_recommendation.get("confidence", 0)
+
+                # If we have a high-confidence therapy approach
+                if approach and approach != "unknown" and confidence > 0.5:
+                    return f"rag_{approach}"
+
+            # Default to RAG if other indicators are present
+            if metadata.get("vector_store"):
+                return "rag"
+
+        # Fall back to LLM if no RAG indicators
+        return metadata.get("chatbot_method", "llm")
+
+    def _process_bot_response(self, response_data: Dict[str, Any], query: str) -> Dict[str, Any]:
+        """Process the bot response data before returning to client"""
+        # Ensure metadata exists
+        if "metadata" not in response_data:
+            response_data["metadata"] = {}
+
+        # If therapy recommendation was performed, include it in metadata
+        if hasattr(self, '_therapy_recommendation') and self._therapy_recommendation:
+            response_data["metadata"]["therapy_recommendation"] = self._therapy_recommendation
+
+        # Determine and set the chatbot method consistently
+        chatbot_method = self._determine_chatbot_method(response_data.get("metadata", {}))
+
+        # Set it both in metadata and at root level for consistency
+        response_data["metadata"]["chatbot_method"] = chatbot_method
+        response_data["chatbot_method"] = chatbot_method
+
+        return response_data
+
+    async def get_chatbot_response(self, message: str, conversation_id: str = None, user=None) -> Dict[str, Any]:
+        """Get response from chatbot for a given message"""
+        try:
+            # Check if we should use RAG for therapy approach
+            therapy_approach = None
+            rag_result = None
+
+            # Try to get therapy approach using RAG
+            try:
+                rag_result = therapy_rag_service.get_therapy_approach(message)
+                therapy_approach = rag_result.get("recommended_approach")
+                self._therapy_recommendation = rag_result
+            except Exception as e:
+                logger.error(f"Error getting therapy approach: {str(e)}")
+                self._therapy_recommendation = None
+
+            # Get GEMINI response as before
+            user_data = self._get_user_data(user)
+            conversation_context = self._prepare_conversation_context(
+                user, conversation_id, None
+            )
+
+            prompt = self._build_prompt(
+                message, conversation_context, user_data, user, rag_result
+            )
+
+            # Generate response using Gemini API
+            response = await self._call_gemini_api(prompt)
+
+            # Add metadata about the AI system used
+            if "metadata" not in response:
+                response["metadata"] = {}
+
+            # Include RAG information in metadata
+            if rag_result:
+                response["metadata"]["ai_system"] = "Gemini + Local RAG"
+                response["metadata"]["vector_store"] = "local_file_based"
+                response["metadata"]["rag_confidence"] = rag_result.get("confidence", 0)
+
+            # Process the response to ensure consistent chatbot_method
+            return self._process_bot_response(response, message)
+
+        except Exception as e:
+            logger.error(f"Error in get_chatbot_response: {str(e)}")
+            return self._error_response("Unable to get response from chatbot")
+
 
 # Create singleton instance
 chatbot_service = ChatbotService()

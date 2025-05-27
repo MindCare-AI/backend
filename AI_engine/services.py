@@ -61,13 +61,17 @@ class OllamaModelManager:
 
 class AIAnalysisService:
     def __init__(self):
-        self.base_url = settings.OLLAMA_URL
+        # Safely get settings with defaults
+        self.base_url = getattr(settings, 'OLLAMA_URL', 'http://localhost:11434')
         self.default_model = "mistral"
         self.initialized = False
-        self.batch_size = settings.AI_ENGINE_SETTINGS["ANALYSIS_BATCH_SIZE"]
-        self.max_period = settings.AI_ENGINE_SETTINGS["MAX_ANALYSIS_PERIOD"]
-        self.min_data_points = settings.AI_ENGINE_SETTINGS["MIN_DATA_POINTS"]
-        self.risk_threshold = settings.AI_ENGINE_SETTINGS["RISK_THRESHOLD"]
+        
+        # Get AI engine settings with defaults
+        ai_settings = getattr(settings, 'AI_ENGINE_SETTINGS', {})
+        self.batch_size = ai_settings.get('ANALYSIS_BATCH_SIZE', 50)
+        self.max_period = ai_settings.get('MAX_ANALYSIS_PERIOD', 90)
+        self.min_data_points = ai_settings.get('MIN_DATA_POINTS', 5)
+        self.risk_threshold = ai_settings.get('RISK_THRESHOLD', 0.7)
 
     def initialize(self) -> bool:
         """Initialize the AI service and ensure required models are available"""
@@ -145,15 +149,17 @@ class AIAnalysisService:
         end_date = timezone.now()
         start_date = end_date - timedelta(days=days)
 
+        # Use correct field name for timestamp
         mood_logs = MoodLog.objects.filter(
-            user=user, timestamp__range=(start_date, end_date)
-        ).order_by("-timestamp")
+            user=user, logged_at__range=(start_date, end_date)
+        ).order_by("-logged_at")
 
         return [
             {
                 "mood": log.mood_rating,
-                "activities": log.activities,
-                "timestamp": log.timestamp.isoformat(),
+                "activities": getattr(log, 'activities', []),
+                "timestamp": log.logged_at.isoformat(),
+                "notes": getattr(log, 'notes', ''),
             }
             for log in mood_logs
         ]

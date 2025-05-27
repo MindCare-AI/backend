@@ -1,0 +1,2 @@
+python manage.py analyze_existing_users
+python manage.py initialize_ai

@@ -18,8 +18,41 @@ class Command(BaseCommand):
         self.stdout.write("Initializing AI engine...")
         success = True
 
+        # Check AI Engine settings
+        if not hasattr(settings, "AI_ENGINE_SETTINGS"):
+            self.stderr.write(
+                self.style.ERROR(
+                    "AI_ENGINE_SETTINGS not found in settings. Please configure AI engine settings."
+                )
+            )
+            success = False
+        else:
+            required_settings = [
+                "ANALYSIS_BATCH_SIZE",
+                "MAX_ANALYSIS_PERIOD",
+                "MIN_DATA_POINTS",
+                "RISK_THRESHOLD",
+            ]
+            for setting in required_settings:
+                if setting not in settings.AI_ENGINE_SETTINGS:
+                    self.stderr.write(
+                        self.style.ERROR(f"Missing AI_ENGINE_SETTINGS.{setting}")
+                    )
+                    success = False
+
+        # Check Ollama URL
+        if not hasattr(settings, "OLLAMA_URL") or not settings.OLLAMA_URL:
+            self.stderr.write(
+                self.style.ERROR(
+                    "OLLAMA_URL not found in settings. Please set OLLAMA_URL."
+                )
+            )
+            success = False
+        else:
+            self.stdout.write(self.style.SUCCESS("✓ Ollama URL configured"))
+
         # Check Gemini API key
-        if not settings.GEMINI_API_KEY:
+        if not hasattr(settings, "GEMINI_API_KEY") or not settings.GEMINI_API_KEY:
             self.stderr.write(
                 self.style.ERROR(
                     "Gemini API key not found. Please set GEMINI_API_KEY in your environment."
@@ -31,7 +64,7 @@ class Command(BaseCommand):
 
         # Check Ollama connection
         try:
-            response = requests.get(f"{settings.OLLAMA_URL}/api/tags")
+            response = requests.get(f"{settings.OLLAMA_URL}/api/tags", timeout=5)
             if response.status_code != 200:
                 self.stderr.write(
                     self.style.ERROR(
@@ -47,6 +80,14 @@ class Command(BaseCommand):
             self.stderr.write(
                 self.style.ERROR(
                     "Could not connect to Ollama API. Please ensure Ollama is installed and running."
+                )
+            )
+            success = False
+            return
+        except requests.exceptions.Timeout:
+            self.stderr.write(
+                self.style.ERROR(
+                    "Ollama API connection timeout. Please check your Ollama installation."
                 )
             )
             success = False

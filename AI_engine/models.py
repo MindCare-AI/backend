@@ -223,7 +223,7 @@ class MedicationEffectAnalysis(models.Model):
             trends = {}
             correlation_score = 0
             significant_changes = []
-            
+
             # Simple trend analysis
             for change in medication_changes:
                 date = change["date"]
@@ -232,20 +232,16 @@ class MedicationEffectAnalysis(models.Model):
                     trends[date] = {
                         "before_mood": 0,
                         "after_mood": 0,
-                        "change_detected": True
+                        "change_detected": True,
                     }
-            
+
             return {
                 "trends": trends,
                 "correlation_score": correlation_score,
-                "significant_changes": significant_changes
+                "significant_changes": significant_changes,
             }
         except Exception:
-            return {
-                "trends": {},
-                "correlation_score": 0,
-                "significant_changes": []
-            }
+            return {"trends": {}, "correlation_score": 0, "significant_changes": []}
 
     class Meta:
         ordering = ["-analysis_date"]
@@ -256,34 +252,36 @@ class MedicationEffectAnalysis(models.Model):
 
 class CrisisEvent(models.Model):
     """Model to track crisis detection events"""
-    
+
     CRISIS_LEVELS = [
         ("low", "Low Risk"),
-        ("medium", "Medium Risk"), 
+        ("medium", "Medium Risk"),
         ("high", "High Risk"),
-        ("critical", "Critical Risk")
+        ("critical", "Critical Risk"),
     ]
-    
+
     user = models.ForeignKey(
-        "users.CustomUser",
-        on_delete=models.CASCADE,
-        related_name="crisis_events"
+        "users.CustomUser", on_delete=models.CASCADE, related_name="crisis_events"
     )
-    message_content = models.TextField(help_text="Truncated content of the triggering message")
+    message_content = models.TextField(
+        help_text="Truncated content of the triggering message"
+    )
     confidence = models.FloatField(help_text="AI confidence score for crisis detection")
     crisis_level = models.CharField(max_length=20, choices=CRISIS_LEVELS)
-    matched_terms = models.JSONField(default=list, help_text="Terms that triggered crisis detection")
+    matched_terms = models.JSONField(
+        default=list, help_text="Terms that triggered crisis detection"
+    )
     category = models.CharField(max_length=50, blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     resolved = models.BooleanField(default=False)
     resolution_notes = models.TextField(blank=True, null=True)
     staff_notified = models.BooleanField(default=False)
     follow_up_required = models.BooleanField(default=True)
-    
+
     class Meta:
         ordering = ["-timestamp"]
         verbose_name = "Crisis Event"
         verbose_name_plural = "Crisis Events"
-    
+
     def __str__(self):
         return f"Crisis Event - {self.user.username} - {self.crisis_level} - {self.timestamp}"

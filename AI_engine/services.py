@@ -62,16 +62,16 @@ class OllamaModelManager:
 class AIAnalysisService:
     def __init__(self):
         # Safely get settings with defaults
-        self.base_url = getattr(settings, 'OLLAMA_URL', 'http://localhost:11434')
+        self.base_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
         self.default_model = "mistral"
         self.initialized = False
-        
+
         # Get AI engine settings with defaults
-        ai_settings = getattr(settings, 'AI_ENGINE_SETTINGS', {})
-        self.batch_size = ai_settings.get('ANALYSIS_BATCH_SIZE', 50)
-        self.max_period = ai_settings.get('MAX_ANALYSIS_PERIOD', 90)
-        self.min_data_points = ai_settings.get('MIN_DATA_POINTS', 5)
-        self.risk_threshold = ai_settings.get('RISK_THRESHOLD', 0.7)
+        ai_settings = getattr(settings, "AI_ENGINE_SETTINGS", {})
+        self.batch_size = ai_settings.get("ANALYSIS_BATCH_SIZE", 50)
+        self.max_period = ai_settings.get("MAX_ANALYSIS_PERIOD", 90)
+        self.min_data_points = ai_settings.get("MIN_DATA_POINTS", 5)
+        self.risk_threshold = ai_settings.get("RISK_THRESHOLD", 0.7)
 
     def initialize(self) -> bool:
         """Initialize the AI service and ensure required models are available"""
@@ -157,9 +157,9 @@ class AIAnalysisService:
         return [
             {
                 "mood": log.mood_rating,
-                "activities": getattr(log, 'activities', []),
+                "activities": getattr(log, "activities", []),
                 "timestamp": log.logged_at.isoformat(),
-                "notes": getattr(log, 'notes', ''),
+                "notes": getattr(log, "notes", ""),
             }
             for log in mood_logs
         ]

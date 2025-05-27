@@ -375,12 +375,11 @@ class TherapyRAGService:
             # Validate and clean user_data
             if user_data is None:
                 user_data = {}
-            
+
             # Ensure user_data is properly formatted
             if not isinstance(user_data, dict):
                 logger.warning(f"user_data is not a dict: {type(user_data)}")
                 user_data = {}
-            
 
             # --- Synthetic overrides for generated test scenarios ---
             if query.startswith("Scenario"):
@@ -471,11 +470,21 @@ class TherapyRAGService:
 
             # Boost confidence for mental health related queries
             mental_health_indicators = [
-                "mental health", "therapy", "depression", "anxiety", "stress",
-                "mood", "feelings", "emotions", "counseling", "treatment"
+                "mental health",
+                "therapy",
+                "depression",
+                "anxiety",
+                "stress",
+                "mood",
+                "feelings",
+                "emotions",
+                "counseling",
+                "treatment",
             ]
 
-            if any(indicator in query.lower() for indicator in mental_health_indicators):
+            if any(
+                indicator in query.lower() for indicator in mental_health_indicators
+            ):
                 base_confidence = max(base_confidence, 0.6)
 
             # Boost confidence if user has relevant data
@@ -504,7 +513,7 @@ class TherapyRAGService:
                 "therapy_info": self._get_fallback_therapy_info(),
                 "supporting_evidence": [],
                 "recommended_techniques": [],
-                "alternative_approach": "general_support"
+                "alternative_approach": "general_support",
             }
 
     def _check_direct_mappings(self, query: str) -> Dict[str, Any]:

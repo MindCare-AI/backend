@@ -1,12 +1,19 @@
 # AI_engine/urls.py
 from django.urls import path
 from rest_framework import routers
-from .views import AIAnalysisViewSet, AIInsightViewSet, TherapyRecommendationViewSet, CommunicationAnalysisViewSet
+from .views import (
+    AIAnalysisViewSet,
+    AIInsightViewSet,
+    TherapyRecommendationViewSet,
+    CommunicationAnalysisViewSet,
+)
 
 # Create router only for the AIAnalysisViewSet which is a full ModelViewSet
 router = routers.DefaultRouter()
 router.register(r"analysis", AIAnalysisViewSet, basename="ai-analysis")
-router.register(r"communication", CommunicationAnalysisViewSet, basename="ai-communication")
+router.register(
+    r"communication", CommunicationAnalysisViewSet, basename="ai-communication"
+)
 
 urlpatterns = [
     # AI Insights endpoints with explicitly defined actions

@@ -78,16 +78,23 @@ These intense emotional waves do pass, even when it doesn't feel like they will.
         self.mood_limit = getattr(settings, "CHATBOT_MOOD_LIMIT", 10)
         self.lookback_days = getattr(settings, "CHATBOT_LOOKBACK_DAYS", 30)
         self.crisis_settings = getattr(settings, "CRISIS_RESPONSE_SETTINGS", {})
-        self.high_priority_keywords = self.crisis_settings.get("HIGH_PRIORITY_KEYWORDS", [])
-        self.min_crisis_confidence = self.crisis_settings.get("MIN_CRISIS_CONFIDENCE", 0.6)
+        self.high_priority_keywords = self.crisis_settings.get(
+            "HIGH_PRIORITY_KEYWORDS", []
+        )
+        self.min_crisis_confidence = self.crisis_settings.get(
+            "MIN_CRISIS_CONFIDENCE", 0.6
+        )
 
     def get_response(self, user, message, conversation_id, conversation_history):
         # Store user name for humanization
         self._current_user_name = user.get_full_name() or user.username
-        
+
         # 1) Crisis override
         crisis_detection = self._enhanced_crisis_detection(message)
-        if crisis_detection["is_crisis"] and crisis_detection["confidence"] >= self.min_crisis_confidence:
+        if (
+            crisis_detection["is_crisis"]
+            and crisis_detection["confidence"] >= self.min_crisis_confidence
+        ):
             logger.critical(
                 f"CRISIS CONTENT DETECTED: User {user.id} - '{message}' "
                 f"(conf={crisis_detection['confidence']:.2f}, cat={crisis_detection['category']})"
@@ -95,7 +102,9 @@ These intense emotional waves do pass, even when it doesn't feel like they will.
             # log to DB for audit/follow-up
             crisis_monitoring_service.log_crisis_event(user, message, crisis_detection)
             # generate and tag response
-            crisis_response = self._generate_crisis_response(user, message, crisis_detection)
+            crisis_response = self._generate_crisis_response(
+                user, message, crisis_detection
+            )
             crisis_response["metadata"]["chatbot_method"] = "crisis_protocol"
             crisis_response["chatbot_method"] = "crisis_protocol"
             return crisis_response
@@ -357,7 +366,9 @@ Provide a therapeutic response using the recommended approach.
         for category, patterns in harmful_patterns.items():
             for pattern in patterns:
                 if re.search(pattern, message.lower()):
-                    result.update({"is_harmful": True, "category": category, "confidence": 0.9})
+                    result.update(
+                        {"is_harmful": True, "category": category, "confidence": 0.9}
+                    )
                     return result
 
         return result
@@ -993,63 +1004,79 @@ User message category: {category}
     def _humanize_response(self, content: str) -> str:
         """Make the response more human-like by removing robotic/AI-like language"""
         # Remove section numbers and headers
-        content = re.sub(r'^\d+\.\s+(?:Overview|Key Principles|Technique Steps|Closing Statement)', '', content, flags=re.MULTILINE)
-        
+        content = re.sub(
+            r"^\d+\.\s+(?:Overview|Key Principles|Technique Steps|Closing Statement)",
+            "",
+            content,
+            flags=re.MULTILINE,
+        )
+
         # Remove bullet points at beginning of lines
-        content = re.sub(r'^\s*•\s+', '', content, flags=re.MULTILINE)
-        
+        content = re.sub(r"^\s*•\s+", "", content, flags=re.MULTILINE)
+
         # Remove numbered lists at beginning of lines
-        content = re.sub(r'^\s*\d+\.\s+', '', content, flags=re.MULTILINE)
-        
+        content = re.sub(r"^\s*\d+\.\s+", "", content, flags=re.MULTILINE)
+
         # Replace AI self-references
         ai_references = [
-            r'As an AI', 
-            r'I\'m an AI', 
-            r'as a language model',
-            r'As a mental health assistant',
-            r'MindCare AI',
-            r'I\'m a chatbot',
-            r'I was designed to',
+            r"As an AI",
+            r"I\'m an AI",
+            r"as a language model",
+            r"As a mental health assistant",
+            r"MindCare AI",
+            r"I\'m a chatbot",
+            r"I was designed to",
         ]
-        
+
         for ref in ai_references:
-            content = re.sub(ref, 'As a therapist', content, flags=re.IGNORECASE)
-        
+            content = re.sub(ref, "As a therapist", content, flags=re.IGNORECASE)
+
         # Replace clinical language with more conversational alternatives
         clinical_terms = {
-            r'cognitive distortions': 'unhelpful thought patterns',
-            r'behavioral activation': 'engaging in positive activities',
-            r'dialectical behavior therapy': 'balanced approach to emotions',
-            r'CBT techniques': 'thought-changing exercises',
-            r'DBT skills': 'emotional balancing skills',
-            r'mindfulness exercise': 'present-moment awareness practice',
-            r'therapeutic intervention': 'helpful approach',
-            r'emotional regulation': 'managing feelings',
-            r'psychological assessment': 'understanding of your situation',
+            r"cognitive distortions": "unhelpful thought patterns",
+            r"behavioral activation": "engaging in positive activities",
+            r"dialectical behavior therapy": "balanced approach to emotions",
+            r"CBT techniques": "thought-changing exercises",
+            r"DBT skills": "emotional balancing skills",
+            r"mindfulness exercise": "present-moment awareness practice",
+            r"therapeutic intervention": "helpful approach",
+            r"emotional regulation": "managing feelings",
+            r"psychological assessment": "understanding of your situation",
         }
-        
+
         for term, replacement in clinical_terms.items():
             content = re.sub(term, replacement, content, flags=re.IGNORECASE)
-        
+
         # Add some natural hesitations and fillers occasionally
-        hesitations = [', you know?', ', if that makes sense', ' - well, ', ', I mean, ']
+        hesitations = [
+            ", you know?",
+            ", if that makes sense",
+            " - well, ",
+            ", I mean, ",
+        ]
         if random.random() < 0.3:  # Only add occasionally
             random_position = random.randint(0, max(1, len(content) - 50))
-            insert_position = content.find('. ', random_position)
+            insert_position = content.find(". ", random_position)
             if insert_position > 0:
                 random_hesitation = random.choice(hesitations)
-                content = content[:insert_position] + random_hesitation + content[insert_position:]
-        
+                content = (
+                    content[:insert_position]
+                    + random_hesitation
+                    + content[insert_position:]
+                )
+
         # Ensure the response feels personal by adding the user's name if not already present
-        if hasattr(self, '_current_user_name') and self._current_user_name:
+        if hasattr(self, "_current_user_name") and self._current_user_name:
             if self._current_user_name not in content and len(content) > 100:
-                sentences = content.split('. ')
+                sentences = content.split(". ")
                 if len(sentences) > 2:
                     # Add name to the second or third sentence
-                    insert_idx = random.randint(1, min(2, len(sentences)-1))
-                    sentences[insert_idx] = f"{self._current_user_name}, {sentences[insert_idx][0].lower()}{sentences[insert_idx][1:]}"
-                    content = '. '.join(sentences)
-        
+                    insert_idx = random.randint(1, min(2, len(sentences) - 1))
+                    sentences[insert_idx] = (
+                        f"{self._current_user_name}, {sentences[insert_idx][0].lower()}{sentences[insert_idx][1:]}"
+                    )
+                    content = ". ".join(sentences)
+
         return content
 
     def _enhanced_crisis_detection(self, message: str) -> Dict[str, Any]:
@@ -1061,7 +1088,7 @@ User message category: {category}
             "is_crisis": False,
             "confidence": 0.0,
             "category": None,
-            "matched_terms": []
+            "matched_terms": [],
         }
 
         # Define more comprehensive crisis patterns with weights
@@ -1077,7 +1104,10 @@ User message category: {category}
                 (r"\bthoughts?\s+about\s+killing\s+myself\b", 0.9),
                 (r"\bthinking\s+about\s+suicide\b", 0.9),
                 # Add pattern for the specific message structure
-                (r"\bsto\s+thining\s+killing\s+my\s+self\b", 0.95),  # Matches typos in user input
+                (
+                    r"\bsto\s+thining\s+killing\s+my\s+self\b",
+                    0.95,
+                ),  # Matches typos in user input
                 (r"\bimprove\s+my\s+self\s+to\s+sto.*killing\b", 0.9),
             ],
             "self_harm": [
@@ -1085,7 +1115,10 @@ User message category: {category}
                 (r"\bharm(ing)?\s+(my)?self\b", 0.8),
                 (r"\bhurt(ing)?\s+(my)?self\b", 0.8),
                 (r"\binjur(e|ing)\s+(my)?self\b", 0.8),
-                (r"\bprevent\s+killing\s+(my)?self\b", 0.9),  # New pattern for help seeking
+                (
+                    r"\bprevent\s+killing\s+(my)?self\b",
+                    0.9,
+                ),  # New pattern for help seeking
             ],
             "immediate_danger": [
                 (r"\bhelp\s+me\s+now\b", 0.7),
@@ -1094,15 +1127,19 @@ User message category: {category}
                 (r"\bin\s+danger\b", 0.8),
                 (r"\bplan\s+to\s+kill\b", 0.95),
                 (r"\bhave\s+a\s+plan\b", 0.8),
-            ]
+            ],
         }
 
         # Check for exact matches of high priority keywords first
         high_priority_patterns = [
-            "kill myself", "killing myself", "suicide", "want to die", 
-            "end my life", "stop thinking about killing myself"
+            "kill myself",
+            "killing myself",
+            "suicide",
+            "want to die",
+            "end my life",
+            "stop thinking about killing myself",
         ]
-        
+
         for keyword in high_priority_patterns:
             if keyword in message_lower:
                 result["is_crisis"] = True
@@ -1130,26 +1167,32 @@ User message category: {category}
         # Additional context-aware analysis for potential false positives
         if result["is_crisis"]:
             # Check for quotes or hypothetical discussions that might be false positives
-            if re.search(r"\".*(" + "|".join(result["matched_terms"]) + ").*\"", message):
+            if re.search(
+                r"\".*(" + "|".join(result["matched_terms"]) + ').*"', message
+            ):
                 result["confidence"] *= 0.7  # Reduce confidence for quoted text
 
             # Check for educational or third-person context
             educational_indicators = [
                 r"\bwhat\s+to\s+do\s+if\b",
                 r"\bhow\s+to\s+help\b",
-                r"\bmy\s+friend\s+is\b"
+                r"\bmy\s+friend\s+is\b",
             ]
-            if any(re.search(pattern, message_lower) for pattern in educational_indicators):
+            if any(
+                re.search(pattern, message_lower) for pattern in educational_indicators
+            ):
                 result["confidence"] *= 0.6  # Reduce confidence for educational context
 
         return result
 
-    def _generate_crisis_response(self, user, message: str, crisis_detection: Dict[str, Any]) -> Dict[str, Any]:
+    def _generate_crisis_response(
+        self, user, message: str, crisis_detection: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Generate specialized response for crisis situations with appropriate resources
         """
         user_name = user.get_full_name() or user.username
-        
+
         # Enhanced crisis response that's more supportive and immediate
         response_template = f"""I'm deeply concerned about what you've shared, {user_name}. Having thoughts about ending your life is incredibly painful, and I want you to know that reaching out shows tremendous strength.
 
@@ -1180,11 +1223,13 @@ Would you be willing to reach out to one of these resources right now? I'm here 
                 "crisis_matched_terms": crisis_detection["matched_terms"],
                 "response_type": "emergency_intervention",
                 "chatbot_method": "crisis_protocol",
-                "priority": "critical"
-            }
+                "priority": "critical",
+            },
         }
-        
-    def _alert_staff_about_crisis(self, user, message: str, crisis_detection: Dict[str, Any]) -> None:
+
+    def _alert_staff_about_crisis(
+        self, user, message: str, crisis_detection: Dict[str, Any]
+    ) -> None:
         """Alert appropriate staff members about the crisis situation"""
         try:
             # Import here to avoid circular imports
@@ -1201,10 +1246,12 @@ Would you be willing to reach out to one of these resources right now? I'm here 
                     "user_id": user.id,
                     "crisis_category": crisis_detection["category"],
                     "crisis_confidence": crisis_detection["confidence"],
-                    "message_preview": message[:100] + "..." if len(message) > 100 else message,
-                    "timestamp": timezone.now().isoformat()
+                    "message_preview": message[:100] + "..."
+                    if len(message) > 100
+                    else message,
+                    "timestamp": timezone.now().isoformat(),
                 },
-                priority="critical"
+                priority="critical",
             )
             logger.info(f"Crisis alert sent for user {user.id}")
         except Exception as e:
@@ -1214,36 +1261,41 @@ Would you be willing to reach out to one of these resources right now? I'm here 
     def _detect_crisis_indicators(self, message: str) -> bool:
         """Legacy method maintained for compatibility, now using enhanced detection"""
         crisis_detection = self._enhanced_crisis_detection(message)
-        return crisis_detection["is_crisis"] and crisis_detection["confidence"] >= self.min_crisis_confidence
+        return (
+            crisis_detection["is_crisis"]
+            and crisis_detection["confidence"] >= self.min_crisis_confidence
+        )
 
     def _determine_chatbot_method(self, metadata: Dict) -> str:
         """Determine the chatbot method based on metadata"""
         # First check if there's a crisis response
         if metadata.get("is_crisis_response"):
             return "crisis_protocol"
-            
+
         # Then check if there's a therapy recommendation with sufficient confidence
         therapy_rec = metadata.get("therapy_recommendation", {})
         if therapy_rec and therapy_rec.get("recommended_approach"):
             approach = therapy_rec.get("recommended_approach")
             confidence = therapy_rec.get("confidence", 0)
-            
+
             if approach and approach != "unknown" and confidence > 0.4:
                 return approach
-                
+
         # Then check the explicitly set method
         explicit_method = metadata.get("chatbot_method")
         if explicit_method and explicit_method not in ["unknown", "Not determined"]:
             return explicit_method
-            
+
         # Default based on AI system used
         ai_system = metadata.get("ai_system", "")
         if "RAG" in ai_system:
             return "therapeutic_conversation"
-            
+
         return "general_support"
 
-    def _process_bot_response(self, response_data: Dict[str, Any], query: str) -> Dict[str, Any]:
+    def _process_bot_response(
+        self, response_data: Dict[str, Any], query: str
+    ) -> Dict[str, Any]:
         """Process the bot response data before returning to client"""
         # Ensure metadata exists
         if "metadata" not in response_data:
@@ -1256,7 +1308,9 @@ Would you be willing to reach out to one of these resources right now? I'm here 
             return response_data
 
         # Determine and set the chatbot method consistently
-        chatbot_method = self._determine_chatbot_method(response_data.get("metadata", {}))
+        chatbot_method = self._determine_chatbot_method(
+            response_data.get("metadata", {})
+        )
         # Set it both in metadata and at root level for consistency
         response_data["metadata"]["chatbot_method"] = chatbot_method
         response_data["chatbot_method"] = chatbot_method
@@ -1273,22 +1327,27 @@ Would you be willing to reach out to one of these resources right now? I'm here 
             "metadata": {
                 "error": True,
                 "error_message": message,
-                "chatbot_method": "error_response"
-            }
+                "chatbot_method": "error_response",
+            },
         }
 
-    async def get_chatbot_response(self, message: str, conversation_id: str = None, user=None) -> Dict[str, Any]:
+    async def get_chatbot_response(
+        self, message: str, conversation_id: str = None, user=None
+    ) -> Dict[str, Any]:
         """Get response from chatbot for a given message"""
         try:
             # Store user name for personalization
             if user:
                 self._current_user_name = user.get_full_name() or user.username
-                
+
             # Check for crisis content
             crisis_detection = self._enhanced_crisis_detection(message)
-            if crisis_detection["is_crisis"] and crisis_detection["confidence"] >= self.min_crisis_confidence:
+            if (
+                crisis_detection["is_crisis"]
+                and crisis_detection["confidence"] >= self.min_crisis_confidence
+            ):
                 return self._generate_crisis_response(user, message, crisis_detection)
-                
+
             # Get therapy approach using RAG
             try:
                 rag_result = therapy_rag_service.get_therapy_approach(message)
@@ -1302,29 +1361,40 @@ Would you be willing to reach out to one of these resources right now? I'm here 
             conversation_context = self._prepare_conversation_context(
                 user, conversation_id, None
             )
-            # Build prompt and generate response            
+            # Build prompt and generate response
             prompt = self._build_prompt(
-                message, conversation_context, user_data, user, self._therapy_recommendation
+                message,
+                conversation_context,
+                user_data,
+                user,
+                self._therapy_recommendation,
             )
             # Call Gemini API
             response = await self._call_gemini_api(prompt)
-            
+
             # Add metadata
             if "metadata" not in response:
                 response["metadata"] = {}
-                
+
             # Add RAG information
             if self._therapy_recommendation:
                 response["metadata"]["ai_system"] = "Gemini + Local RAG"
                 response["metadata"]["vector_store"] = "local_file_based"
-                response["metadata"]["rag_confidence"] = self._therapy_recommendation.get("confidence", 0)
-                response["metadata"]["therapy_recommendation"] = self._therapy_recommendation.get("recommended_approach", "general_support")
+                response["metadata"]["rag_confidence"] = (
+                    self._therapy_recommendation.get("confidence", 0)
+                )
+                response["metadata"]["therapy_recommendation"] = (
+                    self._therapy_recommendation.get(
+                        "recommended_approach", "general_support"
+                    )
+                )
 
             # Process response to make it more human-like and ensure chatbot_method is consistent
             return self._process_bot_response(response, message)
         except Exception as e:
             logger.error(f"Error in get_chatbot_response: {str(e)}")
             return self._error_response("Unable to get response from chatbot")
+
 
 # Create singleton instance
 chatbot_service = ChatbotService()

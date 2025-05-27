@@ -696,7 +696,13 @@ CRISIS_RESPONSE_SETTINGS = {
     "OVERRIDE_NORMAL_FLOW": True,
     "ALERT_STAFF": True,
     "MIN_CRISIS_CONFIDENCE": 0.6,
-    "HIGH_PRIORITY_KEYWORDS": ["kill myself", "suicide", "end my life", "die", "hurt myself"],
+    "HIGH_PRIORITY_KEYWORDS": [
+        "kill myself",
+        "suicide",
+        "end my life",
+        "die",
+        "hurt myself",
+    ],
 }
 
 CHATBOT_JOURNAL_LIMIT = 5  # Number of recent journal entries to include

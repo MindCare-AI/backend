@@ -6,11 +6,11 @@ from .medication_analysis import medication_analysis_service
 from .social_analysis import SocialInteractionAnalysisService
 
 __all__ = [
-    'ai_service',
-    'predictive_service', 
-    'therapy_analysis_service',
-    'conversation_summary_service',
-    'medication_analysis_service',
-    'SocialInteractionAnalysisService',
-    'AIAnalysisService'
+    "ai_service",
+    "predictive_service",
+    "therapy_analysis_service",
+    "conversation_summary_service",
+    "medication_analysis_service",
+    "SocialInteractionAnalysisService",
+    "AIAnalysisService",
 ]

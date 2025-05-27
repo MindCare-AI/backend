@@ -196,3 +196,4 @@ spacy
 langchain
 langchain_community
 pypdf
+faiss-cpu

@@ -11,17 +11,17 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/update_preferences/",
-        CustomUserViewSet.as_view({"patch": "update_preferences"}),
+        UserViewSet.as_view({"patch": "update_preferences"}),
         name="user-update-preferences",
     ),
     path(
         "preferences/",
-        UserPreferencesViewSet.as_view({"get": "list"}),
+        UserPreferencesViewSet.as_view({"get": "list", "post": "create"}),
         name="preferences-list",
     ),
     path(
         "preferences/<int:pk>/",
-        UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update"}),
+        UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update"}),
         name="preferences-detail",
     ),
     path(

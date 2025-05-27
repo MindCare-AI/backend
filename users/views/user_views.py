@@ -125,9 +125,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
-            return CustomUser.objects.all().prefetch_related("preferences", "settings")
-        return CustomUser.objects.filter(id=user.id).prefetch_related(
-            "preferences", "settings"
+            return CustomUser.objects.all().select_related('preferences', 'settings')
+        return CustomUser.objects.filter(id=user.id).select_related(
+            'preferences', 'settings'
         )
 
     @action(detail=True, methods=["patch"])
@@ -137,7 +137,7 @@ class UserViewSet(viewsets.ModelViewSet):
             preferences, created = UserPreferences.objects.get_or_create(user=user)
 
             serializer = UserPreferencesSerializer(
-                preferences, data=request.data, partial=True
+                preferences, data=request.data, partial=True, context={'request': request}
             )
 
             if serializer.is_valid():
@@ -354,5 +354,40 @@ def me(request):
     """
     Retrieve current user's full information including user type.
     """
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
+    try:
+        # Ensure preferences and settings exist with proper defaults
+        from users.models.preferences import UserPreferences
+        
+        preferences, created = UserPreferences.objects.get_or_create(
+            user=request.user,
+            defaults={
+                'theme': 'light',
+                'dark_mode': False,
+                'language': 'en',
+                'timezone': 'UTC',
+                'notification_preferences': {},
+                'email_notifications': True,
+                'push_notifications': True,
+                'in_app_notifications': True,
+            }
+        )
+        
+        settings, created = UserSettings.objects.get_or_create(
+            user=request.user,
+            defaults={
+                'privacy_level': 'medium',
+                'two_factor_enabled': False,
+            }
+        )
+        
+        # Refresh user from database with related objects
+        user = CustomUser.objects.select_related('preferences', 'settings').get(id=request.user.id)
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+        
+    except Exception as e:
+        logger.error(f"Error in me endpoint: {str(e)}", exc_info=True)
+        return Response(
+            {"error": "Could not retrieve user profile"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

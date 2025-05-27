@@ -23,7 +23,7 @@ class TherapistProfile(models.Model):
     education = models.JSONField(
         default=list, help_text="List of educational qualifications"
     )
-    experience = models.JSONField(default=list)
+    experience = models.JSONField(default=list, null=True, blank=True)
     years_of_experience = models.PositiveIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         default=0,
@@ -167,6 +167,10 @@ class TherapistProfile(models.Model):
         # Convert empty string to None to avoid unique constraint violations
         if self.license_number == "":
             self.license_number = None
+            
+        # Ensure experience is never None - convert to empty list
+        if self.experience is None:
+            self.experience = []
 
         self.profile_completion = self._calculate_profile_completion()
         super().save(*args, **kwargs)

@@ -1,6 +1,11 @@
 # AI_engine/serializers.py
 from rest_framework import serializers
-from .models import UserAnalysis, AIInsight, TherapyRecommendation
+from .models import (
+    UserAnalysis,
+    AIInsight,
+    TherapyRecommendation,
+    CommunicationPatternAnalysis,
+)
 
 
 class UserAnalysisSerializer(serializers.ModelSerializer):
@@ -54,3 +59,20 @@ class TherapyRecommendationSerializer(serializers.ModelSerializer):
             "effectiveness_rating",
         ]
         read_only_fields = ["user", "created_at"]
+
+
+class CommunicationPatternAnalysisSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommunicationPatternAnalysis
+        fields = [
+            "id",
+            "user",
+            "analysis_date",
+            "therapeutic_relationships",
+            "conversation_metrics",
+            "communication_style",
+            "response_patterns",
+            "emotional_triggers",
+            "improvement_areas",
+        ]
+        read_only_fields = ["user", "analysis_date"]

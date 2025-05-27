@@ -29,15 +29,12 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
         label="Notification Settings",
         style={"base_template": "textarea.html", "rows": 4},
         default=dict,
-        required=False,
-        allow_null=True,
     )
 
     disabled_notification_types = serializers.SlugRelatedField(
         many=True,
         slug_field="name",
         queryset=NotificationType.objects.all(),
-        required=False,
         help_text="Specific notification types to disable",
     )
 
@@ -49,14 +46,12 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
             "email_notifications",
             "in_app_notifications",
             "disabled_notification_types",
-            "notification_preferences",
+            "notification_preferences",  # add this line
         ]
         read_only_fields = ["user"]
 
     def validate_notification_preferences(self, value):
         """Validate notification preferences structure"""
-        if value is None:
-            return {}
         if not isinstance(value, dict):
             raise serializers.ValidationError(
                 "Notification preferences must be an object"

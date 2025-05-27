@@ -11,17 +11,17 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/update_preferences/",
-        UserViewSet.as_view({"patch": "update_preferences"}),
+        CustomUserViewSet.as_view({"patch": "update_preferences"}),
         name="user-update-preferences",
     ),
     path(
         "preferences/",
-        UserPreferencesViewSet.as_view({"get": "list", "post": "create"}),
+        UserPreferencesViewSet.as_view({"get": "list"}),
         name="preferences-list",
     ),
     path(
         "preferences/<int:pk>/",
-        UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update", "patch": "partial_update"}),
+        UserPreferencesViewSet.as_view({"get": "retrieve", "put": "update"}),
         name="preferences-detail",
     ),
     path(
@@ -55,9 +55,4 @@ urlpatterns = [
     ),
     path("search/", UserViewSet.as_view({"get": "search"}), name="user-search"),
     path("me/", me, name="user-me"),
-    path(
-        "list-all/",
-        CustomUserViewSet.as_view({"get": "list_all_users"}),
-        name="user-list-all",
-    ),
 ]

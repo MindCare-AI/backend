@@ -67,9 +67,12 @@ class CommunicationPatternAnalysisSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
-            "created_at",
-            "pattern_type",
-            "pattern_data",
-            "analysis_summary",
+            "analysis_date",
+            "therapeutic_relationships",
+            "conversation_metrics",
+            "communication_style",
+            "response_patterns",
+            "emotional_triggers",
+            "improvement_areas",
         ]
-        read_only_fields = ["user", "created_at"]
+        read_only_fields = ["user", "analysis_date"]

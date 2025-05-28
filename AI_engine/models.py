@@ -163,12 +163,22 @@ class CommunicationPatternAnalysis(models.Model):
     improvement_areas = models.JSONField(
         default=list, help_text="Areas where communication could be improved"
     )
+    engagement_score = models.FloatField(
+        default=0.0, help_text="Overall engagement score"
+    )
+    ai_insights = models.JSONField(
+        default=dict, help_text="AI-generated insights about communication patterns"
+    )
 
     class Meta:
         ordering = ["-analysis_date"]
         indexes = [
             models.Index(fields=["user", "-analysis_date"]),
+            models.Index(fields=["engagement_score"]),
         ]
+
+    def __str__(self):
+        return f"Communication Analysis for {self.user.username} on {self.analysis_date}"
 
 
 class ConversationSummary(models.Model):

@@ -2,10 +2,10 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from datetime import timedelta
+import logging
 from notifications.services import UnifiedNotificationService
 from .models import Appointment
 from AI_engine.services import predictive_service, therapy_analysis_service
-import logging
 
 logger = logging.getLogger(__name__)
 notification_service = UnifiedNotificationService()
@@ -50,69 +50,26 @@ def appointment_notification_handler(sender, instance, created, **kwargs):
                 priority="medium",
             )
         else:
-            old_instance = Appointment.objects.get(pk=instance.pk)
-
-            # Status change notifications
-            if old_instance.status != instance.status:
-                if instance.status == "confirmed":
-                    # Notify patient of confirmation
+            # Check if status changed
+            try:
+                old_instance = Appointment.objects.get(pk=instance.pk)
+                if old_instance.status != instance.status:
                     notification_service.send_notification(
                         user=instance.patient.user,
-                        notification_type_name="appointment_confirmed",
-                        title="Appointment Confirmed",
-                        message=f"Your appointment with {instance.therapist.user.get_full_name()} for {instance.appointment_date.strftime('%B %d, %Y at %I:%M %p')} has been confirmed",
+                        notification_type_name="appointment_status_changed",
+                        title="Appointment Status Updated",
+                        message=f"Your appointment status has been changed to {instance.status}",
                         metadata={
                             "appointment_id": str(instance.id),
-                            "appointment_date": instance.appointment_date.isoformat(),
-                            "video_session_link": instance.video_session_link,
+                            "old_status": old_instance.status,
+                            "new_status": instance.status,
                         },
                         send_email=True,
                         send_in_app=True,
-                        priority="high",
+                        priority="medium",
                     )
-                elif instance.status == "rescheduled":
-                    # Notify affected party about reschedule
-                    affected_user = (
-                        instance.patient.user
-                        if instance.rescheduled_by == instance.therapist.user
-                        else instance.therapist.user
-                    )
-                    notification_service.send_notification(
-                        user=affected_user,
-                        notification_type_name="appointment_rescheduled",
-                        title="Appointment Rescheduled",
-                        message=f"Your appointment has been rescheduled to {instance.appointment_date.strftime('%B %d, %Y at %I:%M %p')}",
-                        metadata={
-                            "appointment_id": str(instance.id),
-                            "old_date": old_instance.appointment_date.isoformat(),
-                            "new_date": instance.appointment_date.isoformat(),
-                            "rescheduled_by": instance.rescheduled_by.get_full_name(),
-                        },
-                        send_email=True,
-                        send_in_app=True,
-                        priority="high",
-                    )
-                elif instance.status == "cancelled":
-                    # Notify affected party about cancellation
-                    affected_user = (
-                        instance.patient.user
-                        if instance.cancelled_by == instance.therapist.user
-                        else instance.therapist.user
-                    )
-                    notification_service.send_notification(
-                        user=affected_user,
-                        notification_type_name="appointment_cancelled",
-                        title="Appointment Cancelled",
-                        message=f"Your appointment for {instance.appointment_date.strftime('%B %d, %Y at %I:%M %p')} has been cancelled",
-                        metadata={
-                            "appointment_id": str(instance.id),
-                            "cancelled_by": instance.cancelled_by.get_full_name(),
-                            "cancellation_reason": instance.cancellation_reason,
-                        },
-                        send_email=True,
-                        send_in_app=True,
-                        priority="high",
-                    )
+            except Appointment.DoesNotExist:
+                pass
 
     except Exception as e:
         logger.error(
@@ -233,19 +190,13 @@ def analyze_for_upcoming_appointment(sender, instance, created, **kwargs):
             # Analyze patient data for therapy session preparation
             analysis = therapy_analysis_service.analyze_for_therapy_session(
                 user=instance.patient,
-                days=7,  # Analyze last week of data
+                days=7,
             )
 
             if analysis.get("success"):
-                logger.info(
-                    f"Generated therapy analysis for upcoming appointment {instance.id}"
-                )
+                logger.info(f"Therapy analysis completed for appointment {instance.id}")
             else:
-                logger.warning(
-                    f"Therapy analysis failed for appointment {instance.id}: {analysis.get('message', 'Unknown error')}"
-                )
+                logger.warning(f"Therapy analysis failed for appointment {instance.id}: {analysis.get('message', 'Unknown error')}")
 
         except Exception as e:
-            logger.error(
-                f"Error in appointment therapy analysis: {str(e)}", exc_info=True
-            )
+            logger.error(f"Error in therapy analysis for appointment: {str(e)}", exc_info=True)

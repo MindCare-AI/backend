@@ -342,11 +342,13 @@ class TherapyAnalysisService:
             # Calculate average mood for each activity
             activity_analysis = {}
             for activity, moods in activity_mood_map.items():
-                activity_analysis[activity] = {
-                    "average_mood": np.mean(moods),
-                    "frequency": len(moods),
-                    "mood_range": max(moods) - min(moods) if len(moods) > 1 else 0,
-                }
+                if len(moods) > 0:  # Ensure we have mood data
+                    activity_analysis[activity] = {
+                        "average_mood": float(np.mean(moods)),
+                        "frequency": len(moods),
+                        "mood_range": float(max(moods) - min(moods)) if len(moods) > 1 else 0,
+                        "positive_correlation": float(np.mean(moods)) > 6.0,  # Above neutral
+                    }
 
             return activity_analysis
 

@@ -122,7 +122,7 @@ class Command(BaseCommand):
                 )
                 # Preview analysis without saving
                 preview = ai_service.analyze_user_data(
-                    user, date_range=days, dry_run=True
+                    user, dry_run=True
                 )
                 self.stdout.write(
                     f"Would create {preview.get('potential_recommendations', 0)} recommendations"
@@ -130,7 +130,7 @@ class Command(BaseCommand):
                 return
 
             # Run actual analysis
-            result = ai_service.analyze_user_data(user, date_range=days)
+            result = ai_service.analyze_user_data(user)
 
             if result:
                 self.stdout.write(

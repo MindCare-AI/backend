@@ -881,6 +881,7 @@ Provide analysis in JSON format:
                 "temporal_patterns": temporal_analysis,
                 "total_entries": qs.count(),
                 "analysis_period_days": 30,
+                "has_sufficient_data": True,
                 **sentiment_analysis,
             }
 
@@ -894,6 +895,7 @@ Provide analysis in JSON format:
                 "concerns": False,
                 "sentiment_trend": "neutral",
                 "avg_mood": 3.0,
+                "has_sufficient_data": False,
                 "error": str(e),
             }
 

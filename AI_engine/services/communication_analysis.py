@@ -1,629 +1,664 @@
 # AI_engine/services/communication_analysis.py
-from typing import Dict, Any
+from typing import Dict, List, Any, Optional
 import logging
-from django.conf import settings
 import requests
+import json
+import numpy as np
+from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
-from ..models import CommunicationPatternAnalysis, AIInsight
+from django.core.cache import cache
+from collections import defaultdict
+import re
 
 logger = logging.getLogger(__name__)
 
 
 class CommunicationAnalysisService:
-    """Service to analyze user's communication patterns in the messaging app."""
+    """Service for analyzing communication patterns in therapeutic relationships"""
 
     def __init__(self):
-        self.base_url = settings.OLLAMA_URL
-        self.model = "mistral"
-        self.analysis_period = 30  # Default analysis period in days
+        self.base_url = getattr(settings, "OLLAMA_URL", "http://localhost:11434")
+        self.model = getattr(settings, "AI_ENGINE_SETTINGS", {}).get(
+            "DEFAULT_MODEL", "mistral"
+        )
+        self.cache_timeout = getattr(settings, "AI_ENGINE_SETTINGS", {}).get(
+            "CACHE_TIMEOUT", 900
+        )
+        self.max_prompt_length = getattr(settings, "AI_ENGINE_SETTINGS", {}).get(
+            "MAX_PROMPT_LENGTH", 4000
+        )
 
-    def analyze_communication_patterns(self, user, days: int = None) -> Dict[str, Any]:
-        """
-        Analyze a user's communication patterns in the messaging app.
+    def analyze_patterns(self, user, days: int = 30) -> Dict[str, Any]:
+        """Analyze communication patterns for a user"""
+        cache_key = f"comm_patterns_{user.id}_{days}"
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return cached_result
 
-        This looks at message timing, content, and interactions to identify:
-        - Therapeutic relationships
-        - Communication style and effectiveness
-        - Response patterns to different approaches
-        - Topics that trigger emotional responses
-        """
         try:
-            analysis_period = days or self.analysis_period
-            end_date = timezone.now()
-            start_date = end_date - timedelta(days=analysis_period)
+            # Collect communication data
+            communication_data = self._collect_communication_data(user, days)
+            
+            if not communication_data["has_data"]:
+                return self._create_no_data_response()
 
-            # Import here to avoid circular imports
-            from messaging.models.one_to_one import OneToOneMessage
-            from messaging.models.group import GroupMessage
-            from chatbot.models import ChatMessage
-
-            # Get one-to-one messages
-            sent_messages = OneToOneMessage.objects.filter(
-                sender=user, timestamp__range=(start_date, end_date)
-            ).select_related("conversation")
-
-            received_messages = (
-                OneToOneMessage.objects.filter(
-                    conversation__participants=user,
-                    timestamp__range=(start_date, end_date),
-                )
-                .exclude(sender=user)
-                .select_related("sender", "conversation")
-            )
-
-            # Get group messages
-            group_messages_sent = GroupMessage.objects.filter(
-                sender=user, timestamp__range=(start_date, end_date)
-            ).select_related("conversation")
-
-            group_messages_received = (
-                GroupMessage.objects.filter(
-                    conversation__participants=user,
-                    timestamp__range=(start_date, end_date),
-                )
-                .exclude(sender=user)
-                .select_related("sender", "conversation")
-            )
-
-            # Get chatbot interactions
-            chatbot_messages_sent = ChatMessage.objects.filter(
-                sender=user, is_bot=False, timestamp__range=(start_date, end_date)
-            ).select_related("conversation")
-
-            chatbot_messages_received = ChatMessage.objects.filter(
-                conversation__user=user,
-                is_bot=True,
-                timestamp__range=(start_date, end_date),
-            ).select_related("conversation")
-
-            # Prepare message data for analysis
-            one_to_one_data = {
-                "sent_messages": [
-                    {
-                        "conversation_id": msg.conversation.id,
-                        "content": msg.content[:150]
-                        if len(msg.content) > 150
-                        else msg.content,
-                        "timestamp": msg.timestamp.isoformat(),
-                        "message_type": msg.message_type
-                        if hasattr(msg, "message_type")
-                        else "text",
-                    }
-                    for msg in sent_messages
-                ],
-                "received_messages": [
-                    {
-                        "conversation_id": msg.conversation.id,
-                        "sender": msg.sender.username if msg.sender else "Unknown",
-                        "sender_type": getattr(msg.sender, "user_type", "unknown"),
-                        "content": msg.content[:150]
-                        if len(msg.content) > 150
-                        else msg.content,
-                        "timestamp": msg.timestamp.isoformat(),
-                        "message_type": msg.message_type
-                        if hasattr(msg, "message_type")
-                        else "text",
-                    }
-                    for msg in received_messages
-                ],
+            # Analyze patterns
+            patterns = self._analyze_communication_patterns(communication_data)
+            
+            # Use AI for deeper insights
+            ai_insights = self._generate_ai_insights(patterns)
+            
+            # Combine results
+            result = {
+                "user_id": user.id,
+                "analysis_period_days": days,
+                "communication_data": communication_data,
+                "patterns": patterns,
+                "ai_insights": ai_insights,
+                "analyzed_at": timezone.now().isoformat(),
             }
-
-            group_data = {
-                "sent_messages": [
-                    {
-                        "conversation_id": msg.conversation.id,
-                        "conversation_name": msg.conversation.name
-                        if hasattr(msg.conversation, "name")
-                        else "Unknown",
-                        "content": msg.content[:150]
-                        if len(msg.content) > 150
-                        else msg.content,
-                        "timestamp": msg.timestamp.isoformat(),
-                    }
-                    for msg in group_messages_sent
-                ],
-                "received_messages": [
-                    {
-                        "conversation_id": msg.conversation.id,
-                        "conversation_name": msg.conversation.name
-                        if hasattr(msg.conversation, "name")
-                        else "Unknown",
-                        "sender": msg.sender.username if msg.sender else "Unknown",
-                        "content": msg.content[:150]
-                        if len(msg.content) > 150
-                        else msg.content,
-                        "timestamp": msg.timestamp.isoformat(),
-                    }
-                    for msg in group_messages_received
-                ],
-            }
-
-            chatbot_data = {
-                "user_messages": [
-                    {
-                        "content": msg.content[:150]
-                        if len(msg.content) > 150
-                        else msg.content,
-                        "timestamp": msg.timestamp.isoformat(),
-                    }
-                    for msg in chatbot_messages_sent
-                ],
-                "bot_responses": [
-                    {
-                        "content": msg.content[:150]
-                        if len(msg.content) > 150
-                        else msg.content,
-                        "timestamp": msg.timestamp.isoformat(),
-                    }
-                    for msg in chatbot_messages_received
-                ],
-            }
-
-            # Additional metrics
-            metrics = self._calculate_message_metrics(
-                sent_messages,
-                received_messages,
-                group_messages_sent,
-                group_messages_received,
-                chatbot_messages_sent,
-                chatbot_messages_received,
-            )
-
-            # Combine data for analysis
-            analysis_data = {
-                "one_to_one": one_to_one_data,
-                "group": group_data,
-                "chatbot": chatbot_data,
-                "metrics": metrics,
-            }
-
-            # Use Ollama to generate insights
-            analysis = self._analyze_with_ollama(analysis_data)
-
-            # Store the analysis
-            CommunicationPatternAnalysis.objects.create(
-                user=user,
-                analysis_date=timezone.now().date(),
-                therapeutic_relationships=analysis.get("therapeutic_relationships", {}),
-                conversation_metrics=analysis.get("conversation_metrics", {}),
-                communication_style=analysis.get("communication_style", {}),
-                response_patterns=analysis.get("response_patterns", {}),
-                emotional_triggers=analysis.get("emotional_triggers", []),
-                improvement_areas=analysis.get("improvement_areas", []),
-            )
-
-            # Generate insights if significant patterns are detected
-            if analysis.get("needs_attention"):
-                AIInsight.objects.create(
-                    user=user,
-                    insight_type="communication_pattern",
-                    insight_data={
-                        "pattern_type": analysis.get("attention_reason", "general"),
-                        "description": analysis.get("attention_description", ""),
-                        "suggestions": analysis.get("improvement_areas", []),
-                    },
-                    priority=analysis.get("priority_level", "medium"),
-                )
-
-            return analysis
+            
+            # Cache the result
+            cache.set(cache_key, result, self.cache_timeout)
+            return result
 
         except Exception as e:
-            logger.error(
-                f"Error analyzing communication patterns: {str(e)}", exc_info=True
-            )
-            return self._create_default_analysis()
+            logger.error(f"Error analyzing communication patterns: {str(e)}", exc_info=True)
+            return self._create_error_response(str(e))
 
-    def _calculate_message_metrics(
-        self,
-        sent_1to1,
-        received_1to1,
-        sent_group,
-        received_group,
-        sent_chatbot,
-        received_chatbot,
-    ) -> Dict[str, Any]:
-        """Calculate metrics about user's messaging patterns"""
+    def get_therapeutic_relationship_data(self, user) -> Dict[str, Any]:
+        """Get therapeutic relationship analysis data"""
+        cache_key = f"therapeutic_relationship_{user.id}"
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return cached_result
 
-        # Messages by time of day
-        def get_hour_distribution(messages):
-            hours = {}
-            for msg in messages:
-                hour = msg.timestamp.hour
-                hours[hour] = hours.get(hour, 0) + 1
-            return hours
+        try:
+            # For therapists, analyze their relationships with patients
+            if hasattr(user, 'therapist_profile') and user.therapist_profile:
+                relationship_data = self._analyze_therapist_relationships(user)
+            else:
+                # For patients, analyze their relationship with therapists
+                relationship_data = self._analyze_patient_relationships(user)
 
-        # Message length distribution
-        def get_length_metrics(messages):
-            if not messages:
-                return {"avg_length": 0, "min_length": 0, "max_length": 0}
+            if not relationship_data["has_relationships"]:
+                return self._create_no_relationship_response()
 
-            lengths = [len(msg.content) for msg in messages]
-            return {
-                "avg_length": sum(lengths) / len(lengths) if lengths else 0,
-                "min_length": min(lengths) if lengths else 0,
-                "max_length": max(lengths) if lengths else 0,
-            }
+            # Cache the result
+            cache.set(cache_key, relationship_data, self.cache_timeout)
+            return relationship_data
 
-        # Response time calculation
-        def calculate_response_times(sent, received):
-            # This is a simplified approach - would need more sophisticated
-            # conversation tracking for accurate response times
-            response_times = []
+        except Exception as e:
+            logger.error(f"Error getting therapeutic relationship data: {str(e)}", exc_info=True)
+            return self._create_error_response(str(e))
 
-            conversation_last_received = {}
-            for msg in sorted(received, key=lambda x: x.timestamp):
-                conversation_last_received[msg.conversation_id] = msg.timestamp
-
-            for msg in sent:
-                if msg.conversation_id in conversation_last_received:
-                    last_received = conversation_last_received[msg.conversation_id]
-                    if msg.timestamp > last_received:
-                        response_time = (msg.timestamp - last_received).total_seconds()
-                        if response_time < 86400:  # Only count if less than 24 hours
-                            response_times.append(response_time)
-
-            if response_times:
-                return {
-                    "avg_response_time_seconds": sum(response_times)
-                    / len(response_times),
-                    "min_response_time_seconds": min(response_times),
-                    "max_response_time_seconds": max(response_times),
-                }
-            return {"avg_response_time_seconds": 0}
-
-        # Conversation activity
-        conversations = {}
-        for msg in list(sent_1to1) + list(received_1to1):
-            if msg.conversation_id not in conversations:
-                conversations[msg.conversation_id] = 0
-            conversations[msg.conversation_id] += 1
-
-        active_conversations = len(conversations)
-        most_active_conversation = max(conversations.values()) if conversations else 0
-
-        return {
-            "total_messages_sent": len(sent_1to1) + len(sent_group) + len(sent_chatbot),
-            "total_messages_received": len(received_1to1)
-            + len(received_group)
-            + len(received_chatbot),
-            "one_to_one_sent": len(sent_1to1),
-            "one_to_one_received": len(received_1to1),
-            "group_sent": len(sent_group),
-            "group_received": len(received_group),
-            "chatbot_sent": len(sent_chatbot),
-            "chatbot_received": len(received_chatbot),
-            "hour_distribution_sent": get_hour_distribution(
-                list(sent_1to1) + list(sent_group)
-            ),
-            "hour_distribution_received": get_hour_distribution(
-                list(received_1to1) + list(received_group)
-            ),
-            "length_metrics_sent": get_length_metrics(
-                list(sent_1to1) + list(sent_group)
-            ),
-            "length_metrics_received": get_length_metrics(
-                list(received_1to1) + list(received_group)
-            ),
-            "active_conversations": active_conversations,
-            "most_active_conversation_message_count": most_active_conversation,
+    def _collect_communication_data(self, user, days: int) -> Dict[str, Any]:
+        """Collect communication data from various sources"""
+        end_date = timezone.now()
+        start_date = end_date - timedelta(days=days)
+        
+        data = {
+            "has_data": False,
+            "chatbot_messages": [],
+            "appointment_communications": [],
+            "journal_entries": [],
+            "mood_logs": [],
+            "total_interactions": 0,
         }
 
-    def _analyze_with_ollama(self, data: Dict) -> Dict:
-        """Analyze communication data using Ollama"""
         try:
-            prompt = self._build_analysis_prompt(data)
+            # Collect chatbot messages
+            from chatbot.models import ChatMessage
+            chatbot_messages = ChatMessage.objects.filter(
+                user=user,
+                timestamp__range=(start_date, end_date)  # Changed from created_at to timestamp
+            ).order_by('-timestamp')[:50]  # Also change the order_by field
+            
+            data["chatbot_messages"] = [
+                {
+                    "content": msg.content[:200],  # Limit content length
+                    "is_from_user": msg.is_from_user,
+                    "created_at": msg.created_at.isoformat(),
+                    "message_type": getattr(msg, "message_type", "text"),
+                    "response_time": getattr(msg, "response_time", None),
+                }
+                for msg in chatbot_messages
+            ]
+            
+            # Collect journal entries for communication style analysis
+            from journal.models import JournalEntry
+            journal_entries = JournalEntry.objects.filter(
+                user=user,
+                created_at__range=(start_date, end_date)
+            ).order_by('-created_at')[:20]  # Limit to recent 20 entries
+            
+            data["journal_entries"] = [
+                {
+                    "content": entry.content[:300],  # Limit content length
+                    "mood": entry.mood,
+                    "created_at": entry.created_at.isoformat(),
+                    "word_count": len(entry.content.split()),
+                }
+                for entry in journal_entries
+            ]
+            
+            # Collect mood logs for emotional context
+            from mood.models import MoodLog
+            mood_logs = MoodLog.objects.filter(
+                user=user,
+                logged_at__range=(start_date, end_date)
+            ).order_by('-logged_at')[:30]  # Limit to recent 30 logs
+            
+            data["mood_logs"] = [
+                {
+                    "mood_rating": log.mood_rating,
+                    "logged_at": log.logged_at.isoformat(),
+                    "activities": getattr(log, "activities", []),
+                    "notes": getattr(log, "notes", ""),
+                }
+                for log in mood_logs
+            ]
+            
+            # Try to collect appointment data if available
+            try:
+                from appointments.models import Appointment
+                appointments = Appointment.objects.filter(
+                    patient=user,
+                    scheduled_time__range=(start_date, end_date)
+                ).order_by('-scheduled_time')[:10]
+                
+                data["appointment_communications"] = [
+                    {
+                        "status": appt.status,
+                        "scheduled_time": appt.scheduled_time.isoformat(),
+                        "therapist": getattr(appt.therapist, "username", "Unknown"),
+                        "notes": getattr(appt, "notes", ""),
+                    }
+                    for appt in appointments
+                ]
+            except Exception:
+                # Appointments app might not be available
+                pass
 
+            # Calculate totals
+            data["total_interactions"] = (
+                len(data["chatbot_messages"]) +
+                len(data["journal_entries"]) +
+                len(data["mood_logs"]) +
+                len(data["appointment_communications"])
+            )
+            
+            data["has_data"] = data["total_interactions"] > 0
+            
+            return data
+
+        except Exception as e:
+            logger.error(f"Error collecting communication data: {str(e)}")
+            return data
+
+    def _analyze_communication_patterns(self, communication_data: Dict) -> Dict[str, Any]:
+        """Analyze patterns in communication data"""
+        patterns = {
+            "communication_frequency": self._analyze_frequency_patterns(communication_data),
+            "emotional_expression": self._analyze_emotional_patterns(communication_data),
+            "content_analysis": self._analyze_content_patterns(communication_data),
+            "temporal_patterns": self._analyze_temporal_patterns(communication_data),
+            "engagement_metrics": self._calculate_engagement_metrics(communication_data),
+        }
+        
+        return patterns
+
+    def _analyze_frequency_patterns(self, data: Dict) -> Dict[str, Any]:
+        """Analyze frequency of different types of communications"""
+        total_days = 30  # Default analysis period
+        
+        return {
+            "chatbot_frequency": len(data["chatbot_messages"]) / total_days,
+            "journal_frequency": len(data["journal_entries"]) / total_days,
+            "mood_logging_frequency": len(data["mood_logs"]) / total_days,
+            "appointment_frequency": len(data["appointment_communications"]) / total_days,
+            "overall_activity": data["total_interactions"] / total_days,
+        }
+
+    def _analyze_emotional_patterns(self, data: Dict) -> Dict[str, Any]:
+        """Analyze emotional expression patterns"""
+        emotional_indicators = {
+            "positive_words": 0,
+            "negative_words": 0,
+            "anxiety_indicators": 0,
+            "progress_indicators": 0,
+            "help_seeking": 0,
+        }
+        
+        # Define keyword patterns
+        patterns = {
+            "positive_words": [r"\bhappy\b", r"\bgood\b", r"\bgreat\b", r"\bbetter\b", r"\bimproved\b"],
+            "negative_words": [r"\bsad\b", r"\bbad\b", r"\bawful\b", r"\bworse\b", r"\bterrible\b"],
+            "anxiety_indicators": [r"\banxious\b", r"\bworried\b", r"\bstressed\b", r"\bnervous\b"],
+            "progress_indicators": [r"\bprogress\b", r"\blearned\b", r"\bgrew\b", r"\bimproved\b"],
+            "help_seeking": [r"\bhelp\b", r"\bsupport\b", r"\badvice\b", r"\bguidance\b"],
+        }
+        
+        # Analyze chatbot messages
+        for message in data["chatbot_messages"]:
+            if message["is_from_user"]:
+                content = message["content"].lower()
+                for category, pattern_list in patterns.items():
+                    for pattern in pattern_list:
+                        emotional_indicators[category] += len(re.findall(pattern, content))
+        
+        # Analyze journal entries
+        for entry in data["journal_entries"]:
+            content = entry["content"].lower()
+            for category, pattern_list in patterns.items():
+                for pattern in pattern_list:
+                    emotional_indicators[category] += len(re.findall(pattern, content))
+        
+        # Calculate emotional balance
+        total_emotional_words = sum(emotional_indicators.values())
+        if total_emotional_words > 0:
+            emotional_balance = {
+                category: count / total_emotional_words
+                for category, count in emotional_indicators.items()
+            }
+        else:
+            emotional_balance = {category: 0.0 for category in emotional_indicators.keys()}
+        
+        return {
+            "emotional_indicators": emotional_indicators,
+            "emotional_balance": emotional_balance,
+            "overall_sentiment": self._calculate_overall_sentiment(emotional_indicators),
+        }
+
+    def _calculate_overall_sentiment(self, indicators: Dict) -> str:
+        """Calculate overall sentiment from emotional indicators"""
+        positive_score = indicators["positive_words"] + indicators["progress_indicators"]
+        negative_score = indicators["negative_words"] + indicators["anxiety_indicators"]
+        
+        if positive_score > negative_score * 1.2:
+            return "positive"
+        elif negative_score > positive_score * 1.2:
+            return "negative"
+        else:
+            return "neutral"
+
+    def _analyze_content_patterns(self, data: Dict) -> Dict[str, Any]:
+        """Analyze content patterns and themes"""
+        themes = defaultdict(int)
+        
+        # Define theme keywords
+        theme_keywords = {
+            "therapy": [r"\btherapy\b", r"\bsession\b", r"\bcounseling\b"],
+            "relationships": [r"\bfamily\b", r"\bfriend\b", r"\bpartner\b", r"\brelationship\b"],
+            "work_stress": [r"\bwork\b", r"\bjob\b", r"\bstress\b", r"\bboss\b"],
+            "mental_health": [r"\bdepression\b", r"\banxiety\b", r"\bmental health\b"],
+            "self_care": [r"\bself care\b", r"\bmeditation\b", r"\bexercise\b", r"\brelax\b"],
+            "goals": [r"\bgoal\b", r"\bplan\b", r"\bfuture\b", r"\bprogress\b"],
+        }
+        
+        all_content = []
+        
+        # Collect all text content
+        for message in data["chatbot_messages"]:
+            if message["is_from_user"]:
+                all_content.append(message["content"])
+        
+        for entry in data["journal_entries"]:
+            all_content.append(entry["content"])
+        
+        combined_content = " ".join(all_content).lower()
+        
+        # Count theme occurrences
+        for theme, keywords in theme_keywords.items():
+            for keyword in keywords:
+                themes[theme] += len(re.findall(keyword, combined_content))
+        
+        # Calculate average content length
+        if all_content:
+            avg_content_length = np.mean([len(content.split()) for content in all_content])
+            content_complexity = self._assess_content_complexity(all_content)
+        else:
+            avg_content_length = 0
+            content_complexity = "low"
+        
+        return {
+            "themes": dict(themes),
+            "average_content_length": float(avg_content_length),
+            "content_complexity": content_complexity,
+            "dominant_themes": sorted(themes.items(), key=lambda x: x[1], reverse=True)[:3],
+        }
+
+    def _assess_content_complexity(self, content_list: List[str]) -> str:
+        """Assess the complexity of content based on various factors"""
+        if not content_list:
+            return "low"
+        
+        # Calculate metrics
+        avg_sentence_length = np.mean([
+            len(content.split('.')) for content in content_list
+        ])
+        
+        unique_words = set()
+        total_words = 0
+        
+        for content in content_list:
+            words = content.lower().split()
+            unique_words.update(words)
+            total_words += len(words)
+        
+        vocabulary_richness = len(unique_words) / max(1, total_words)
+        
+        if avg_sentence_length > 5 and vocabulary_richness > 0.7:
+            return "high"
+        elif avg_sentence_length > 3 and vocabulary_richness > 0.5:
+            return "medium"
+        else:
+            return "low"
+
+    def _analyze_temporal_patterns(self, data: Dict) -> Dict[str, Any]:
+        """Analyze temporal patterns in communication"""
+        hourly_distribution = defaultdict(int)
+        daily_distribution = defaultdict(int)
+        
+        # Analyze chatbot usage patterns
+        for message in data["chatbot_messages"]:
+            if message["is_from_user"]:
+                dt = timezone.datetime.fromisoformat(message["created_at"].replace('Z', '+00:00'))
+                hourly_distribution[dt.hour] += 1
+                daily_distribution[dt.strftime('%A')] += 1
+        
+        # Find peak activity times
+        peak_hour = max(hourly_distribution.items(), key=lambda x: x[1])[0] if hourly_distribution else None
+        peak_day = max(daily_distribution.items(), key=lambda x: x[1])[0] if daily_distribution else None
+        
+        return {
+            "hourly_distribution": dict(hourly_distribution),
+            "daily_distribution": dict(daily_distribution),
+            "peak_hour": peak_hour,
+            "peak_day": peak_day,
+            "activity_consistency": self._calculate_consistency(hourly_distribution),
+        }
+
+    def _calculate_consistency(self, distribution: Dict) -> float:
+        """Calculate consistency score based on distribution"""
+        if not distribution:
+            return 0.0
+        
+        values = list(distribution.values())
+        if len(values) < 2:
+            return 0.0
+        
+        # Lower standard deviation indicates higher consistency
+        std_dev = np.std(values)
+        mean_val = np.mean(values)
+        
+        # Normalize to 0-1 scale (higher is more consistent)
+        consistency = max(0, 1 - (std_dev / max(1, mean_val)))
+        return float(consistency)
+
+    def _calculate_engagement_metrics(self, data: Dict) -> Dict[str, Any]:
+        """Calculate engagement metrics"""
+        user_messages = [msg for msg in data["chatbot_messages"] if msg["is_from_user"]]
+        bot_messages = [msg for msg in data["chatbot_messages"] if not msg["is_from_user"]]
+        
+        # Calculate response rates and engagement
+        total_user_messages = len(user_messages)
+        total_bot_responses = len(bot_messages)
+        
+        # Calculate average response time if available
+        response_times = [msg.get("response_time") for msg in bot_messages if msg.get("response_time")]
+        avg_response_time = np.mean(response_times) if response_times else None
+        
+        # Calculate engagement score
+        engagement_factors = [
+            min(1.0, total_user_messages / 30),  # Message frequency
+            min(1.0, len(data["journal_entries"]) / 15),  # Journal engagement
+            min(1.0, len(data["mood_logs"]) / 20),  # Mood tracking
+        ]
+        
+        engagement_score = np.mean(engagement_factors)
+        
+        return {
+            "total_user_messages": total_user_messages,
+            "total_bot_responses": total_bot_responses,
+            "response_ratio": total_bot_responses / max(1, total_user_messages),
+            "average_response_time": avg_response_time,
+            "engagement_score": float(engagement_score),
+            "journal_engagement": len(data["journal_entries"]),
+            "mood_tracking_engagement": len(data["mood_logs"]),
+        }
+
+    def _generate_ai_insights(self, patterns: Dict) -> Dict[str, Any]:
+        """Generate AI-powered insights from patterns"""
+        try:
+            prompt = self._build_analysis_prompt(patterns)
+            
             response = requests.post(
                 f"{self.base_url}/api/generate",
                 json={"model": self.model, "prompt": prompt, "stream": False},
+                timeout=30,
             )
-
+            
             if response.status_code == 200:
                 result = response.json()
-                return self._parse_analysis_response(result["response"])
+                return self._parse_ai_response(result.get("response", ""))
             else:
-                logger.error(
-                    f"Ollama request failed with status {response.status_code}"
-                )
-                return self._create_default_analysis()
-
+                logger.error(f"AI request failed: {response.status_code}")
+                return self._create_fallback_insights()
+                
         except Exception as e:
-            logger.error(f"Error in Ollama analysis: {str(e)}")
-            return self._create_default_analysis()
+            logger.error(f"Error generating AI insights: {str(e)}")
+            return self._create_fallback_insights()
 
-    def _build_analysis_prompt(self, data: Dict) -> str:
-        """Build prompt for Ollama communication analysis"""
-        metrics = data.get("metrics", {})
+    def _build_analysis_prompt(self, patterns: Dict) -> str:
+        """Build prompt for AI analysis"""
+        return f"""As a communication analysis expert, analyze these communication patterns:
 
-        return f"""As a mental health AI specialist, analyze the following user's communication patterns in messaging and provide insights:
+FREQUENCY PATTERNS:
+{patterns.get("communication_frequency", {})}
 
-One-to-one messaging activity:
-- Messages sent: {len(data['one_to_one']['sent_messages'])}
-- Messages received: {len(data['one_to_one']['received_messages'])}
-- Sample sent messages: {data['one_to_one']['sent_messages'][:5] if data['one_to_one']['sent_messages'] else []}
-- Sample received messages: {data['one_to_one']['received_messages'][:5] if data['one_to_one']['received_messages'] else []}
+EMOTIONAL PATTERNS:
+{patterns.get("emotional_expression", {})}
 
-Group messaging activity:
-- Messages sent: {len(data['group']['sent_messages'])}
-- Messages received: {len(data['group']['received_messages'])}
+CONTENT ANALYSIS:
+{patterns.get("content_analysis", {})}
 
-Chatbot interaction:
-- Messages sent to bot: {len(data['chatbot']['user_messages'])}
-- Messages received from bot: {len(data['chatbot']['bot_responses'])}
+TEMPORAL PATTERNS:
+{patterns.get("temporal_patterns", {})}
 
-Messaging metrics:
-- Total messages sent: {metrics.get('total_messages_sent', 0)}
-- Total messages received: {metrics.get('total_messages_received', 0)}
-- Average message length (sent): {metrics.get('length_metrics_sent', {}).get('avg_length', 0)}
-- Active conversations: {metrics.get('active_conversations', 0)}
-- Most active conversation message count: {metrics.get('most_active_conversation_message_count', 0)}
-- Hour distribution of sent messages: {metrics.get('hour_distribution_sent', {})}
+ENGAGEMENT METRICS:
+{patterns.get("engagement_metrics", {})}
 
-Analyze this data and provide insights in JSON format with these fields:
+Provide insights in JSON format:
 {{
-    "therapeutic_relationships": {{<analysis of user's therapeutic communication relationships>}},
-    "conversation_metrics": {{<key metrics and insights about conversation patterns>}},
-    "communication_style": {{<user's communication style characteristics>}},
-    "response_patterns": {{<patterns in how user responds to different approaches>}},
-    "emotional_triggers": [<list of topics that trigger emotional responses>],
-    "improvement_areas": [<list of areas where communication could be improved>],
-    "needs_attention": <boolean indicating if there are concerning patterns>,
-    "attention_reason": <if needs_attention is true, the reason>,
-    "attention_description": <description of the pattern needing attention>,
-    "priority_level": <"low", "medium", or "high">
+    "communication_style": "<analytical description>",
+    "strengths": ["<list of communication strengths>"],
+    "areas_for_improvement": ["<list of areas to improve>"],
+    "therapeutic_progress": "<assessment of progress>",
+    "recommendations": ["<specific recommendations>"],
+    "risk_factors": ["<any concerning patterns>"],
+    "overall_assessment": "<overall communication health assessment>"
 }}"""
 
-    def _parse_analysis_response(self, response: str) -> Dict:
-        """Parse and validate Ollama's analysis response"""
+    def _parse_ai_response(self, response_text: str) -> Dict[str, Any]:
+        """Parse AI response"""
         try:
-            import json
-
-            # Try to extract the JSON portion of the response
-            if "```json" in response and "```" in response:
-                json_start = response.find("```json") + 7
-                json_end = response.find("```", json_start)
-                json_str = response[json_start:json_end].strip()
-                analysis = json.loads(json_str)
-            else:
-                analysis = json.loads(response)
-
-            required_fields = [
-                "therapeutic_relationships",
-                "conversation_metrics",
-                "communication_style",
-                "response_patterns",
-                "emotional_triggers",
-                "improvement_areas",
-                "needs_attention",
-            ]
-
-            # Ensure all required fields exist
-            for field in required_fields:
-                if field not in analysis:
-                    analysis[field] = self._create_default_analysis()[field]
-
-            return analysis
-
+            if "```json" in response_text:
+                json_start = response_text.find("```json") + 7
+                json_end = response_text.find("```", json_start)
+                response_text = response_text[json_start:json_end].strip()
+            
+            parsed = json.loads(response_text)
+            
+            # Ensure required fields
+            required_fields = {
+                "communication_style": "analytical",
+                "strengths": [],
+                "areas_for_improvement": [],
+                "therapeutic_progress": "ongoing",
+                "recommendations": [],
+                "risk_factors": [],
+                "overall_assessment": "baseline",
+            }
+            
+            for field, default in required_fields.items():
+                if field not in parsed:
+                    parsed[field] = default
+            
+            return parsed
+            
         except json.JSONDecodeError:
-            logger.error("Failed to parse Ollama analysis response as JSON")
-            return self._create_default_analysis()
-        except Exception as e:
-            logger.error(f"Error processing Ollama analysis: {str(e)}")
-            return self._create_default_analysis()
+            logger.error("Failed to parse AI insights response")
+            return self._create_fallback_insights()
 
-    def _create_default_analysis(self) -> Dict:
-        """Create a default analysis when AI analysis fails"""
+    def _create_fallback_insights(self) -> Dict[str, Any]:
+        """Create fallback insights when AI fails"""
         return {
-            "therapeutic_relationships": {"quality": "unknown"},
-            "conversation_metrics": {"message_frequency": "moderate"},
-            "communication_style": {"primary_style": "neutral"},
-            "response_patterns": {"avg_response_time": "unknown"},
-            "emotional_triggers": [],
-            "improvement_areas": ["establish regular communication"],
-            "needs_attention": False,
+            "communication_style": "baseline",
+            "strengths": ["Active engagement with platform"],
+            "areas_for_improvement": ["Continue regular interaction"],
+            "therapeutic_progress": "establishing patterns",
+            "recommendations": ["Maintain consistent communication"],
+            "risk_factors": [],
+            "overall_assessment": "developing communication patterns",
         }
 
-    def analyze_therapeutic_relationship(self, user, therapist_id) -> Dict[str, Any]:
-        """
-        Analyze the therapeutic relationship between a user and their therapist.
-
-        This helps identify communication effectiveness and areas for improvement
-        in the therapeutic relationship.
-        """
+    def _analyze_therapist_relationships(self, therapist_user) -> Dict[str, Any]:
+        """Analyze therapeutic relationships from therapist perspective"""
         try:
+            # Get patients associated with this therapist
+            from appointments.models import Appointment
             from django.contrib.auth import get_user_model
-            from messaging.models.one_to_one import (
-                OneToOneMessage,
-                OneToOneConversation,
-            )
-
             User = get_user_model()
-            therapist = User.objects.get(id=therapist_id)
-
-            # Get conversation between user and therapist
-            conversation = (
-                OneToOneConversation.objects.filter(participants=user)
-                .filter(participants=therapist)
-                .first()
-            )
-
-            if not conversation:
-                return {"error": "No conversation found between user and therapist"}
-
-            # Get messages from the conversation
-            messages = (
-                OneToOneMessage.objects.filter(conversation=conversation)
-                .select_related("sender")
-                .order_by("timestamp")
-            )
-
-            # Prepare data for analysis
-            user_messages = [
-                {
-                    "content": msg.content,
-                    "timestamp": msg.timestamp.isoformat(),
-                }
-                for msg in messages
-                if msg.sender == user
-            ]
-
-            therapist_messages = [
-                {
-                    "content": msg.content,
-                    "timestamp": msg.timestamp.isoformat(),
-                }
-                for msg in messages
-                if msg.sender == therapist
-            ]
-
-            # Simple metrics
-            total_messages = len(messages)
-            user_message_count = len(user_messages)
-            therapist_message_count = len(therapist_messages)
-
-            conversation_days = (
-                (messages.last().timestamp - messages.first().timestamp).days + 1
-                if messages.count() > 1
-                else 1
-            )
-
-            # Average messages per day
-            messages_per_day = (
-                total_messages / conversation_days if conversation_days else 0
-            )
-
-            # Message length statistics
-            user_msg_lengths = [len(msg["content"]) for msg in user_messages]
-            therapist_msg_lengths = [len(msg["content"]) for msg in therapist_messages]
-
-            avg_user_msg_length = (
-                sum(user_msg_lengths) / len(user_msg_lengths) if user_msg_lengths else 0
-            )
-            avg_therapist_msg_length = (
-                sum(therapist_msg_lengths) / len(therapist_msg_lengths)
-                if therapist_msg_lengths
-                else 0
-            )
-
-            # Message timing analysis
-            response_times = []
-            for i, msg in enumerate(messages[1:], 1):
-                if msg.sender != messages[i - 1].sender:  # If this is a response
-                    response_time = (
-                        msg.timestamp - messages[i - 1].timestamp
-                    ).total_seconds()
-                    if response_time < 86400:  # Only count if less than 24 hours
-                        response_times.append(response_time)
-
-            avg_response_time = (
-                sum(response_times) / len(response_times) if response_times else 0
-            )
-
-            analysis = {
-                "total_messages": total_messages,
-                "user_message_count": user_message_count,
-                "therapist_message_count": therapist_message_count,
-                "messages_per_day": messages_per_day,
-                "avg_user_msg_length": avg_user_msg_length,
-                "avg_therapist_msg_length": avg_therapist_msg_length,
-                "avg_response_time_seconds": avg_response_time,
-                "conversation_duration_days": conversation_days,
-                "communication_balance": user_message_count
-                / (therapist_message_count or 1),
-                "engagement_level": "high"
-                if messages_per_day > 3
-                else "medium"
-                if messages_per_day > 1
-                else "low",
-            }
-
-            return analysis
-
-        except Exception as e:
-            logger.error(
-                f"Error analyzing therapeutic relationship: {str(e)}", exc_info=True
-            )
-            return {"error": str(e), "success": False}
-
-    def analyze_response_effectiveness(self, user, days: int = 30) -> Dict[str, Any]:
-        """
-        Analyze which communication approaches are most effective with this user.
-
-        This helps identify patterns in how the user responds to different
-        communication styles.
-        """
-        try:
-            from messaging.models.one_to_one import OneToOneMessage
-
-            end_date = timezone.now()
-            start_date = end_date - timedelta(days=days)
-
-            # Get messages received by user
-            received_messages = (
-                OneToOneMessage.objects.filter(
-                    conversation__participants=user,
-                    timestamp__range=(start_date, end_date),
-                )
-                .exclude(sender=user)
-                .select_related("sender")
-            )
-
-            # Get user's responses
-            user_messages = OneToOneMessage.objects.filter(
-                sender=user, timestamp__range=(start_date, end_date)
-            ).select_related("conversation")
-
-            # This would require more sophisticated analysis in a real implementation
-            # Here we'll just return some basic statistics
-
-            # Count messages by sender
-            senders = {}
-            for msg in received_messages:
-                sender = msg.sender.username
-                if sender not in senders:
-                    senders[sender] = {"count": 0, "responses": 0}
-                senders[sender]["count"] += 1
-
-            # Simple approach to count responses (messages sent shortly after receiving)
-            for msg in user_messages:
-                # Get the most recent received message before this one
-                previous = (
-                    received_messages.filter(
-                        conversation=msg.conversation, timestamp__lt=msg.timestamp
-                    )
-                    .order_by("-timestamp")
-                    .first()
-                )
-
-                if (
-                    previous
-                    and (msg.timestamp - previous.timestamp).total_seconds() < 3600
-                ):  # Within an hour
-                    sender = previous.sender.username
-                    if sender in senders:
-                        senders[sender]["responses"] += 1
-
-            # Calculate response rates
-            for sender, data in senders.items():
-                data["response_rate"] = (
-                    data["responses"] / data["count"] if data["count"] > 0 else 0
-                )
-
+            
+            # Get recent appointments to find patients
+            recent_appointments = Appointment.objects.filter(
+                therapist=therapist_user,
+                scheduled_time__gte=timezone.now() - timedelta(days=90)
+            ).select_related('patient')
+            
+            patients = list(set([appt.patient for appt in recent_appointments]))
+            
+            if not patients:
+                return {"has_relationships": False, "reason": "no_patients_found"}
+            
+            relationships = []
+            for patient in patients[:10]:  # Limit to 10 most recent patients
+                patient_analysis = self._analyze_patient_communication(patient)
+                relationships.append({
+                    "patient_id": patient.id,
+                    "patient_username": patient.username,
+                    "communication_analysis": patient_analysis,
+                    "appointment_count": recent_appointments.filter(patient=patient).count(),
+                })
+            
             return {
-                "senders": senders,
-                "most_responded_to": max(
-                    senders.items(), key=lambda x: x[1]["response_rate"]
-                )[0]
-                if senders
-                else None,
+                "has_relationships": True,
+                "user_type": "therapist",
+                "total_patients": len(relationships),
+                "relationships": relationships,
+                "analyzed_at": timezone.now().isoformat(),
             }
-
+            
         except Exception as e:
-            logger.error(
-                f"Error analyzing response effectiveness: {str(e)}", exc_info=True
-            )
-            return {"error": str(e), "success": False}
+            logger.error(f"Error analyzing therapist relationships: {str(e)}")
+            return {"has_relationships": False, "reason": f"error: {str(e)}"}
+
+    def _analyze_patient_relationships(self, patient_user) -> Dict[str, Any]:
+        """Analyze therapeutic relationships from patient perspective"""
+        try:
+            # Get therapists this patient has appointments with
+            from appointments.models import Appointment
+            
+            recent_appointments = Appointment.objects.filter(
+                patient=patient_user,
+                scheduled_time__gte=timezone.now() - timedelta(days=90)
+            ).select_related('therapist')
+            
+            therapists = list(set([appt.therapist for appt in recent_appointments]))
+            
+            if not therapists:
+                return {"has_relationships": False, "reason": "no_therapists_found"}
+            
+            relationships = []
+            for therapist in therapists:
+                therapist_interaction = {
+                    "therapist_id": therapist.id,
+                    "therapist_username": therapist.username,
+                    "appointment_count": recent_appointments.filter(therapist=therapist).count(),
+                    "last_appointment": recent_appointments.filter(therapist=therapist).order_by('-scheduled_time').first().scheduled_time.isoformat(),
+                }
+                relationships.append(therapist_interaction)
+            
+            # Add patient's own communication analysis
+            patient_analysis = self._analyze_patient_communication(patient_user)
+            
+            return {
+                "has_relationships": True,
+                "user_type": "patient",
+                "total_therapists": len(relationships),
+                "relationships": relationships,
+                "patient_communication_analysis": patient_analysis,
+                "analyzed_at": timezone.now().isoformat(),
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing patient relationships: {str(e)}")
+            return {"has_relationships": False, "reason": f"error: {str(e)}"}
+
+    def _analyze_patient_communication(self, patient) -> Dict[str, Any]:
+        """Analyze communication patterns for a specific patient"""
+        # Get basic communication metrics
+        communication_data = self._collect_communication_data(patient, 30)
+        
+        if not communication_data["has_data"]:
+            return {"engagement_level": "low", "communication_frequency": 0}
+        
+        # Calculate simple metrics
+        total_interactions = communication_data["total_interactions"]
+        engagement_level = "high" if total_interactions > 50 else "medium" if total_interactions > 20 else "low"
+        
+        return {
+            "engagement_level": engagement_level,
+            "communication_frequency": total_interactions / 30,
+            "chatbot_usage": len(communication_data["chatbot_messages"]),
+            "journal_activity": len(communication_data["journal_entries"]),
+            "mood_tracking": len(communication_data["mood_logs"]),
+        }
+
+    def _create_no_data_response(self) -> Dict[str, Any]:
+        """Create response when no communication data is found"""
+        return {
+            "has_data": False,
+            "message": "No communication data found for analysis",
+            "suggestions": [
+                "Start using the chatbot to build communication history",
+                "Create journal entries to track thoughts and feelings",
+                "Log mood entries regularly",
+            ],
+            "analyzed_at": timezone.now().isoformat(),
+        }
+
+    def _create_no_relationship_response(self) -> Dict[str, Any]:
+        """Create response when no therapeutic relationships are found"""
+        return {
+            "has_relationships": False,
+            "message": "No therapeutic relationship data found",
+            "suggestions": [
+                "Schedule an appointment with a therapist",
+                "Start building therapeutic communication through regular platform use",
+            ],
+            "analyzed_at": timezone.now().isoformat(),
+        }
+
+    def _create_error_response(self, error_message: str) -> Dict[str, Any]:
+        """Create error response"""
+        return {
+            "error": True,
+            "message": f"Error analyzing communication: {error_message}",
+            "analyzed_at": timezone.now().isoformat(),
+        }
 
 
 # Create singleton instance

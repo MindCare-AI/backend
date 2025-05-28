@@ -216,28 +216,36 @@ def prepare_session_recommendations(sender, instance, **kwargs):
     """Generate AI recommendations before therapy session"""
     if instance.status == "scheduled" and not instance.ai_recommendations:
         try:
-            recommendations = therapy_analysis_service.recommend_session_focus(instance.patient)
+            recommendations = therapy_analysis_service.recommend_session_focus(
+                instance.patient
+            )
             instance.ai_recommendations = recommendations
 
         except Exception as e:
             logger.error(f"Error generating session recommendations: {str(e)}")
 
 
-@receiver(post_save, sender='appointments.Appointment')
+@receiver(post_save, sender="appointments.Appointment")
 def analyze_for_upcoming_appointment(sender, instance, created, **kwargs):
     """Trigger therapy analysis when an appointment is scheduled"""
-    if created and instance.status == 'scheduled':
+    if created and instance.status == "scheduled":
         try:
             # Analyze patient data for therapy session preparation
             analysis = therapy_analysis_service.analyze_for_therapy_session(
                 user=instance.patient,
-                days=7  # Analyze last week of data
+                days=7,  # Analyze last week of data
             )
-            
-            if analysis.get('success'):
-                logger.info(f"Generated therapy analysis for upcoming appointment {instance.id}")
+
+            if analysis.get("success"):
+                logger.info(
+                    f"Generated therapy analysis for upcoming appointment {instance.id}"
+                )
             else:
-                logger.warning(f"Therapy analysis failed for appointment {instance.id}: {analysis.get('message', 'Unknown error')}")
-                
+                logger.warning(
+                    f"Therapy analysis failed for appointment {instance.id}: {analysis.get('message', 'Unknown error')}"
+                )
+
         except Exception as e:
-            logger.error(f"Error in appointment therapy analysis: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error in appointment therapy analysis: {str(e)}", exc_info=True
+            )

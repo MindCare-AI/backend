@@ -7,7 +7,12 @@ from django.utils import timezone
 from django.core.cache import cache
 from django.conf import settings
 
-from .models import UserAnalysis, AIInsight, TherapyRecommendation, CommunicationPatternAnalysis
+from .models import (
+    UserAnalysis,
+    AIInsight,
+    TherapyRecommendation,
+    CommunicationPatternAnalysis,
+)
 from .serializers import (
     UserAnalysisSerializer,
     AIInsightSerializer,
@@ -130,70 +135,90 @@ class AIInsightViewSet(viewsets.ViewSet):
         try:
             user_id = request.user.id
             cache_key = f"chatbot_context_{user_id}"
-            cache_timeout = settings.AI_ENGINE_SETTINGS.get("CACHE_TIMEOUT", 900)  # 15 minutes default
-            
+            cache_timeout = settings.AI_ENGINE_SETTINGS.get(
+                "CACHE_TIMEOUT", 900
+            )  # 15 minutes default
+
             # Check if user just logged mood or added journal - invalidate cache if needed
             last_activity = self._get_user_last_activity(request.user)
             cache_meta_key = f"chatbot_context_meta_{user_id}"
             last_cached_activity = cache.get(cache_meta_key)
-            
+
             context = None
-            if last_cached_activity and last_activity and last_cached_activity >= last_activity:
+            if (
+                last_cached_activity
+                and last_activity
+                and last_cached_activity >= last_activity
+            ):
                 # Cache is still valid, try to get it
                 context = cache.get(cache_key)
-            
+
             if not context:
                 # Get fresh analysis - access ai_service directly for more control
                 from AI_engine.services.ai_analysis import ai_service
-                
+
                 # Define shorter context window for chatbot (7 days instead of 30)
                 context = ai_service.get_chatbot_context(request.user, date_range=7)
-                
+
                 # Add medication context, ensuring robust error handling
                 try:
-                    from AI_engine.services.medication_analysis import medication_analysis_service
-                    med_context = medication_analysis_service.analyze_medication_effects(
-                        request.user, days=7
+                    from AI_engine.services.medication_analysis import (
+                        medication_analysis_service,
+                    )
+
+                    med_context = (
+                        medication_analysis_service.analyze_medication_effects(
+                            request.user, days=7
+                        )
                     )
                     if med_context.get("success"):
                         context["medication_context"] = {
                             "current_medications": med_context.get("medications", []),
                             "effects": med_context.get("mood_effects", {}),
-                            "side_effects": med_context.get("side_effects_detected", []),
+                            "side_effects": med_context.get(
+                                "side_effects_detected", []
+                            ),
                             "recommendations": med_context.get("recommendations", []),
                         }
                 except Exception as e:
                     logger.error(f"Error adding medication context: {str(e)}")
-                    
+
                 # Add mood prediction from predictive service
                 try:
-                    mood_prediction = predictive_service.predict_mood_decline(request.user)
+                    mood_prediction = predictive_service.predict_mood_decline(
+                        request.user
+                    )
                     context["mood_prediction"] = mood_prediction
                 except Exception as e:
                     logger.error(f"Error getting mood prediction: {str(e)}")
-                    
+
                 # Add journal analysis from predictive service
                 try:
-                    journal_analysis = predictive_service.analyze_journal_patterns(request.user)
+                    journal_analysis = predictive_service.analyze_journal_patterns(
+                        request.user
+                    )
                     context["journal_analysis"] = journal_analysis
                 except Exception as e:
                     logger.error(f"Error analyzing journal patterns: {str(e)}")
-                    
+
                 # Add therapy insights if patient profile exists
                 try:
                     if hasattr(request.user, "patient_profile"):
                         from AI_engine.services.therapy_analysis import therapy_analysis
-                        therapy_insights = therapy_analysis.recommend_session_focus(request.user)
+
+                        therapy_insights = therapy_analysis.recommend_session_focus(
+                            request.user
+                        )
                         context["therapy_insights"] = therapy_insights
                 except Exception as e:
                     logger.error(f"Error getting therapy insights: {str(e)}")
-                    
+
                 # Store current activity timestamp with cache
                 cache.set(cache_meta_key, timezone.now(), timeout=cache_timeout)
-                
+
                 # Cache the result - use shorter timeout for more dynamic data
                 cache.set(cache_key, context, timeout=cache_timeout)
-                
+
             return Response(context)
 
         except Exception as e:
@@ -202,22 +227,24 @@ class AIInsightViewSet(viewsets.ViewSet):
                 {"error": "Could not retrieve AI context"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        
+
     def _get_user_last_activity(self, user):
         """Get user's last activity timestamp from mood logs and journal entries"""
         try:
             from mood.models import MoodLog
             from journal.models import JournalEntry
-            
-            last_mood = MoodLog.objects.filter(user=user).order_by('-logged_at').first()
-            last_journal = JournalEntry.objects.filter(user=user).order_by('-created_at').first()
-            
+
+            last_mood = MoodLog.objects.filter(user=user).order_by("-logged_at").first()
+            last_journal = (
+                JournalEntry.objects.filter(user=user).order_by("-created_at").first()
+            )
+
             timestamps = []
             if last_mood:
                 timestamps.append(last_mood.logged_at)
             if last_journal:
                 timestamps.append(last_journal.created_at)
-                
+
             if timestamps:
                 return max(timestamps)
             return None
@@ -319,53 +346,51 @@ class TherapyRecommendationViewSet(viewsets.ViewSet):
 
 class CommunicationAnalysisViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for communication pattern analysis"""
+
     serializer_class = CommunicationPatternAnalysisSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return CommunicationPatternAnalysis.objects.filter(user=self.request.user)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def analyze_patterns(self, request):
         """Trigger communication pattern analysis for the user"""
         try:
-            days = request.data.get('days', 30)
+            days = request.data.get("days", 30)
             analysis = communication_analysis_service.analyze_communication_patterns(
                 request.user, days=days
             )
-            
-            if 'error' in analysis:
+
+            if "error" in analysis:
                 return Response(
-                    {'error': analysis['error']}, 
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": analysis["error"]}, status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             return Response(analysis, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def therapeutic_relationship(self, request):
         """Analyze therapeutic relationship with a specific therapist"""
-        therapist_id = request.query_params.get('therapist_id')
+        therapist_id = request.query_params.get("therapist_id")
         if not therapist_id:
             return Response(
-                {'error': 'therapist_id parameter required'}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "therapist_id parameter required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         try:
             analysis = communication_analysis_service.analyze_therapeutic_relationship(
                 request.user, therapist_id
             )
             return Response(analysis, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

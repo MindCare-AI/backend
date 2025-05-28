@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("therapist", "0002_fix_experience_field"),
         ("therapist", "0004_alter_therapistprofile_license_number"),

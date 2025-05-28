@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("notifications", "0002_initial"),
         ("users", "0003_alter_userpreferences_options_and_more"),

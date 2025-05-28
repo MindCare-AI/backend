@@ -84,7 +84,7 @@ class AIAnalysisService:
                     {
                         "content": entry.content,
                         "mood": entry.mood,
-                        "activities": getattr(entry, 'activities', []),
+                        "activities": getattr(entry, "activities", []),
                         "timestamp": entry.created_at.isoformat(),
                     }
                     for entry in journal_entries
@@ -113,8 +113,11 @@ class AIAnalysisService:
             # Run communication analysis if messaging data exists
             try:
                 from .communication_analysis import communication_analysis_service
-                comm_analysis = communication_analysis_service.analyze_communication_patterns(
-                    user, days=date_range
+
+                comm_analysis = (
+                    communication_analysis_service.analyze_communication_patterns(
+                        user, days=date_range
+                    )
                 )
                 analysis["communication_analysis_completed"] = True
             except Exception as e:
@@ -136,17 +139,26 @@ class AIAnalysisService:
             # Run medication analysis if patient profile exists
             try:
                 from .medication_analysis import medication_analysis_service
+
                 med_analysis = medication_analysis_service.analyze_medication_effects(
                     user, days=date_range
                 )
-                analysis["medication_analysis_completed"] = med_analysis.get("success", False)
-                
+                analysis["medication_analysis_completed"] = med_analysis.get(
+                    "success", False
+                )
+
                 # More robust error handling - check for specific keys
                 if med_analysis.get("success", False):
-                    analysis["medication_effects"] = med_analysis.get("mood_effects", {})
-                    analysis["medication_side_effects"] = med_analysis.get("side_effects_detected", [])
-                    analysis["medication_recommendations"] = med_analysis.get("recommendations", [])
-                    
+                    analysis["medication_effects"] = med_analysis.get(
+                        "mood_effects", {}
+                    )
+                    analysis["medication_side_effects"] = med_analysis.get(
+                        "side_effects_detected", []
+                    )
+                    analysis["medication_recommendations"] = med_analysis.get(
+                        "recommendations", []
+                    )
+
                     # Check for concerning medication effects
                     if med_analysis.get("needs_attention", False):
                         # Create dedicated medication insight
@@ -156,22 +168,28 @@ class AIAnalysisService:
                             insight_data={
                                 "medications": med_analysis.get("medications", []),
                                 "effects": med_analysis.get("mood_effects", {}),
-                                "side_effects": med_analysis.get("side_effects_detected", []),
-                                "recommendations": med_analysis.get("recommendations", [])
+                                "side_effects": med_analysis.get(
+                                    "side_effects_detected", []
+                                ),
+                                "recommendations": med_analysis.get(
+                                    "recommendations", []
+                                ),
                             },
-                            priority="high"
+                            priority="high",
                         )
                 else:
                     # Log specific failure reason
-                    logger.info(f"Medication analysis not performed: {med_analysis.get('message', 'No patient profile')}")
-                    
+                    logger.info(
+                        f"Medication analysis not performed: {med_analysis.get('message', 'No patient profile')}"
+                    )
+
             except ImportError:
                 logger.info("Medication analysis service not available")
                 analysis["medication_analysis_completed"] = False
             except Exception as e:
                 logger.error(f"Medication analysis failed: {str(e)}", exc_info=True)
                 analysis["medication_analysis_completed"] = False
-    
+
             return {
                 "analysis_id": user_analysis.id,
                 "mood_score": user_analysis.mood_score,
@@ -193,12 +211,14 @@ class AIAnalysisService:
         """Create therapy recommendations based on analysis results"""
         try:
             from ..models import TherapyRecommendation
-            
+
             recommendations_created = 0
-            
+
             # Always create at least one activity recommendation from the default activities
-            activities = analysis.get("activities", ["journaling", "physical_activity", "breathing_exercises"])
-            
+            activities = analysis.get(
+                "activities", ["journaling", "physical_activity", "breathing_exercises"]
+            )
+
             # Create recommendations based on suggested activities
             for activity in activities[:3]:  # Limit to 3 activities
                 if activity and activity not in ["general", "neutral"]:
@@ -209,15 +229,15 @@ class AIAnalysisService:
                             "activity": activity,
                             "priority": "medium",
                             "estimated_duration": "15-30 minutes",
-                            "reason": f"Based on analysis of mood patterns and journal entries",
-                            "description": f"Try {activity.replace('_', ' ')} to improve your wellbeing"
+                            "reason": "Based on analysis of mood patterns and journal entries",
+                            "description": f"Try {activity.replace('_', ' ')} to improve your wellbeing",
                         },
                         context_data={
                             "mood_score": analysis.get("mood_score", 5),
                             "emotions": analysis.get("emotions", ["neutral"]),
                             "analysis_date": timezone.now().isoformat(),
-                            "trigger_reason": "routine_analysis"
-                        }
+                            "trigger_reason": "routine_analysis",
+                        },
                     )
                     recommendations_created += 1
 
@@ -229,22 +249,30 @@ class AIAnalysisService:
                     "strategy": "Regular mood monitoring",
                     "description": "Continue tracking your mood and journal entries to maintain awareness of your mental health patterns",
                     "frequency": "Daily",
-                    "benefits": ["Self-awareness", "Pattern recognition", "Early intervention"]
+                    "benefits": [
+                        "Self-awareness",
+                        "Pattern recognition",
+                        "Early intervention",
+                    ],
                 },
                 context_data={
                     "mood_score": analysis.get("mood_score", 5),
                     "analysis_date": timezone.now().isoformat(),
-                    "data_points": len(analysis.get("mood_data", [])) + len(analysis.get("journal_data", []))
-                }
+                    "data_points": len(analysis.get("mood_data", []))
+                    + len(analysis.get("journal_data", [])),
+                },
             )
             recommendations_created += 1
 
             # Create intervention recommendations for concerning patterns
             topics = analysis.get("topics", [])
             emotions = analysis.get("emotions", [])
-            
+
             # Check for stress/anxiety patterns
-            if any(term in str(topics + emotions).lower() for term in ["stress", "anxiety", "worried", "nervous"]):
+            if any(
+                term in str(topics + emotions).lower()
+                for term in ["stress", "anxiety", "worried", "nervous"]
+            ):
                 TherapyRecommendation.objects.create(
                     user=user,
                     recommendation_type="intervention",
@@ -254,22 +282,25 @@ class AIAnalysisService:
                             "Deep breathing exercises (4-7-8 technique)",
                             "Progressive muscle relaxation",
                             "Mindfulness meditation",
-                            "Regular physical exercise"
+                            "Regular physical exercise",
                         ],
                         "priority": "high",
-                        "description": "Addressing detected stress and anxiety patterns"
+                        "description": "Addressing detected stress and anxiety patterns",
                     },
                     context_data={
                         "detected_patterns": ["stress", "anxiety"],
                         "emotions": emotions,
                         "topics": topics,
-                        "analysis_date": timezone.now().isoformat()
-                    }
+                        "analysis_date": timezone.now().isoformat(),
+                    },
                 )
                 recommendations_created += 1
 
             # Check for sleep-related issues
-            if any(term in str(topics).lower() for term in ["sleep", "tired", "exhausted", "insomnia"]):
+            if any(
+                term in str(topics).lower()
+                for term in ["sleep", "tired", "exhausted", "insomnia"]
+            ):
                 TherapyRecommendation.objects.create(
                     user=user,
                     recommendation_type="coping_strategy",
@@ -280,23 +311,27 @@ class AIAnalysisService:
                             "Maintain consistent sleep schedule",
                             "Create relaxing bedtime routine",
                             "Limit screen time before bed",
-                            "Avoid caffeine late in the day"
+                            "Avoid caffeine late in the day",
                         ],
-                        "expected_outcome": "Better sleep quality and mood regulation"
+                        "expected_outcome": "Better sleep quality and mood regulation",
                     },
                     context_data={
                         "triggered_by": "sleep_concerns_detected",
                         "analysis_date": timezone.now().isoformat(),
-                        "concern_level": "medium"
-                    }
+                        "concern_level": "medium",
+                    },
                 )
                 recommendations_created += 1
 
             analysis["recommendations_created"] = recommendations_created
-            logger.info(f"Created {recommendations_created} therapy recommendations for user {user.id}")
+            logger.info(
+                f"Created {recommendations_created} therapy recommendations for user {user.id}"
+            )
 
         except Exception as e:
-            logger.error(f"Error creating therapy recommendations: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error creating therapy recommendations: {str(e)}", exc_info=True
+            )
             analysis["recommendations_created"] = 0
 
     def _get_health_metrics(self, user, days: int) -> List[Dict]:
@@ -335,14 +370,18 @@ class AIAnalysisService:
                 )
 
         prompt += "\nProvide a structured analysis with these fields:\n"
-        prompt += "1. mood_score (0-10, where 0 is very negative, 10 is very positive)\n"
+        prompt += (
+            "1. mood_score (0-10, where 0 is very negative, 10 is very positive)\n"
+        )
         prompt += "2. sentiment_score (-1 to 1, where -1 is negative, 1 is positive)\n"
         prompt += "3. emotions (list of key emotions detected)\n"
         prompt += "4. topics (list of topics of concern or focus areas)\n"
         prompt += "5. activities (specific therapeutic activities recommended - be specific like 'mindfulness_meditation', 'journaling', 'physical_exercise', 'breathing_exercises')\n"
         prompt += "6. risks (any risk factors noted with severity levels)\n"
         prompt += "7. improvements (areas showing improvement)\n"
-        prompt += "8. needs_attention (boolean for whether immediate attention is needed)\n\n"
+        prompt += (
+            "8. needs_attention (boolean for whether immediate attention is needed)\n\n"
+        )
         prompt += "Focus on providing actionable, specific recommendations based on the user's mood patterns and journal content."
 
         return prompt
@@ -362,36 +401,55 @@ class AIAnalysisService:
 
         try:
             import re
-            
+
             # Try to parse mood score
-            mood_match = re.search(r"mood_score[:\s]*(\d+)", response_text, re.IGNORECASE)
+            mood_match = re.search(
+                r"mood_score[:\s]*(\d+)", response_text, re.IGNORECASE
+            )
             if mood_match:
                 analysis["mood_score"] = int(mood_match.group(1))
-                
+
             # Try to parse emotions
-            emotions_match = re.search(r"emotions[:\s]*\[(.*?)\]", response_text, re.IGNORECASE | re.DOTALL)
+            emotions_match = re.search(
+                r"emotions[:\s]*\[(.*?)\]", response_text, re.IGNORECASE | re.DOTALL
+            )
             if emotions_match:
                 emotions_str = emotions_match.group(1)
-                emotions = [e.strip().strip('"\'') for e in emotions_str.split(',') if e.strip()]
+                emotions = [
+                    e.strip().strip("\"'") for e in emotions_str.split(",") if e.strip()
+                ]
                 if emotions:
                     analysis["emotions"] = emotions
-                    
+
             # Try to parse activities
-            activities_match = re.search(r"activities[:\s]*\[(.*?)\]", response_text, re.IGNORECASE | re.DOTALL)
+            activities_match = re.search(
+                r"activities[:\s]*\[(.*?)\]", response_text, re.IGNORECASE | re.DOTALL
+            )
             if activities_match:
                 activities_str = activities_match.group(1)
-                activities = [a.strip().strip('"\'') for a in activities_str.split(',') if a.strip()]
+                activities = [
+                    a.strip().strip("\"'")
+                    for a in activities_str.split(",")
+                    if a.strip()
+                ]
                 if activities:
                     analysis["activities"] = activities
-                    
+
             # Check for attention keywords
-            attention_keywords = ["urgent", "concerning", "risk", "danger", "immediate", "crisis"]
+            attention_keywords = [
+                "urgent",
+                "concerning",
+                "risk",
+                "danger",
+                "immediate",
+                "crisis",
+            ]
             if any(keyword in response_text.lower() for keyword in attention_keywords):
                 analysis["needs_attention"] = True
-                
+
         except Exception as e:
             logger.error(f"Error parsing analysis response: {str(e)}")
-            
+
         return analysis
 
     def _create_default_analysis(self) -> Dict:
@@ -420,9 +478,9 @@ class AIAnalysisService:
         return [
             {
                 "mood": log.mood_rating,
-                "activities": getattr(log, 'activities', []),
+                "activities": getattr(log, "activities", []),
                 "timestamp": log.logged_at.isoformat(),
-                "notes": getattr(log, 'notes', ''),
+                "notes": getattr(log, "notes", ""),
             }
             for log in mood_logs
         ]

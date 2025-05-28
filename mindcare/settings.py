@@ -682,6 +682,29 @@ CHATBOT_SETTINGS = {
     "MODEL": "gemini-2.0-flash",
 }
 
+# Crisis Response Configuration
+CRISIS_RESPONSE_SETTINGS = {
+    "EMERGENCY_NUMBER": "911",  # US emergency number (customize by region)
+    "CRISIS_TEXT_LINE": "Text HOME to 741741",
+    "SUICIDE_PREVENTION_LIFELINE": "1-800-273-8255",
+    "INTERNATIONAL_RESOURCES": {
+        "US": {"hotline": "1-800-273-8255", "text": "Text HOME to 741741"},
+        "UK": {"hotline": "116 123", "text": "Text SHOUT to 85258"},
+        "Canada": {"hotline": "1-833-456-4566", "text": "Text HOME to 686868"},
+        # Add more countries as needed
+    },
+    "OVERRIDE_NORMAL_FLOW": True,
+    "ALERT_STAFF": True,
+    "MIN_CRISIS_CONFIDENCE": 0.6,
+    "HIGH_PRIORITY_KEYWORDS": [
+        "kill myself",
+        "suicide",
+        "end my life",
+        "die",
+        "hurt myself",
+    ],
+}
+
 CHATBOT_JOURNAL_LIMIT = 5  # Number of recent journal entries to include
 CHATBOT_MOOD_LIMIT = 10  # Number of recent mood logs to include
 CHATBOT_LOOKBACK_DAYS = 30  # Days to look back for user data

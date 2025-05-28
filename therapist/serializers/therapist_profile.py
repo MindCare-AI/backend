@@ -209,7 +209,12 @@ class TherapistProfileSerializer(serializers.ModelSerializer):
             user.save()
 
         # Ensure JSON fields are never None
-        for field in ['experience', 'specializations', 'treatment_approaches', 'languages']:
+        for field in [
+            "experience",
+            "specializations",
+            "treatment_approaches",
+            "languages",
+        ]:
             if field in validated_data and validated_data[field] is None:
                 validated_data[field] = []
 

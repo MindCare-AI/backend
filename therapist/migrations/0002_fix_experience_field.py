@@ -1,12 +1,11 @@
 # Generated migration to fix experience field
 
-from django.db import migrations, models
+from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('therapist', '0001_initial'),
+        ("therapist", "0001_initial"),
     ]
 
     operations = [
@@ -31,6 +30,6 @@ class Migration(migrations.Migration):
             -- Make the field NOT NULL again
             ALTER TABLE therapist_therapistprofile 
             ALTER COLUMN experience SET NOT NULL;
-            """
+            """,
         ),
     ]

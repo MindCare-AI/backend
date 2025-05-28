@@ -167,7 +167,7 @@ class TherapistProfile(models.Model):
         # Convert empty string to None to avoid unique constraint violations
         if self.license_number == "":
             self.license_number = None
-            
+
         # Ensure experience is never None - convert to empty list
         if self.experience is None:
             self.experience = []

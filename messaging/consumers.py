@@ -7,8 +7,8 @@ from channels.db import database_sync_to_async
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
-from messaging.models.one_to_one import OneToOneMessage
-from messaging.models.group import GroupMessage
+from messaging.models.one_to_one import OneToOneMessage, OneToOneConversation
+from messaging.models.group import GroupMessage, GroupConversation
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ class BaseWebSocketConsumer(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.conversation_groups = set()
+        self.conversation_type = None  # Will be set by subclasses
 
     async def get_user_conversation_groups(self):
         """Get all conversation groups the user participates in"""
@@ -28,13 +29,11 @@ class BaseWebSocketConsumer(AsyncWebsocketConsumer):
             user_groups = []
 
             # Get one-to-one conversations
-
             one_to_one_convos = await self.get_user_one_to_one_conversations()
             for convo in one_to_one_convos:
                 user_groups.append(f"conversation_{convo.id}")
 
             # Get group conversations
-
             group_convos = await self.get_user_group_conversations()
             for convo in group_convos:
                 user_groups.append(f"conversation_{convo.id}")
@@ -47,99 +46,12 @@ class BaseWebSocketConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_user_one_to_one_conversations(self):
         """Get user's one-to-one conversations"""
-        from messaging.models.one_to_one import OneToOneConversation
-
         return list(OneToOneConversation.objects.filter(participants=self.user))
 
     @database_sync_to_async
     def get_user_group_conversations(self):
         """Get user's group conversations"""
-        from messaging.models.group import GroupConversation
-
         return list(GroupConversation.objects.filter(participants=self.user))
-
-
-class ChatConsumer(BaseWebSocketConsumer):
-    """
-    WebSocket consumer for handling real-time messaging.
-    Supports both one-to-one and group conversations.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.conversation_groups = set()
-
-    async def connect(self):
-        """Handle WebSocket connection"""
-        try:
-            # Get user and conversation ID
-            self.user = self.scope["user"]
-            self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
-            self.conversation_group_name = f"conversation_{self.conversation_id}"
-            self.user_group_name = f"user_{self.user.id}"
-
-            # Setup heartbeat monitoring with more lenient settings
-            self.last_ping = timezone.now()
-            self.heartbeat_interval = getattr(
-                settings, "WEBSOCKET_HEARTBEAT_INTERVAL", 30
-            )
-            self.heartbeat_task = None
-
-            # Check if user is anonymous
-            if self.user.is_anonymous:
-                logger.warning(
-                    f"Anonymous user tried to connect to {self.conversation_group_name}"
-                )
-                await self.close()
-                return
-
-            # Validate user's access to the conversation
-            has_access = await self.check_conversation_access()
-            if not has_access:
-                logger.warning(
-                    f"User {self.user.id} tried to access unauthorized conversation {self.conversation_id}"
-                )
-                await self.close()
-                return
-
-            # Add to conversation group
-            await self.channel_layer.group_add(
-                self.conversation_group_name, self.channel_name
-            )
-
-            # Add to user-specific group for private notifications
-            await self.channel_layer.group_add(self.user_group_name, self.channel_name)
-
-            # Accept the connection
-            await self.accept()
-
-            # Start heartbeat task with error handling
-            try:
-                self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
-            except Exception as e:
-                logger.error(f"Failed to start heartbeat task: {str(e)}")
-
-            # Notify about user presence
-            await self.channel_layer.group_send(
-                self.conversation_group_name,
-                {
-                    "type": "user_online",
-                    "user_id": str(self.user.id),
-                    "username": self.user.username,
-                    "timestamp": timezone.now().isoformat(),
-                },
-            )
-
-            # Update user's online status
-            await self.update_user_status(True)
-
-            logger.info(
-                f"User {self.user.id} connected to conversation {self.conversation_id}"
-            )
-
-        except Exception as e:
-            logger.error(f"Error in connect: {str(e)}", exc_info=True)
-            await self.close()
 
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection"""
@@ -253,46 +165,6 @@ class ChatConsumer(BaseWebSocketConsumer):
         except Exception as e:
             logger.error(f"Error in heartbeat task: {str(e)}")
 
-    async def handle_new_message(self, data):
-        """Handle a new message event"""
-        content = data.get("content", "").strip()
-        conversation_id = self.conversation_id
-        message_type = data.get("message_type", "text")
-        metadata = data.get("metadata", {})
-        media_id = data.get("media_id")
-
-        if not content and not media_id:
-            return
-
-        # Create the message in database
-        message = await self.create_message(
-            conversation_id, content, message_type, metadata, media_id
-        )
-
-        if message:
-            # Prepare message data for WebSocket response
-            message_data = {
-                "id": str(message["id"]),
-                "content": message["content"],
-                "sender_id": str(message["sender_id"]),
-                "sender_name": message["sender_name"],
-                "conversation_id": str(conversation_id),
-                "timestamp": message["timestamp"],
-                "message_type": message_type,
-                "media_url": message.get("media_url"),
-                "metadata": metadata,
-            }
-
-            # Broadcast to conversation group
-            await self.channel_layer.group_send(
-                self.conversation_group_name,
-                {
-                    "type": "chat.message",
-                    "message": message_data,
-                    "event": "new_message",
-                },
-            )
-
     async def handle_typing_indicator(self, data):
         """Handle typing indicator"""
         is_typing = data.get("is_typing", False)
@@ -350,21 +222,25 @@ class ChatConsumer(BaseWebSocketConsumer):
             return
 
         try:
-            # Try one-to-one messages first
-            try:
-                message = OneToOneMessage.objects.get(id=message_id)
-            except ObjectDoesNotExist:
+            # Handle reactions based on conversation type
+            if self.conversation_type == "one_to_one":
                 try:
-                    message = GroupMessage.objects.get(id=message_id)
+                    message = await database_sync_to_async(OneToOneMessage.objects.get)(id=message_id)
                 except ObjectDoesNotExist:
-                    logger.error(f"Message with id {message_id} not found")
+                    logger.error(f"One-to-one message with id {message_id} not found")
+                    return
+            else:  # group conversation
+                try:
+                    message = await database_sync_to_async(GroupMessage.objects.get)(id=message_id)
+                except ObjectDoesNotExist:
+                    logger.error(f"Group message with id {message_id} not found")
                     return
 
             # Update reaction logic
             if action == "add":
-                message.add_reaction(self.user, reaction)
+                await database_sync_to_async(message.add_reaction)(self.user, reaction)
             else:
-                message.remove_reaction(self.user, reaction)
+                await database_sync_to_async(message.remove_reaction)(self.user, reaction)
 
             # Send to conversation group
             await self.channel_layer.group_send(
@@ -501,42 +377,185 @@ class ChatConsumer(BaseWebSocketConsumer):
                 )
             )
 
-    # Database operations
-
     @database_sync_to_async
-    def check_conversation_access(self):
-        """Check if user has access to this conversation"""
+    def mark_message_read(self, message_id):
+        """Mark a message as read by the current user"""
         try:
-            # Determine if it's a one-to-one or group conversation
-            from .models.one_to_one import OneToOneConversation
-            from .models.group import GroupConversation
-
-            # Try one-to-one first
-            try:
-                conversation = OneToOneConversation.objects.get(id=self.conversation_id)
-                if conversation.participants.filter(id=self.user.id).exists():
-                    self.conversation_type = "one_to_one"
+            # Handle based on conversation type
+            if self.conversation_type == "one_to_one":
+                try:
+                    message = OneToOneMessage.objects.get(id=message_id)
+                    message.read_by.add(self.user)
                     return True
-            except OneToOneConversation.DoesNotExist:
-                pass
-
-            # Try group
-            try:
-                conversation = GroupConversation.objects.get(id=self.conversation_id)
-                if conversation.participants.filter(id=self.user.id).exists():
-                    self.conversation_type = "group"
+                except OneToOneMessage.DoesNotExist:
+                    logger.warning(f"One-to-one message {message_id} not found for read receipt")
+                    return False
+            else:  # group conversation
+                try:
+                    message = GroupMessage.objects.get(id=message_id)
+                    message.read_by.add(self.user)
                     return True
-            except GroupConversation.DoesNotExist:
-                pass
-
-            return False
+                except GroupMessage.DoesNotExist:
+                    logger.warning(f"Group message {message_id} not found for read receipt")
+                    return False
 
         except Exception as e:
-            logger.error(f"Error checking conversation access: {str(e)}", exc_info=True)
+            logger.error(f"Error marking message as read: {str(e)}", exc_info=True)
             return False
 
     @database_sync_to_async
-    def create_message(
+    def update_user_status(self, online_status):
+        """Update user's online status"""
+        try:
+            self.user.is_online = online_status
+            self.user.last_seen = timezone.now()
+            self.user.save(update_fields=["is_online", "last_seen"])
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user status: {str(e)}", exc_info=True)
+            return False
+
+    async def handle_new_message(self, data):
+        """Abstract method to be implemented by subclasses"""
+        raise NotImplementedError("Subclasses must implement handle_new_message")
+
+
+class OneToOneChatConsumer(BaseWebSocketConsumer):
+    """
+    WebSocket consumer for handling one-to-one messaging.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conversation_type = "one_to_one"
+
+    async def connect(self):
+        """Handle WebSocket connection for one-to-one chat"""
+        try:
+            # Get user and conversation ID
+            self.user = self.scope["user"]
+            self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
+            self.conversation_group_name = f"one_to_one_{self.conversation_id}"
+            self.user_group_name = f"user_{self.user.id}"
+
+            # Setup heartbeat monitoring
+            self.last_ping = timezone.now()
+            self.heartbeat_interval = getattr(
+                settings, "WEBSOCKET_HEARTBEAT_INTERVAL", 30
+            )
+            self.heartbeat_task = None
+
+            # Check if user is anonymous
+            if self.user.is_anonymous:
+                logger.warning(
+                    f"Anonymous user tried to connect to {self.conversation_group_name}"
+                )
+                await self.close()
+                return
+
+            # Validate user's access to the one-to-one conversation
+            has_access = await self.check_one_to_one_conversation_access()
+            if not has_access:
+                logger.warning(
+                    f"User {self.user.id} tried to access unauthorized one-to-one conversation {self.conversation_id}"
+                )
+                await self.close()
+                return
+
+            # Add to conversation group
+            await self.channel_layer.group_add(
+                self.conversation_group_name, self.channel_name
+            )
+
+            # Add to user-specific group for private notifications
+            await self.channel_layer.group_add(self.user_group_name, self.channel_name)
+
+            # Accept the connection
+            await self.accept()
+
+            # Start heartbeat task
+            try:
+                self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
+            except Exception as e:
+                logger.error(f"Failed to start heartbeat task: {str(e)}")
+
+            # Notify about user presence
+            await self.channel_layer.group_send(
+                self.conversation_group_name,
+                {
+                    "type": "user_online",
+                    "user_id": str(self.user.id),
+                    "username": self.user.username,
+                    "timestamp": timezone.now().isoformat(),
+                },
+            )
+
+            # Update user's online status
+            await self.update_user_status(True)
+
+            logger.info(
+                f"User {self.user.id} connected to one-to-one conversation {self.conversation_id}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error in one-to-one connect: {str(e)}", exc_info=True)
+            await self.close()
+
+    @database_sync_to_async
+    def check_one_to_one_conversation_access(self):
+        """Check if user has access to this one-to-one conversation"""
+        try:
+            conversation = OneToOneConversation.objects.get(id=self.conversation_id)
+            return conversation.participants.filter(id=self.user.id).exists()
+        except OneToOneConversation.DoesNotExist:
+            return False
+        except Exception as e:
+            logger.error(f"Error checking one-to-one conversation access: {str(e)}", exc_info=True)
+            return False
+
+    async def handle_new_message(self, data):
+        """Handle a new one-to-one message event"""
+        content = data.get("content", "").strip()
+        conversation_id = self.conversation_id
+        message_type = data.get("message_type", "text")
+        metadata = data.get("metadata", {})
+        media_id = data.get("media_id")
+
+        if not content and not media_id:
+            return
+
+        # Create the one-to-one message in database
+        message = await self.create_one_to_one_message(
+            conversation_id, content, message_type, metadata, media_id
+        )
+
+        if message:
+            # Prepare message data for WebSocket response
+            message_data = {
+                "id": str(message["id"]),
+                "content": message["content"],
+                "sender_id": str(message["sender_id"]),
+                "sender_name": message["sender_name"],
+                "conversation_id": str(conversation_id),
+                "timestamp": message["timestamp"],
+                "message_type": message_type,
+                "media_url": message.get("media_url"),
+                "metadata": metadata,
+                "conversation_type": "one_to_one",
+            }
+
+            # Broadcast to conversation group
+            await self.channel_layer.group_send(
+                self.conversation_group_name,
+                {
+                    "type": "chat.message",
+                    "message": message_data,
+                    "event": "new_message",
+                },
+            )
+
+    @database_sync_to_async
+    def create_one_to_one_message(
         self,
         conversation_id,
         content,
@@ -544,47 +563,25 @@ class ChatConsumer(BaseWebSocketConsumer):
         metadata=None,
         media_id=None,
     ):
-        """Create a new message in the database"""
+        """Create a new one-to-one message in the database"""
         try:
             if metadata is None:
                 metadata = {}
 
-            # Get the appropriate message model based on conversation type
-            if getattr(self, "conversation_type", None) == "one_to_one":
-                from .models.one_to_one import OneToOneMessage, OneToOneConversation
-
-                conversation = OneToOneConversation.objects.get(id=conversation_id)
-                message = OneToOneMessage.objects.create(
-                    conversation=conversation,
-                    sender=self.user,
-                    content=content,
-                    message_type=message_type,
-                    metadata=metadata,
-                )
-                if media_id:
-                    from media_handler.models import MediaFile
-
-                    media = MediaFile.objects.get(id=media_id)
-                    message.media = media.file
-                    message.save()
-
-            else:  # group conversation
-                from .models.group import GroupMessage, GroupConversation
-
-                conversation = GroupConversation.objects.get(id=conversation_id)
-                message = GroupMessage.objects.create(
-                    conversation=conversation,
-                    sender=self.user,
-                    content=content,
-                    message_type=message_type,
-                    metadata=metadata,
-                )
-                if media_id:
-                    from media_handler.models import MediaFile
-
-                    media = MediaFile.objects.get(id=media_id)
-                    message.media = media.file
-                    message.save()
+            conversation = OneToOneConversation.objects.get(id=conversation_id)
+            message = OneToOneMessage.objects.create(
+                conversation=conversation,
+                sender=self.user,
+                content=content,
+                message_type=message_type,
+                metadata=metadata,
+            )
+            
+            if media_id:
+                from media_handler.models import MediaFile
+                media = MediaFile.objects.get(id=media_id)
+                message.media = media.file
+                message.save()
 
             # Update conversation last_activity
             conversation.last_activity = timezone.now()
@@ -606,42 +603,194 @@ class ChatConsumer(BaseWebSocketConsumer):
             return result
 
         except Exception as e:
-            logger.error(f"Error creating message: {str(e)}", exc_info=True)
+            logger.error(f"Error creating one-to-one message: {str(e)}", exc_info=True)
             return None
 
-    @database_sync_to_async
-    def mark_message_read(self, message_id):
-        """Mark a message as read by the current user"""
-        try:
-            # Try both message types
-            from .models.one_to_one import OneToOneMessage
-            from .models.group import GroupMessage
 
+class GroupChatConsumer(BaseWebSocketConsumer):
+    """
+    WebSocket consumer for handling group messaging.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conversation_type = "group"
+
+    async def connect(self):
+        """Handle WebSocket connection for group chat"""
+        try:
+            # Get user and conversation ID
+            self.user = self.scope["user"]
+            self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
+            self.conversation_group_name = f"group_{self.conversation_id}"
+            self.user_group_name = f"user_{self.user.id}"
+
+            # Setup heartbeat monitoring
+            self.last_ping = timezone.now()
+            self.heartbeat_interval = getattr(
+                settings, "WEBSOCKET_HEARTBEAT_INTERVAL", 30
+            )
+            self.heartbeat_task = None
+
+            # Check if user is anonymous
+            if self.user.is_anonymous:
+                logger.warning(
+                    f"Anonymous user tried to connect to {self.conversation_group_name}"
+                )
+                await self.close()
+                return
+
+            # Validate user's access to the group conversation
+            has_access = await self.check_group_conversation_access()
+            if not has_access:
+                logger.warning(
+                    f"User {self.user.id} tried to access unauthorized group conversation {self.conversation_id}"
+                )
+                await self.close()
+                return
+
+            # Add to conversation group
+            await self.channel_layer.group_add(
+                self.conversation_group_name, self.channel_name
+            )
+
+            # Add to user-specific group for private notifications
+            await self.channel_layer.group_add(self.user_group_name, self.channel_name)
+
+            # Accept the connection
+            await self.accept()
+
+            # Start heartbeat task
             try:
-                message = OneToOneMessage.objects.get(id=message_id)
-                message.read_by.add(self.user)
-                return True
-            except OneToOneMessage.DoesNotExist:
-                try:
-                    message = GroupMessage.objects.get(id=message_id)
-                    message.read_by.add(self.user)
-                    return True
-                except GroupMessage.DoesNotExist:
-                    logger.warning(f"Message {message_id} not found for read receipt")
-                    return False
+                self.heartbeat_task = asyncio.create_task(self.send_heartbeat())
+            except Exception as e:
+                logger.error(f"Failed to start heartbeat task: {str(e)}")
+
+            # Notify about user presence
+            await self.channel_layer.group_send(
+                self.conversation_group_name,
+                {
+                    "type": "user_online",
+                    "user_id": str(self.user.id),
+                    "username": self.user.username,
+                    "timestamp": timezone.now().isoformat(),
+                },
+            )
+
+            # Update user's online status
+            await self.update_user_status(True)
+
+            logger.info(
+                f"User {self.user.id} connected to group conversation {self.conversation_id}"
+            )
 
         except Exception as e:
-            logger.error(f"Error marking message as read: {str(e)}", exc_info=True)
-            return False
+            logger.error(f"Error in group connect: {str(e)}", exc_info=True)
+            await self.close()
 
     @database_sync_to_async
-    def update_user_status(self, online_status):
-        """Update user's online status"""
+    def check_group_conversation_access(self):
+        """Check if user has access to this group conversation"""
         try:
-            self.user.is_online = online_status
-            self.user.last_seen = timezone.now()
-            self.user.save(update_fields=["is_online", "last_seen"])
-            return True
-        except Exception as e:
-            logger.error(f"Error updating user status: {str(e)}", exc_info=True)
+            conversation = GroupConversation.objects.get(id=self.conversation_id)
+            return conversation.participants.filter(id=self.user.id).exists()
+        except GroupConversation.DoesNotExist:
             return False
+        except Exception as e:
+            logger.error(f"Error checking group conversation access: {str(e)}", exc_info=True)
+            return False
+
+    async def handle_new_message(self, data):
+        """Handle a new group message event"""
+        content = data.get("content", "").strip()
+        conversation_id = self.conversation_id
+        message_type = data.get("message_type", "text")
+        metadata = data.get("metadata", {})
+        media_id = data.get("media_id")
+
+        if not content and not media_id:
+            return
+
+        # Create the group message in database
+        message = await self.create_group_message(
+            conversation_id, content, message_type, metadata, media_id
+        )
+
+        if message:
+            # Prepare message data for WebSocket response
+            message_data = {
+                "id": str(message["id"]),
+                "content": message["content"],
+                "sender_id": str(message["sender_id"]),
+                "sender_name": message["sender_name"],
+                "conversation_id": str(conversation_id),
+                "timestamp": message["timestamp"],
+                "message_type": message_type,
+                "media_url": message.get("media_url"),
+                "metadata": metadata,
+                "conversation_type": "group",
+            }
+
+            # Broadcast to conversation group
+            await self.channel_layer.group_send(
+                self.conversation_group_name,
+                {
+                    "type": "chat.message",
+                    "message": message_data,
+                    "event": "new_message",
+                },
+            )
+
+    @database_sync_to_async
+    def create_group_message(
+        self,
+        conversation_id,
+        content,
+        message_type="text",
+        metadata=None,
+        media_id=None,
+    ):
+        """Create a new group message in the database"""
+        try:
+            if metadata is None:
+                metadata = {}
+
+            conversation = GroupConversation.objects.get(id=conversation_id)
+            message = GroupMessage.objects.create(
+                conversation=conversation,
+                sender=self.user,
+                content=content,
+                message_type=message_type,
+                metadata=metadata,
+            )
+            
+            if media_id:
+                from media_handler.models import MediaFile
+                media = MediaFile.objects.get(id=media_id)
+                message.media = media.file
+                message.save()
+
+            # Update conversation last_activity
+            conversation.last_activity = timezone.now()
+            conversation.save(update_fields=["last_activity"])
+
+            # Prepare response
+            result = {
+                "id": message.id,
+                "content": message.content,
+                "sender_id": message.sender_id,
+                "sender_name": message.sender.username,
+                "timestamp": message.timestamp.isoformat(),
+            }
+
+            # Add media URL if present
+            if message.media:
+                result["media_url"] = message.media.url
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error creating group message: {str(e)}", exc_info=True)
+            return None
+
+

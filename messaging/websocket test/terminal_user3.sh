@@ -1,0 +1,2 @@
+
+wscat -c "ws://localhost:8000/ws/group/2/?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ4NjA4Njk3LCJpYXQiOjE3NDg2MDUwOTcsImp0aSI6Ijg0NzdiZDhiY2FhNjRjMTRiYTlkNmNhYTgyMDA1ZDllIiwidXNlcl9pZCI6Mn0.qA28y01YmxJ4cfSeFpXNStVmvfph6Enhr7vlIC8wxg0"

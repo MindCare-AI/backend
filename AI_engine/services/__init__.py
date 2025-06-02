@@ -1,6 +1,11 @@
 from .ai_analysis import ai_service, AIAnalysisService
 from .predictive_service import predictive_service
-from .communication_analysis import communication_analysis_service
+
+# Import communication analysis service if available
+try:
+    from .communication_analysis import communication_analysis_service
+except ImportError:
+    communication_analysis_service = None
 
 # Import other services that may be referenced
 try:

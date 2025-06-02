@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "patient",
     "feeds",
     "appointments",  # Added appointments app
+    "datawarehouse",  # Added datawarehouse app
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_filters",

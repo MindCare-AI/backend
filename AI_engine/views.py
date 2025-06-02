@@ -20,7 +20,6 @@ from .serializers import (
     CommunicationPatternAnalysisSerializer,
 )
 from .services.ai_analysis import ai_service
-from .services.communication_analysis import communication_analysis_service
 
 logger = logging.getLogger(__name__)
 
@@ -276,8 +275,8 @@ class CommunicationAnalysisViewSet(viewsets.ViewSet):
         try:
             days = int(request.data.get('days', 30))
             
-            # Use the communication analysis service
-            analysis_result = communication_analysis_service.analyze_patterns(
+            # Use the AI analysis service for pattern analysis
+            analysis_result = ai_service.analyze_user_data(
                 request.user, days
             )
             
@@ -314,8 +313,9 @@ class CommunicationAnalysisViewSet(viewsets.ViewSet):
     def therapeutic_relationship(self, request):
         """Get therapeutic relationship analysis"""
         try:
-            relationship_data = communication_analysis_service.get_therapeutic_relationship_data(
-                request.user
+            # Use AI service for relationship analysis
+            relationship_data = ai_service.analyze_user_data(
+                request.user, days=30
             )
             
             if relationship_data.get("error"):
@@ -348,8 +348,8 @@ class CommunicationAnalysisViewSet(viewsets.ViewSet):
         try:
             days = int(request.data.get('days', 30))
             
-            # Use the communication analysis service
-            analysis_result = communication_analysis_service.analyze_patterns(
+            # Use the AI analysis service
+            analysis_result = ai_service.analyze_user_data(
                 request.user, days
             )
             

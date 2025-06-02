@@ -8,8 +8,6 @@ from django.utils import timezone
 from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
 
 from .models import (
     UserAnalysis,
@@ -753,9 +751,3 @@ def user_analytics_card_view(request, id, card_type):
             {'error': f'Internal server error: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-@require_http_methods(["GET"])
-def user_analytics_card_names_view(request, id):
-    # In a real implementation, fetch card names from the user resume data
-    card_names = ["Personal Info", "Mood Trends", "Therapy Recommendations", "Achievements"]
-    return JsonResponse({"resume_id": id, "card_names": card_names})

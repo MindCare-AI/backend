@@ -1,0 +1,80 @@
+@startuml MindCare-IA_Mood_Journal_AI_Flow
+!theme plain
+skinparam participant {
+    BackgroundColor #F8F9FA
+    BorderColor #6C757D
+    FontName "Arial"
+    FontSize 10
+}
+
+title MindCare-IA Platform - Mood Tracking, Journal & AI Analysis Flow
+
+actor Patient as P
+actor Therapist as T
+participant "Mood\nTracker" as Mood
+participant "Journal\nSystem" as Journal
+participant "AI Engine" as AI
+participant "Notification\nSystem" as Notif
+participant "Database" as DB
+
+== Daily Mood Tracking ==
+
+P -> Mood: log_daily_mood(mood_value=7, energy_level=6, activities=[])
+Mood -> DB: save_mood_entry(patient_id, mood_data)
+Mood -> AI: analyze_mood_data(mood_entry)
+
+par AI Analysis
+    AI -> AI: calculate_mood_trends()
+    AI -> AI: detect_mood_patterns()
+    AI -> AI: assess_crisis_risk()
+end
+
+AI -> DB: save_mood_analysis(insights, risk_level)
+
+alt Crisis Risk Detected
+    AI -> Notif: trigger_crisis_alert(patient_id, risk_level)
+    Notif -> T: send_crisis_notification(patient_info)
+    Notif -> P: send_support_resources()
+end
+
+Mood -> P: mood_logged_successfully(insights)
+
+== Journal Entry Creation ==
+
+P -> Journal: create_journal_entry(content, mood_id, privacy_level)
+Journal -> DB: save_journal_entry(patient_id, entry_data)
+Journal -> AI: analyze_journal_sentiment(entry_content)
+
+par AI Processing
+    AI -> AI: perform_sentiment_analysis()
+    AI -> AI: extract_emotional_keywords()
+    AI -> AI: identify_therapeutic_themes()
+    AI -> AI: detect_crisis_indicators()
+end
+
+AI -> DB: save_journal_analysis(sentiment_score, themes, keywords)
+AI -> Journal: analysis_complete(insights, recommendations)
+Journal -> P: journal_entry_created(ai_insights)
+
+== Journal Sharing with Therapist ==
+
+P -> Journal: share_with_therapist(journal_id, therapist_id)
+Journal -> DB: update_journal_permissions(shared=True)
+Journal -> Notif: notify_therapist_new_share(therapist_id)
+Notif -> T: journal_shared_notification(patient_name)
+Journal -> P: journal_shared_successfully
+
+== Therapist Reviews Patient Data ==
+
+T -> Journal: view_shared_journals(patient_id)
+Journal -> DB: fetch_shared_journals(patient_id, therapist_id)
+DB -> Journal: journal_entries_with_ai_insights
+Journal -> T: patient_journal_data(entries, ai_analysis)
+
+T -> Mood: view_patient_mood_trends(patient_id, date_range)
+Mood -> DB: fetch_mood_history(patient_id, filters)
+Mood -> AI: generate_mood_report(mood_data)
+AI -> Mood: comprehensive_mood_analysis
+Mood -> T: patient_mood_report(trends, insights)
+
+@enduml

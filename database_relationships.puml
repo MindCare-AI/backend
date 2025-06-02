@@ -1,0 +1,396 @@
+@startuml MindCare Database Relationships
+
+!define ENTITY(name, desc) entity name << desc >>
+
+' User Management
+ENTITY(CustomUser, "Core User Model") {
+  + id : INTEGER <<PK>>
+  --
+  * username : VARCHAR
+  * email : VARCHAR <<UNIQUE>>
+  * user_type : VARCHAR(10) [patient, therapist]
+  * phone_number : VARCHAR(15)
+  * date_of_birth : DATE
+  * crisis_alert_enabled : BOOLEAN
+  * passcode_enabled : BOOLEAN
+  * is_online : BOOLEAN
+  * last_seen : DATETIME
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+ENTITY(PatientProfile, "Patient Profile") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * emergency_contact : JSON
+  * blood_type : VARCHAR(3)
+  * gender : VARCHAR(1)
+  * profile_pic : IMAGE
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+ENTITY(TherapistProfile, "Therapist Profile") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * bio : TEXT
+  * specializations : JSON
+  * education : JSON
+  * experience : JSON
+  * years_of_experience : INTEGER
+  * license_number : VARCHAR(50) <<UNIQUE>>
+  * license_expiry : DATE
+  * available_days : JSON
+  * hourly_rate : DECIMAL
+  * is_verified : BOOLEAN
+  * verification_status : VARCHAR(20)
+  * rating : FLOAT
+  * total_ratings : INTEGER
+  * total_sessions : INTEGER
+  * languages : JSON
+  * therapy_types : JSON
+  * profile_picture : IMAGE
+}
+
+' Appointments
+ENTITY(Appointment, "Appointment") {
+  + id : INTEGER <<PK>>
+  --
+  * appointment_id : VARCHAR(10) <<UNIQUE>>
+  * patient_id : INTEGER <<FK>>
+  * therapist_id : INTEGER <<FK>>
+  * appointment_date : DATETIME
+  * duration : DURATION
+  * status : VARCHAR(20)
+  * notes : TEXT
+  * video_session_link : URL
+  * cancelled_by_id : INTEGER <<FK>>
+  * cancellation_reason : TEXT
+  * original_date : DATETIME
+  * reschedule_count : INTEGER
+  * rescheduled_by_id : INTEGER <<FK>>
+  * ai_recommendations : JSON
+  * pain_level : INTEGER [0-10]
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+' Messaging System
+ENTITY(OneToOneConversation, "One-to-One Chat") {
+  + id : INTEGER <<PK>>
+  --
+  * created_at : DATETIME
+  * is_active : BOOLEAN
+  * last_activity : DATETIME
+  * archived : BOOLEAN
+  * archive_date : DATETIME
+}
+
+ENTITY(OneToOneMessage, "One-to-One Message") {
+  + id : INTEGER <<PK>>
+  --
+  * conversation_id : INTEGER <<FK>>
+  * sender_id : INTEGER <<FK>>
+  * content : TEXT
+  * timestamp : DATETIME
+  * reactions : JSON
+  * edited : BOOLEAN
+  * edited_at : DATETIME
+  * edited_by_id : INTEGER <<FK>>
+  * deleted : BOOLEAN
+  * message_type : VARCHAR(20)
+  * metadata : JSON
+  * edit_history : JSON[]
+  * media : FILE
+}
+
+ENTITY(GroupConversation, "Group Chat") {
+  + id : INTEGER <<PK>>
+  --
+  * name : VARCHAR(100)
+  * description : TEXT
+  * is_private : BOOLEAN
+  * created_at : DATETIME
+  * last_activity : DATETIME
+  * archived : BOOLEAN
+}
+
+ENTITY(GroupMessage, "Group Message") {
+  + id : INTEGER <<PK>>
+  --
+  * conversation_id : INTEGER <<FK>>
+  * sender_id : INTEGER <<FK>>
+  * content : TEXT
+  * timestamp : DATETIME
+  * reactions : JSON
+  * message_type : VARCHAR(10)
+  * media : FILE
+}
+
+' Chatbot System
+ENTITY(ChatbotConversation, "AI Chatbot Chat") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * title : VARCHAR(255)
+  * created_at : DATETIME
+  * last_activity : DATETIME
+  * is_active : BOOLEAN
+  * metadata : JSON
+}
+
+ENTITY(ChatMessage, "AI Chat Message") {
+  + id : INTEGER <<PK>>
+  --
+  * conversation_id : INTEGER <<FK>>
+  * content : TEXT
+  * is_bot : BOOLEAN
+  * timestamp : DATETIME
+  * message_type : VARCHAR(20)
+  * sender_id : INTEGER <<FK>>
+  * parent_message_id : INTEGER <<FK>>
+  * metadata : JSON
+}
+
+' Journal & Mood
+ENTITY(JournalCategory, "Journal Categories") {
+  + id : INTEGER <<PK>>
+  --
+  * name : VARCHAR(200)
+  * user_id : INTEGER <<FK>>
+  * color : VARCHAR(20)
+  * icon : VARCHAR(50)
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+ENTITY(JournalEntry, "Journal Entry") {
+  + id : INTEGER <<PK>>
+  --
+  * title : VARCHAR(200)
+  * content : TEXT
+  * user_id : INTEGER <<FK>>
+  * category_id : INTEGER <<FK>>
+  * date : DATE
+  * mood : VARCHAR(20)
+  * weather : VARCHAR(20)
+  * activities : VARCHAR(20)
+  * is_private : BOOLEAN
+  * shared_with_therapist : BOOLEAN
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+ENTITY(MoodLog, "Mood Tracking") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * mood_rating : INTEGER [1-10]
+  * energy_level : INTEGER [1-5]
+  * activities : VARCHAR(50)
+  * notes : TEXT
+  * journal_entry_id : INTEGER <<FK>>
+  * logged_at : DATETIME
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+' Health Records
+ENTITY(HealthMetric, "Health Metrics") {
+  + id : INTEGER <<PK>>
+  --
+  * patient_id : INTEGER <<FK>>
+  * metric_type : VARCHAR(20)
+  * value : VARCHAR(20)
+  * timestamp : DATETIME
+}
+
+ENTITY(MedicalHistoryEntry, "Medical History") {
+  + id : INTEGER <<PK>>
+  --
+  * patient_id : INTEGER <<FK>>
+  * title : VARCHAR(200)
+  * description : TEXT
+  * date_occurred : DATE
+  * is_chronic : BOOLEAN
+}
+
+ENTITY(SessionNote, "Therapy Session Notes") {
+  + id : INTEGER <<PK>>
+  --
+  * therapist_id : INTEGER <<FK>>
+  * patient_id : INTEGER <<FK>>
+  * appointment_id : INTEGER <<FK>>
+  * notes : TEXT
+  * session_date : DATE
+  * timestamp : DATETIME
+  * updated_at : DATETIME
+}
+
+' Social Features
+ENTITY(Post, "Social Feed Posts") {
+  + id : INTEGER <<PK>>
+  --
+  * author_id : INTEGER <<FK>>
+  * content : TEXT
+  * post_type : VARCHAR(20)
+  * topics : VARCHAR(20)
+  * visibility : VARCHAR(20)
+  * created_at : DATETIME
+  * updated_at : DATETIME
+}
+
+ENTITY(Reaction, "Social Reactions") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * reaction_type : VARCHAR(20)
+  * content_type_id : INTEGER <<FK>>
+  * object_id : INTEGER
+  * created_at : DATETIME
+}
+
+ENTITY(Topic, "Social Topics") {
+  + id : INTEGER <<PK>>
+  --
+  * name : VARCHAR(50)
+  * description : TEXT
+  * created_by_id : INTEGER <<FK>>
+  * icon : VARCHAR(50)
+  * color : VARCHAR(20)
+  * is_active : BOOLEAN
+  * created_at : DATETIME
+}
+
+' Notifications
+ENTITY(NotificationType, "Notification Types") {
+  + id : INTEGER <<PK>>
+  --
+  * name : VARCHAR(100) <<UNIQUE>>
+  * description : TEXT
+  * default_enabled : BOOLEAN
+  * is_global : BOOLEAN
+  * created_at : DATETIME
+}
+
+ENTITY(Notification, "User Notifications") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * notification_type_id : INTEGER <<FK>>
+  * title : VARCHAR(200)
+  * message : TEXT
+  * read : BOOLEAN
+  * priority : VARCHAR(20)
+  * metadata : JSON
+  * content_type_id : INTEGER <<FK>>
+  * object_id : UUID
+  * created_at : DATETIME
+}
+
+' Media Management
+ENTITY(MediaFile, "Media Files") {
+  + id : INTEGER <<PK>>
+  --
+  * file : FILE
+  * media_type : VARCHAR(20)
+  * title : VARCHAR(255)
+  * description : TEXT
+  * uploaded_by_id : INTEGER <<FK>>
+  * file_size : BIGINT
+  * mime_type : VARCHAR(100)
+  * content_type_id : INTEGER <<FK>>
+  * object_id : INTEGER
+  * uploaded_at : DATETIME
+}
+
+' AI Analytics
+ENTITY(UserAnalysis, "AI User Analysis") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * analysis_date : DATE
+  * mood_score : FLOAT [-1 to 1]
+  * sentiment_score : FLOAT [-1 to 1]
+  * dominant_emotions : JSON
+  * topics_of_concern : JSON
+  * suggested_activities : JSON
+  * risk_factors : JSON
+  * improvement_metrics : JSON
+}
+
+ENTITY(AIInsight, "AI Insights") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * insight_type : VARCHAR(50)
+  * insight_data : JSON
+  * priority : VARCHAR(20)
+  * is_addressed : BOOLEAN
+  * created_at : DATETIME
+}
+
+ENTITY(TherapyRecommendation, "AI Therapy Recommendations") {
+  + id : INTEGER <<PK>>
+  --
+  * user_id : INTEGER <<FK>>
+  * recommendation_type : VARCHAR(50)
+  * recommendation_data : JSON
+  * context_data : JSON
+  * is_implemented : BOOLEAN
+  * effectiveness_rating : INTEGER
+  * created_at : DATETIME
+}
+
+' Relationships
+CustomUser ||--|| PatientProfile : "patient profile"
+CustomUser ||--|| TherapistProfile : "therapist profile"
+
+PatientProfile ||--o{ Appointment : "patient appointments"
+TherapistProfile ||--o{ Appointment : "therapist appointments"
+CustomUser ||--o{ Appointment : "cancelled by"
+CustomUser ||--o{ Appointment : "rescheduled by"
+
+CustomUser ||--o{ OneToOneMessage : "sends"
+OneToOneConversation ||--o{ OneToOneMessage : "contains"
+CustomUser ||--o{ OneToOneConversation : "participates in"
+
+CustomUser ||--o{ GroupMessage : "sends"
+GroupConversation ||--o{ GroupMessage : "contains"
+CustomUser ||--o{ GroupConversation : "participates in"
+CustomUser ||--o{ GroupConversation : "moderates"
+
+CustomUser ||--o{ ChatbotConversation : "owns"
+CustomUser ||--o{ ChatbotConversation : "participates in"
+ChatbotConversation ||--o{ ChatMessage : "contains"
+CustomUser ||--o{ ChatMessage : "sends"
+ChatMessage ||--o{ ChatMessage : "responds to"
+
+CustomUser ||--o{ JournalCategory : "creates"
+CustomUser ||--o{ JournalEntry : "writes"
+JournalCategory ||--o{ JournalEntry : "categorizes"
+JournalEntry ||--|| MoodLog : "linked mood"
+
+PatientProfile ||--o{ HealthMetric : "tracks"
+PatientProfile ||--o{ MedicalHistoryEntry : "medical history"
+
+CustomUser ||--o{ SessionNote : "therapist notes"
+CustomUser ||--o{ SessionNote : "patient notes"
+Appointment ||--|| SessionNote : "session notes"
+
+CustomUser ||--o{ Post : "authors"
+CustomUser ||--o{ Reaction : "reacts"
+CustomUser ||--o{ Topic : "creates"
+
+CustomUser ||--o{ Notification : "receives"
+NotificationType ||--o{ Notification : "type"
+
+CustomUser ||--o{ MediaFile : "uploads"
+
+CustomUser ||--o{ UserAnalysis : "analyzed"
+CustomUser ||--o{ AIInsight : "insights"
+CustomUser ||--o{ TherapyRecommendation : "recommendations"
+
+@enduml

@@ -6,14 +6,12 @@ from .views import (
     AIInsightViewSet,
     TherapyRecommendationViewSet,
     CommunicationAnalysisViewSet,
+    TipsViewSet,
 )
 
 # Create router only for the AIAnalysisViewSet which is a full ModelViewSet
 router = routers.DefaultRouter()
 router.register(r"analysis", AIAnalysisViewSet, basename="ai-analysis")
-router.register(
-    r"communication", CommunicationAnalysisViewSet, basename="ai-communication"
-)
 
 urlpatterns = [
     # AI Insights endpoints with explicitly defined actions
@@ -63,7 +61,22 @@ urlpatterns = [
         TherapyRecommendationViewSet.as_view({"post": "rate_effectiveness"}),
         name="ai-recommendations-rate",
     ),
-    # Communication Analysis endpoints
+    # Communication Analysis endpoints - CUSTOM ACTIONS FIRST
+    path(
+        "communication/analyze-patterns/",
+        CommunicationAnalysisViewSet.as_view({"post": "analyze_patterns"}),
+        name="ai-communication-analyze-patterns",
+    ),
+    path(
+        "communication/analyze-user/",
+        CommunicationAnalysisViewSet.as_view({"post": "analyze_user"}),
+        name="ai-communication-analyze-user",
+    ),
+    path(
+        "communication/therapeutic-relationship/",
+        CommunicationAnalysisViewSet.as_view({"get": "therapeutic_relationship"}),
+        name="ai-communication-therapeutic-relationship",
+    ),
     path(
         "communication/",
         CommunicationAnalysisViewSet.as_view({"get": "list"}),
@@ -74,15 +87,21 @@ urlpatterns = [
         CommunicationAnalysisViewSet.as_view({"get": "retrieve"}),
         name="ai-communication-detail",
     ),
+    # Tips endpoints
     path(
-        "communication/analyze-patterns/",
-        CommunicationAnalysisViewSet.as_view({"post": "analyze_patterns"}),
-        name="ai-communication-analyze-patterns",
+        "tips/mood/",
+        TipsViewSet.as_view({"get": "mood"}),
+        name="ai-tips-mood",
     ),
     path(
-        "communication/therapeutic-relationship/",
-        CommunicationAnalysisViewSet.as_view({"get": "therapeutic_relationship"}),
-        name="ai-communication-therapeutic-relationship",
+        "tips/journaling/",
+        TipsViewSet.as_view({"get": "journaling"}),
+        name="ai-tips-journaling",
+    ),
+    path(
+        "tips/combined/",
+        TipsViewSet.as_view({"get": "combined"}),
+        name="ai-tips-combined",
     ),
 ]
 

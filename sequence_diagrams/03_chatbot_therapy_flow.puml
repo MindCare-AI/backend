@@ -1,0 +1,80 @@
+@startuml MindCare-IA_Chatbot_Therapy_Flow
+!theme plain
+skinparam participant {
+    BackgroundColor #F8F9FA
+    BorderColor #6C757D
+    FontName "Arial"
+    FontSize 10
+}
+
+title MindCare-IA Platform - AI Chatbot & Therapy Interaction Flow
+
+actor Patient as P
+actor Therapist as T
+participant "AI Chatbot" as Chatbot
+participant "AI Engine" as AI
+participant "Notification\nSystem" as Notif
+participant "Database" as DB
+
+== Chatbot Session Initiation ==
+
+P -> Chatbot: start_therapy_session()
+Chatbot -> DB: create_conversation_session(patient_id)
+Chatbot -> AI: get_patient_context(patient_id)
+AI -> DB: fetch_recent_mood_data()
+AI -> DB: fetch_recent_journal_entries()
+AI -> Chatbot: patient_context(mood_trends, recent_emotions)
+Chatbot -> P: welcome_message_with_context("Hello! I see you've been feeling...")
+
+== Therapeutic Conversation Flow ==
+
+loop Conversation Continues
+    P -> Chatbot: send_message("I'm feeling anxious today")
+    Chatbot -> AI: process_therapeutic_message(text, conversation_context)
+    
+    par AI Processing
+        AI -> AI: analyze_message_sentiment()
+        AI -> AI: identify_emotional_state()
+        AI -> AI: detect_crisis_keywords()
+        AI -> AI: select_therapeutic_approach()
+        AI -> AI: generate_empathetic_response()
+    end
+    
+    alt Crisis Indicators Detected
+        AI -> AI: assess_crisis_severity()
+        AI -> Notif: send_immediate_crisis_alert(patient_id)
+        Notif -> T: crisis_intervention_needed(patient_info)
+        AI -> Chatbot: crisis_response_with_resources()
+    else Normal Conversation
+        AI -> AI: generate_therapeutic_response()
+        AI -> AI: suggest_coping_strategies()
+    end
+    
+    AI -> Chatbot: response_package(text, techniques, resources)
+    Chatbot -> DB: save_conversation_turn(message, response, analysis)
+    Chatbot -> P: therapeutic_response_with_tips(response, coping_techniques)
+end
+
+== Session Summary & Insights ==
+
+P -> Chatbot: end_therapy_session()
+Chatbot -> AI: generate_session_summary(conversation_data)
+AI -> AI: analyze_session_progress()
+AI -> AI: identify_key_themes()
+AI -> AI: recommend_follow_up_actions()
+AI -> DB: save_session_insights(summary, recommendations)
+Chatbot -> P: session_summary(insights, homework, resources)
+
+== Therapist Reviews AI Sessions ==
+
+T -> Chatbot: view_patient_ai_sessions(patient_id, date_range)
+Chatbot -> DB: fetch_conversation_summaries(patient_id)
+Chatbot -> AI: generate_therapist_report(session_data)
+AI -> Chatbot: comprehensive_patient_analysis(trends, concerns, progress)
+Chatbot -> T: patient_ai_interaction_report(summaries, insights, recommendations)
+
+T -> Chatbot: add_therapist_notes(session_id, clinical_notes)
+Chatbot -> DB: save_therapist_session_notes(session_id, notes)
+Chatbot -> T: notes_saved_successfully
+
+@enduml

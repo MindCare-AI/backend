@@ -4,7 +4,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
+from rest_framework.pagination import LimitOffsetPagination  # updated import
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
@@ -29,10 +29,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class FeedPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = "page_size"
-    max_page_size = 50
+class FeedPagination(LimitOffsetPagination):
+    default_limit = 10
+    limit_query_param = "limit"
+    offset_query_param = "offset"
+    max_limit = 50
 
 
 class PostViewSet(viewsets.ModelViewSet):
@@ -113,7 +114,12 @@ class PostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        """Enhanced create with proper context"""
+        """Enhanced create with proper context.
+        Expected body keys for creating a post:
+          - "content": text content of the post (required)
+          - "file": media file (optional)
+          - "tags", "topics", "link_url", etc. (optional)
+        """
         serializer.save(author=self.request.user)
 
     def list(self, request, *args, **kwargs):

@@ -1,0 +1,185 @@
+# MINDCARE-IA PLATFORM: GENERAL USE CASES BETWEEN ACTORS
+
+This document outlines the general use cases and interactions between the main actors in the MindCare-IA mental health platform based on analysis of the codebase.
+
+## 1. PATIENT ACTOR
+
+### 1.1 Patient-System Interactions
+- Register and authenticate with email verification or Google OAuth
+- Manage personal profile with customization options
+- Manage privacy settings for information sharing
+- Reset password through secure email verification
+
+### 1.2 Patient-Therapist Interactions
+- Schedule, reschedule, or cancel appointments with therapists
+- Engage in secure one-to-one conversations with therapists
+- Share medical information and files with therapists
+- Receive therapeutic guidance and feedback
+
+### 1.3 Patient-Chatbot Interactions
+- Engage in therapeutic conversations for immediate mental health support
+- Receive personalized therapeutic recommendations
+- Access crisis intervention resources and coping strategies
+- Participate in guided therapeutic activities
+
+### 1.4 Patient-AI Engine Interactions (Indirect)
+- Receive personalized therapeutic recommendations based on AI analysis
+- Receive insights about mood patterns and journal entries
+- Get alerts about potential mental health issues identified by AI
+- Receive personalized content recommendations based on emotional state
+
+### 1.5 Patient Self-Management
+- Track daily mood using customizable rating scales
+- Maintain a personal journal with voice-to-text options
+- Complete therapeutic exercises (CBT, DBT techniques)
+- Set and track personal wellness goals
+- Access personalized content feed of therapeutic resources
+- Export personal mental health data for external healthcare providers
+- Access offline functionality for core features
+
+## 2. THERAPIST ACTOR
+
+### 2.1 Therapist-System Interactions
+- Register and verify professional credentials
+- Submit license information for verification
+- Manage professional profile with specializations
+- Configure availability calendar with time slots
+- Receive notifications about appointments and patient activities
+
+### 2.2 Therapist-Patient Interactions
+- Accept or decline appointment requests
+- Conduct therapy sessions with patients
+- Maintain secure communication with patients
+- Create and manage session notes
+- View patient mood data and journal entries (with permission)
+- Assign therapeutic exercises and monitor completion
+
+### 2.3 Therapist-AI Engine Interactions
+- Receive AI-generated insights about patient mood patterns
+- Get therapeutic recommendations for patient treatment
+- Receive alerts about potential crises detected in patient data
+- Access analytics about patient progress and engagement
+
+### 2.4 Therapist-Admin Interactions
+- Submit credentials for verification
+- Receive approval or rejection of verification requests
+- Appeal rejected verification decisions
+- Provide additional documentation when required
+
+## 3. AI ENGINE ACTOR
+
+### 3.1 AI Engine Core Functions
+- Process and analyze patient mood data for patterns
+- Analyze journal entries using NLP for sentiment and topics
+- Generate therapeutic recommendations based on patient data
+- Identify potential mental health crises through data analysis
+- Create personalized content recommendations
+- Manage conversations with intelligent context preservation
+- Implement ethical AI guidelines in mental health context
+- Maintain audit logs of all AI operations
+
+### 3.2 AI Engine-Chatbot Interactions
+- Provide therapeutic knowledge to the chatbot through RAG system
+- Process user messages for appropriate therapy approach selection (CBT vs DBT)
+- Enhance user queries with relevant context from user history
+- Generate appropriate therapeutic responses with confidence scores
+- Detect potential crisis situations in user messages
+- Maintain conversation history with intelligent summarization
+
+### 3.3 AI Engine-Therapist Support
+- Generate session recommendations before therapy appointments
+- Identify risk factors and protective factors for patients
+- Suggest modifications to treatment plans
+- Highlight topics of concern from patient data
+- Provide insights about communication patterns
+
+### 3.4 AI Engine-Admin Interactions
+- Log all operations for administrative review
+- Provide performance metrics for system optimization
+- Flag potential issues requiring human oversight
+
+## 4. CHATBOT ACTOR
+
+### 4.1 Chatbot-Patient Interactions
+- Provide conversational therapeutic support
+- Respond to mental health inquiries with evidence-based information
+- Offer crisis intervention resources based on detected needs
+- Guide patients through therapeutic exercises
+- Maintain appropriate conversational history
+- Adapt tone and responses based on patient emotional state
+
+### 4.2 Chatbot-AI Engine Interactions
+- Request therapy approach recommendations from AI Engine
+- Use RAG to access relevant therapeutic knowledge
+- Enhance queries with user context data
+- Apply recommended therapeutic techniques in responses
+- Implement safety filters for harmful content
+- Follow ethical guidelines for mental health conversations
+
+### 4.3 Chatbot System Functions
+- Handle potential harmful content with appropriate responses
+- Manage conversation privacy and security
+- Provide fallback responses when technical issues occur
+- Apply appropriate therapeutic templates based on user needs
+
+## 5. ADMIN ACTOR
+
+### 5.1 Admin-System Management
+- Configure system parameters and settings
+- Monitor system health and performance
+- Access logging information for troubleshooting
+- Manage database operations and migrations
+- Implement data backup and recovery procedures
+- Configure crisis response settings
+
+### 5.2 Admin-Therapist Interactions
+- Verify therapist credentials and licenses
+- Review pending verification requests
+- Approve or reject therapist applications
+- Handle verification appeals
+- Monitor therapist performance and feedback
+
+### 5.3 Admin-User Management
+- Manage user accounts and access control
+- Handle user reports and complaints
+- Review suspicious activity alerts
+- Enforce platform policies and guidelines
+- Implement security measures for user protection
+
+### 5.4 Admin-Content Management
+- Review and moderate community content
+- Manage therapeutic resources library
+- Ensure content meets clinical standards
+- Remove inappropriate or harmful content
+
+## 6. CROSS-CUTTING USE CASES
+
+### 6.1 Security and Privacy
+- Role-based access control across all interactions
+- Encryption of sensitive data and communications
+- Secure handling of healthcare information (HIPAA compliance)
+- Comprehensive audit trails for all sensitive operations
+- Protection against unauthorized access
+
+### 6.2 Crisis Detection and Response
+- Multi-level crisis detection through AI analysis
+- Immediate response protocols for high-risk situations
+- Escalation paths to human professionals
+- Access to emergency resources and contacts
+- Audit logging of crisis interventions
+
+### 6.3 Notification System
+- Appointment reminders for patients and therapists
+- Crisis alerts for appropriate stakeholders
+- System updates and maintenance notifications
+- Therapeutic engagement prompts (mood check-ins, journal prompts)
+- Personalized content recommendations
+
+### 6.4 Data Analytics and Reporting
+- Therapeutic progress reports for patients and therapists
+- System usage analytics for administrators
+- Performance metrics for AI components
+- Clinical outcome measurements
+- Research and improvement data collection (anonymized)
+
+This document represents a high-level overview of the actor interactions and use cases in the MindCare-IA platform based on codebase analysis. The system implements a sophisticated mental health support ecosystem that combines human expertise with AI capabilities while maintaining appropriate ethical and security standards.

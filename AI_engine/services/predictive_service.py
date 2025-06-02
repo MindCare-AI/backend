@@ -28,54 +28,83 @@ class PredictiveAnalysisService:
         )
 
     def predict_mood_decline(self, user, timeframe_days: int = 7) -> Dict:
-        """Enhanced mood decline prediction with trend analysis and risk factors"""
+        """Enhanced mood decline prediction with trend analysis and risk factors using AI data interface"""
         cache_key = f"mood_prediction_{user.id}_{timeframe_days}"
         cached_result = cache.get(cache_key)
         if cached_result:
             return cached_result
 
         try:
-            from mood.models import MoodLog
-
+            # Import AI data interface service
+            from .data_interface import ai_data_interface
+            
             # Get extended historical data for better pattern analysis
             extended_period = max(timeframe_days * 4, 28)  # At least 4 weeks of data
-            mood_logs = MoodLog.objects.filter(
-                user=user,
-                logged_at__gte=timezone.now() - timedelta(days=extended_period),
-            ).order_by("logged_at")
-
-            if not mood_logs.exists():
+            
+            # Get AI-ready dataset through data interface
+            dataset = ai_data_interface.get_ai_ready_dataset(user.id, extended_period)
+            
+            # Check data quality and availability
+            quality_metrics = dataset.get('quality_metrics', {})
+            if quality_metrics.get('overall_quality', 0.0) < 0.1:
+                logger.warning(f"Insufficient data quality for user {user.id} mood prediction: {quality_metrics}")
                 result = {
                     "risk_level": "unknown",
                     "confidence": 0,
                     "factors": [],
-                    "message": "Insufficient data",
+                    "message": "Insufficient data quality for prediction",
+                    "data_quality_warning": True,
+                }
+                cache.set(cache_key, result, self.cache_timeout)
+                return result
+
+            # Extract mood data from AI-ready dataset
+            mood_data_info = self._extract_mood_data_for_prediction(dataset, timeframe_days)
+            
+            if not mood_data_info["mood_values"]:
+                result = {
+                    "risk_level": "unknown",
+                    "confidence": 0,
+                    "factors": [],
+                    "message": "Insufficient mood data for prediction",
                 }
                 cache.set(cache_key, result, self.cache_timeout)
                 return result
 
             # Enhanced data preparation with trend analysis
-            mood_data = self._prepare_mood_data_with_trends(mood_logs, timeframe_days)
+            mood_data = self._prepare_mood_data_with_trends_from_dataset(mood_data_info, timeframe_days)
 
-            # Get contextual data for better prediction
-            contextual_data = self._get_contextual_data(user, timeframe_days)
+            # Get contextual data from AI-ready dataset
+            contextual_data = self._get_contextual_data_from_dataset(dataset, timeframe_days)
 
             # Combine all data for analysis
             analysis_data = {
                 **mood_data,
                 **contextual_data,
                 "timeframe_days": timeframe_days,
-                "total_data_points": mood_logs.count(),
+                "total_data_points": len(mood_data_info["mood_values"]),
+                "data_quality_metrics": quality_metrics,
             }
 
             # Enhanced AI analysis
             prediction = self._analyze_mood_trends_with_ai(analysis_data)
 
             # Add statistical risk factors
-            statistical_risk = self._calculate_statistical_risk(
-                mood_logs, timeframe_days
+            statistical_risk = self._calculate_statistical_risk_from_values(
+                mood_data_info["mood_values"], timeframe_days
             )
             prediction.update(statistical_risk)
+
+            # Enhanced result with datawarehouse integration metrics
+            processing_metadata = dataset.get('processing_metadata', {})
+            prediction["data_integration"] = {
+                "data_sources_used": dataset.get("data_sources", []),
+                "data_quality_score": quality_metrics.get("overall_quality", 0.0),
+                "completeness_score": quality_metrics.get("completeness", 0.0),
+                "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
+                "datawarehouse_version": processing_metadata.get("processing_version", "unknown"),
+                "collection_time": processing_metadata.get("collection_time_seconds", 0),
+            }
 
             # Cache result
             cache.set(cache_key, prediction, self.cache_timeout)
@@ -84,6 +113,270 @@ class PredictiveAnalysisService:
         except Exception as e:
             logger.error(f"Error in mood decline prediction: {str(e)}", exc_info=True)
             return self._create_default_prediction("mood_decline_error")
+
+    def _extract_mood_data_for_prediction(self, dataset: Dict, timeframe_days: int) -> Dict:
+        """Extract mood data from AI-ready dataset for prediction analysis"""
+        try:
+            mood_analytics = dataset.get("mood_analytics", {})
+            mood_entries = mood_analytics.get("mood_entries", [])
+            
+            # Extract mood values and related information
+            mood_logs_data = []
+            mood_values = []
+            
+            for entry in mood_entries:
+                mood_rating = entry.get("rating", entry.get("mood_rating", 5))
+                mood_values.append(mood_rating)
+                
+                mood_logs_data.append({
+                    "mood_rating": mood_rating,
+                    "activities": entry.get("activities", []),
+                    "logged_at": entry.get("logged_at", entry.get("timestamp", "")),
+                    "notes": entry.get("notes", ""),
+                    "day_of_week": entry.get("day_of_week", 0),
+                    "hour_of_day": entry.get("hour_of_day", 12),
+                    "date": entry.get("date", ""),
+                })
+            
+            return {
+                "mood_logs_data": mood_logs_data,
+                "mood_values": mood_values,
+                "total_entries": len(mood_entries),
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting mood data for prediction: {str(e)}")
+            return {
+                "mood_logs_data": [],
+                "mood_values": [],
+                "total_entries": 0,
+            }
+
+    def _prepare_mood_data_with_trends_from_dataset(self, mood_data_info: Dict, timeframe_days: int) -> Dict:
+        """Prepare mood data with trend analysis from dataset information"""
+        try:
+            mood_logs_data = mood_data_info.get("mood_logs_data", [])
+            mood_values = mood_data_info.get("mood_values", [])
+            
+            recent_moods = (
+                mood_values[-timeframe_days:]
+                if len(mood_values) >= timeframe_days
+                else mood_values
+            )
+
+            # Calculate trends and patterns
+            trends = self._calculate_mood_trends(mood_values, timeframe_days)
+            patterns = self._detect_mood_patterns_from_data(mood_logs_data)
+            volatility = self._calculate_mood_volatility(recent_moods)
+
+            return {
+                "mood_data": mood_logs_data,
+                "trends": trends,
+                "patterns": patterns,
+                "volatility": volatility,
+                "recent_average": np.mean(recent_moods) if recent_moods else 5,
+                "overall_average": np.mean(mood_values) if mood_values else 5,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error preparing mood data with trends: {str(e)}")
+            return {
+                "mood_data": [],
+                "trends": {"trend": "insufficient_data", "slope": 0, "acceleration": 0},
+                "patterns": {"weekly_pattern": {}, "daily_pattern": {}, "activity_correlation": {}, "concerning_patterns": []},
+                "volatility": {"volatility": 0, "stability": "unknown"},
+                "recent_average": 5,
+                "overall_average": 5,
+            }
+
+    def _detect_mood_patterns_from_data(self, mood_logs_data: List[Dict]) -> Dict:
+        """Detect cyclical and temporal patterns from mood logs data"""
+        patterns = {
+            "weekly_pattern": {},
+            "daily_pattern": {},
+            "activity_correlation": {},
+            "concerning_patterns": [],
+        }
+
+        try:
+            # Weekly patterns
+            weekly_moods = defaultdict(list)
+            daily_moods = defaultdict(list)
+            activity_moods = defaultdict(list)
+
+            for log_data in mood_logs_data:
+                # Convert day_of_week number to name
+                days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                day_of_week = days[log_data.get("day_of_week", 0) % 7]
+                hour_of_day = log_data.get("hour_of_day", 12)
+                activities = log_data.get("activities", [])
+                mood_rating = log_data.get("mood_rating", 5)
+
+                weekly_moods[day_of_week].append(mood_rating)
+                daily_moods[hour_of_day].append(mood_rating)
+
+                for activity in activities:
+                    activity_moods[activity].append(mood_rating)
+
+            # Calculate averages
+            patterns["weekly_pattern"] = {
+                day: np.mean(moods) for day, moods in weekly_moods.items()
+            }
+            patterns["daily_pattern"] = {
+                hour: np.mean(moods) for hour, moods in daily_moods.items()
+            }
+            patterns["activity_correlation"] = {
+                activity: np.mean(moods)
+                for activity, moods in activity_moods.items()
+                if len(moods) >= 3  # Only include activities with sufficient data
+            }
+
+            # Detect concerning patterns
+            if any(avg < 3 for avg in patterns["weekly_pattern"].values()):
+                patterns["concerning_patterns"].append("consistently_low_weekly_moods")
+
+            if len(patterns["activity_correlation"]) > 0:
+                lowest_activity = min(
+                    patterns["activity_correlation"].items(), key=lambda x: x[1]
+                )
+                if lowest_activity[1] < 3:
+                    patterns["concerning_patterns"].append(
+                        f"negative_activity_correlation_{lowest_activity[0]}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error detecting mood patterns: {str(e)}")
+
+        return patterns
+
+    def _get_contextual_data_from_dataset(self, dataset: Dict, timeframe_days: int) -> Dict:
+        """Get contextual data from AI-ready dataset that might influence mood prediction"""
+        try:
+            journal_analytics = dataset.get("journal_analytics", {})
+            journal_entries = journal_analytics.get("journal_entries", [])
+            
+            contextual_data = {
+                "journal_entries_count": len(journal_entries),
+                "journal_sentiment": "neutral",
+                "sleep_mentions": 0,
+                "stress_mentions": 0,
+                "medication_mentions": 0,
+                "social_mentions": 0,
+                "work_mentions": 0,
+                "relationship_mentions": 0,
+            }
+
+            if journal_entries:
+                # Analyze journal content for contextual clues
+                content_analysis = self._analyze_journal_content_from_entries(journal_entries)
+                contextual_data.update(content_analysis)
+                
+                # Calculate overall sentiment
+                sentiments = [entry.get("sentiment_score", 0.0) for entry in journal_entries]
+                avg_sentiment = np.mean(sentiments) if sentiments else 0.0
+                if avg_sentiment > 0.1:
+                    contextual_data["journal_sentiment"] = "positive"
+                elif avg_sentiment < -0.1:
+                    contextual_data["journal_sentiment"] = "negative"
+                else:
+                    contextual_data["journal_sentiment"] = "neutral"
+
+            return contextual_data
+            
+        except Exception as e:
+            logger.error(f"Error getting contextual data from dataset: {str(e)}")
+            return {
+                "journal_entries_count": 0,
+                "journal_sentiment": "neutral",
+                "sleep_mentions": 0,
+                "stress_mentions": 0,
+                "medication_mentions": 0,
+                "social_mentions": 0,
+                "work_mentions": 0,
+                "relationship_mentions": 0,
+            }
+
+    def _analyze_journal_content_from_entries(self, journal_entries: List[Dict]) -> Dict:
+        """Analyze journal content from entry data for mood-relevant context"""
+        try:
+            content = " ".join([entry.get("content", "").lower() for entry in journal_entries])
+
+            # Define keyword patterns
+            patterns = {
+                "sleep_mentions": [
+                    r"\bsleep\b", r"\btired\b", r"\bexhausted\b", r"\binsomnia\b",
+                ],
+                "stress_mentions": [
+                    r"\bstress\b", r"\banxious\b", r"\bworried\b", r"\boverwhelmed\b",
+                ],
+                "medication_mentions": [
+                    r"\bmedication\b", r"\bpill\b", r"\bdose\b", r"\bside effect\b",
+                ],
+                "social_mentions": [
+                    r"\bfriend\b", r"\bfamily\b", r"\balone\b", r"\bisolated\b",
+                ],
+                "work_mentions": [r"\bwork\b", r"\bjob\b", r"\bcareer\b", r"\bboss\b"],
+                "relationship_mentions": [
+                    r"\brelationship\b", r"\bpartner\b", r"\bdating\b", r"\bmarriage\b",
+                ],
+            }
+
+            analysis = {}
+            for category, pattern_list in patterns.items():
+                count = sum(len(re.findall(pattern, content)) for pattern in pattern_list)
+                analysis[category] = count
+
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error analyzing journal content: {str(e)}")
+            return {
+                "sleep_mentions": 0,
+                "stress_mentions": 0,
+                "medication_mentions": 0,
+                "social_mentions": 0,
+                "work_mentions": 0,
+                "relationship_mentions": 0,
+            }
+
+    def _calculate_statistical_risk_from_values(self, mood_values: List[float], timeframe_days: int) -> Dict:
+        """Calculate statistical risk indicators from mood values"""
+        if len(mood_values) < 3:
+            return {"statistical_risk": "insufficient_data"}
+
+        recent_values = (
+            mood_values[-timeframe_days:]
+            if len(mood_values) >= timeframe_days
+            else mood_values
+        )
+
+        # Risk indicators
+        risk_indicators = {
+            "consecutive_low_days": self._count_consecutive_low_days(recent_values),
+            "significant_drops": self._count_significant_drops(recent_values),
+            "below_baseline_percentage": self._calculate_below_baseline_percentage(
+                mood_values, recent_values
+            ),
+            "trend_deterioration": self._assess_trend_deterioration(
+                mood_values, timeframe_days
+            ),
+        }
+
+        # Overall statistical risk assessment
+        risk_score = 0
+        if risk_indicators["consecutive_low_days"] >= 3:
+            risk_score += 0.3
+        if risk_indicators["significant_drops"] >= 2:
+            risk_score += 0.2
+        if risk_indicators["below_baseline_percentage"] > 0.6:
+            risk_score += 0.3
+        if risk_indicators["trend_deterioration"]:
+            risk_score += 0.2
+
+        return {
+            "statistical_risk_score": min(1.0, risk_score),
+            "risk_indicators": risk_indicators,
+        }
 
     def _prepare_mood_data_with_trends(self, mood_logs, timeframe_days: int) -> Dict:
         """Prepare mood data with trend analysis and pattern detection"""
@@ -537,12 +830,8 @@ Analyze this data and provide a comprehensive prediction in JSON format:
 
         try:
             # Check if appointments app exists
-            try:
-                from appointments.models import Appointment
-
-                appointments_available = True
-            except ImportError:
-                appointments_available = False
+            import importlib.util
+            appointments_available = importlib.util.find_spec('appointments.models') is not None
 
             end_date = timezone.now()
             start_date = end_date - timedelta(days=timeframe_days)
@@ -611,15 +900,18 @@ Analyze this data and provide a comprehensive prediction in JSON format:
 
             # Appointment metrics if available
             if appointments_available:
-                from appointments.models import Appointment
-
-                appointments = Appointment.objects.filter(
-                    patient=user, scheduled_time__range=(start_date, end_date)
-                )
-                metrics["appointments"] = appointments.count()
-                metrics["appointment_attendance"] = appointments.filter(
-                    status="completed"
-                ).count()
+                try:
+                    from appointments.models import Appointment
+                    appointments = Appointment.objects.filter(
+                        patient=user, scheduled_time__range=(start_date, end_date)
+                    )
+                    metrics["appointments"] = appointments.count()
+                    metrics["appointment_attendance"] = appointments.filter(
+                        status="completed"
+                    ).count()
+                except ImportError:
+                    logger.warning("Appointments model not available")
+                    pass
 
         except Exception as e:
             logger.error(f"Error calculating engagement metrics: {str(e)}")
@@ -881,6 +1173,7 @@ Provide analysis in JSON format:
                 "temporal_patterns": temporal_analysis,
                 "total_entries": qs.count(),
                 "analysis_period_days": 30,
+                "has_sufficient_data": True,
                 **sentiment_analysis,
             }
 
@@ -894,6 +1187,7 @@ Provide analysis in JSON format:
                 "concerns": False,
                 "sentiment_trend": "neutral",
                 "avg_mood": 3.0,
+                "has_sufficient_data": False,
                 "error": str(e),
             }
 

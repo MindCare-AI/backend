@@ -1,0 +1,103 @@
+@startuml MindCare-IA_Appointment_Messaging_Flow
+!theme plain
+skinparam participant {
+    BackgroundColor #F8F9FA
+    BorderColor #6C757D
+    FontName "Arial"
+    FontSize 10
+}
+
+title MindCare-IA Platform - Appointment & Messaging Flow
+
+actor Patient as P
+actor Therapist as T
+participant "Appointment\nService" as Appt
+participant "Messaging\nService" as Msg
+participant "Notification\nSystem" as Notif
+participant "WebSocket\nHandler" as WS
+participant "Media\nHandler" as Media
+participant "Database" as DB
+
+== Appointment Scheduling ==
+
+P -> Appt: view_therapist_availability(therapist_id, week_range)
+Appt -> DB: fetch_therapist_schedule(therapist_id, dates)
+DB -> Appt: available_time_slots[]
+Appt -> P: display_available_slots(slots)
+
+P -> Appt: schedule_appointment(therapist_id, datetime, session_type)
+Appt -> DB: create_appointment_record(appointment_data)
+Appt -> Notif: send_appointment_confirmation(patient_id, therapist_id)
+
+par Notification Dispatch
+    Notif -> P: appointment_confirmation_email()
+    Notif -> T: new_appointment_notification()
+    Notif -> Appt: schedule_reminder_notifications()
+end
+
+Appt -> P: appointment_scheduled_successfully(appointment_details)
+
+== Pre-Appointment Messaging ==
+
+T -> Msg: send_pre_session_message(patient_id, "Please prepare...")
+Msg -> DB: save_message(sender_id, recipient_id, content)
+Msg -> WS: broadcast_real_time_message(patient_id)
+WS -> P: receive_real_time_message(therapist_message)
+Msg -> Notif: queue_message_notification(patient_id)
+Notif -> P: message_notification(from_therapist=True)
+
+P -> Msg: reply_to_message(therapist_id, "Thank you, I'll prepare...")
+Msg -> DB: save_reply_message(patient_id, therapist_id, reply_content)
+Msg -> WS: broadcast_real_time_message(therapist_id)
+WS -> T: receive_real_time_message(patient_reply)
+
+== Session Conduct & Notes ==
+
+T -> Appt: start_session(appointment_id)
+Appt -> DB: update_appointment_status(status="in_progress")
+Appt -> T: session_started_successfully
+
+' During session - real-time notes
+T -> Appt: add_session_notes(appointment_id, notes, pain_level)
+Appt -> DB: save_session_notes(notes_data)
+Appt -> T: notes_saved
+
+T -> Appt: complete_session(appointment_id, final_notes, recommendations)
+Appt -> DB: update_appointment_status(status="completed")
+Appt -> DB: save_final_session_data(notes, recommendations)
+Appt -> Notif: send_session_summary(patient_id)
+Notif -> P: session_completed_notification(summary, next_steps)
+
+== Post-Session Follow-up ==
+
+T -> Msg: send_follow_up_message(patient_id, "Great session today...")
+Msg -> Media: attach_homework_file(file_upload)
+Media -> DB: save_media_file(file_metadata)
+Media -> Msg: media_attachment_url
+Msg -> DB: save_message_with_attachment(message_data, media_url)
+Msg -> WS: broadcast_message_with_media(patient_id)
+WS -> P: receive_follow_up_with_attachment()
+
+P -> Msg: acknowledge_homework(therapist_id, "I'll work on this")
+Msg -> DB: save_acknowledgment_message()
+Msg -> WS: broadcast_acknowledgment(therapist_id)
+WS -> T: receive_patient_acknowledgment()
+
+== Appointment Rescheduling ==
+
+P -> Appt: request_reschedule(appointment_id, reason)
+Appt -> Notif: notify_therapist_reschedule_request(therapist_id)
+Notif -> T: reschedule_request_notification(patient_name, reason)
+
+T -> Appt: approve_reschedule(appointment_id, new_datetime)
+Appt -> DB: update_appointment_datetime(appointment_id, new_time)
+Appt -> Notif: confirm_reschedule(patient_id, therapist_id)
+
+par Reschedule Notifications
+    Notif -> P: reschedule_confirmed(new_datetime)
+    Notif -> T: reschedule_confirmed(new_datetime)
+end
+
+Appt -> P: appointment_rescheduled_successfully
+
+@enduml

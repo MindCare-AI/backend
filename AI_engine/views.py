@@ -1,11 +1,11 @@
 # AI_engine/views.py
 import logging
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.core.cache import cache
-from django.conf import settings
+from datetime import timedelta
 
 from .models import (
     UserAnalysis,
@@ -19,378 +19,523 @@ from .serializers import (
     TherapyRecommendationSerializer,
     CommunicationPatternAnalysisSerializer,
 )
-from .services import AIAnalysisService, ai_service
-from .services.communication_analysis import communication_analysis_service
-from AI_engine.services.predictive_service import predictive_service
+from .services.ai_analysis import ai_service
 
 logger = logging.getLogger(__name__)
 
 
 class AIAnalysisViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    """ViewSet for AI analysis of user data"""
     serializer_class = UserAnalysisSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return UserAnalysis.objects.filter(user=self.request.user)
 
-    @action(detail=False, methods=["post"])
-    def analyze_data(self, request):
-        """Trigger a new analysis of user's data"""
-        try:
-            service = AIAnalysisService()
-            date_range = request.data.get("date_range", 30)
-
-            # Validate date_range
-            if not isinstance(date_range, int) or date_range < 1 or date_range > 365:
-                return Response(
-                    {"error": "Invalid date_range. Must be between 1 and 365 days."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            analysis = service.analyze_user_data(request.user, date_range)
-
-            if analysis:
-                # If analysis is a model instance, serialize it
-                if hasattr(analysis, "id"):
-                    serializer = self.get_serializer(analysis)
-                    return Response(serializer.data)
-                # If analysis is a dictionary, return it directly
-                elif isinstance(analysis, dict):
-                    return Response(analysis)
-                else:
-                    return Response(
-                        {"error": "Invalid analysis format"},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    )
-            return Response(
-                {"error": "Could not generate analysis"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        except Exception as e:
-            logger.error(f"Error in analyze_data: {str(e)}")
-            return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=["get"])
-    def latest(self, request):
-        """Get the latest analysis"""
-        analysis = self.get_queryset().first()
-        if analysis:
-            serializer = self.get_serializer(analysis)
-            return Response(serializer.data)
-        return Response(
-            {"error": "No analysis found"}, status=status.HTTP_404_NOT_FOUND
-        )
-
 
 class AIInsightViewSet(viewsets.ViewSet):
-    """
-    A viewset for viewing AI insights.
-
-    Instead of using ReadOnlyModelViewSet which causes schema generation issues,
-    we're using a basic ViewSet and implementing only the methods we need.
-    """
-
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = AIInsightSerializer
-
-    def get_queryset(self):
-        """Get insights for the authenticated user"""
-        return AIInsight.objects.filter(user=self.request.user).order_by("-created_at")
-
-    def get_object(self):
-        """Get a specific insight"""
-        queryset = self.get_queryset()
-        obj = queryset.get(pk=self.kwargs["pk"])
-        return obj
+    """ViewSet for AI insights"""
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        """List all insights for the user"""
-        queryset = self.get_queryset()
-        serializer = AIInsightSerializer(queryset, many=True)
-        return Response(serializer.data)
+        """List AI insights for the current user"""
+        try:
+            insights = AIInsight.objects.filter(user=request.user).order_by('-created_at')[:10]
+            serializer = AIInsightSerializer(insights, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error listing insights: {str(e)}")
+            return Response(
+                {"error": "Failed to retrieve insights"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def retrieve(self, request, pk=None):
         """Retrieve a specific insight"""
         try:
-            instance = self.get_object()
-            serializer = AIInsightSerializer(instance)
+            insight = AIInsight.objects.get(pk=pk, user=request.user)
+            serializer = AIInsightSerializer(insight)
             return Response(serializer.data)
         except AIInsight.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Insight not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=['post'])
     def mark_addressed(self, request, pk=None):
         """Mark an insight as addressed"""
-        insight = self.get_object()
-        insight.is_addressed = True
-        insight.save()
-        serializer = AIInsightSerializer(insight)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["get"])
-    def chatbot_context(self, request):
-        """Get AI insights for chatbot context with optimized caching"""
         try:
-            user_id = request.user.id
-            cache_key = f"chatbot_context_{user_id}"
-            cache_timeout = settings.AI_ENGINE_SETTINGS.get(
-                "CACHE_TIMEOUT", 900
-            )  # 15 minutes default
-
-            # Check if user just logged mood or added journal - invalidate cache if needed
-            last_activity = self._get_user_last_activity(request.user)
-            cache_meta_key = f"chatbot_context_meta_{user_id}"
-            last_cached_activity = cache.get(cache_meta_key)
-
-            context = None
-            if (
-                last_cached_activity
-                and last_activity
-                and last_cached_activity >= last_activity
-            ):
-                # Cache is still valid, try to get it
-                context = cache.get(cache_key)
-
-            if not context:
-                # Get fresh analysis - access ai_service directly for more control
-                from AI_engine.services.ai_analysis import ai_service
-
-                # Define shorter context window for chatbot (7 days instead of 30)
-                context = ai_service.get_chatbot_context(request.user, date_range=7)
-
-                # Add medication context, ensuring robust error handling
-                try:
-                    from AI_engine.services.medication_analysis import (
-                        medication_analysis_service,
-                    )
-
-                    med_context = (
-                        medication_analysis_service.analyze_medication_effects(
-                            request.user, days=7
-                        )
-                    )
-                    if med_context.get("success"):
-                        context["medication_context"] = {
-                            "current_medications": med_context.get("medications", []),
-                            "effects": med_context.get("mood_effects", {}),
-                            "side_effects": med_context.get(
-                                "side_effects_detected", []
-                            ),
-                            "recommendations": med_context.get("recommendations", []),
-                        }
-                except Exception as e:
-                    logger.error(f"Error adding medication context: {str(e)}")
-
-                # Add mood prediction from predictive service
-                try:
-                    mood_prediction = predictive_service.predict_mood_decline(
-                        request.user
-                    )
-                    context["mood_prediction"] = mood_prediction
-                except Exception as e:
-                    logger.error(f"Error getting mood prediction: {str(e)}")
-
-                # Add journal analysis from predictive service
-                try:
-                    journal_analysis = predictive_service.analyze_journal_patterns(
-                        request.user
-                    )
-                    context["journal_analysis"] = journal_analysis
-                except Exception as e:
-                    logger.error(f"Error analyzing journal patterns: {str(e)}")
-
-                # Add therapy insights if patient profile exists
-                try:
-                    if hasattr(request.user, "patient_profile"):
-                        from AI_engine.services.therapy_analysis import therapy_analysis
-
-                        therapy_insights = therapy_analysis.recommend_session_focus(
-                            request.user
-                        )
-                        context["therapy_insights"] = therapy_insights
-                except Exception as e:
-                    logger.error(f"Error getting therapy insights: {str(e)}")
-
-                # Store current activity timestamp with cache
-                cache.set(cache_meta_key, timezone.now(), timeout=cache_timeout)
-
-                # Cache the result - use shorter timeout for more dynamic data
-                cache.set(cache_key, context, timeout=cache_timeout)
-
-            return Response(context)
-
-        except Exception as e:
-            logger.error(f"Error getting chatbot context: {str(e)}", exc_info=True)
+            insight = AIInsight.objects.get(pk=pk, user=request.user)
+            insight.is_addressed = True
+            insight.save()
+            return Response({"message": "Insight marked as addressed"})
+        except AIInsight.DoesNotExist:
             return Response(
-                {"error": "Could not retrieve AI context"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"error": "Insight not found"},
+                status=status.HTTP_404_NOT_FOUND
             )
 
-    def _get_user_last_activity(self, user):
-        """Get user's last activity timestamp from mood logs and journal entries"""
+    @action(detail=False, methods=['get'])
+    def chatbot_context(self, request):
+        """Get insights for chatbot context"""
         try:
-            from mood.models import MoodLog
-            from journal.models import JournalEntry
-
-            last_mood = MoodLog.objects.filter(user=user).order_by("-logged_at").first()
-            last_journal = (
-                JournalEntry.objects.filter(user=user).order_by("-created_at").first()
+            recent_insights = AIInsight.objects.filter(
+                user=request.user,
+                created_at__gte=timezone.now() - timedelta(days=7),
+                is_addressed=False
+            ).order_by('-created_at')[:5]
+            
+            context_data = [
+                {
+                    "type": insight.insight_type,
+                    "data": insight.insight_data,
+                    "priority": insight.priority,
+                    "created_at": insight.created_at.isoformat(),
+                }
+                for insight in recent_insights
+            ]
+            
+            return Response({"insights": context_data})
+        except Exception as e:
+            logger.error(f"Error getting chatbot context: {str(e)}")
+            return Response(
+                {"error": "Failed to retrieve context"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-            timestamps = []
-            if last_mood:
-                timestamps.append(last_mood.logged_at)
-            if last_journal:
-                timestamps.append(last_journal.created_at)
-
-            if timestamps:
-                return max(timestamps)
-            return None
-        except Exception:
-            return None
-
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=['post'])
     def analyze_user(self, request):
-        """Trigger a new analysis for the user"""
+        """Trigger AI analysis for the current user"""
         try:
-            analysis = ai_service.analyze_user_data(request.user)
-            if analysis:
+            # Get days parameter from request body, default to 7
+            days = request.data.get('days', 7)
+            
+            # Validate days parameter
+            try:
+                days = int(days)
+                if days < 1 or days > 90:
+                    return Response(
+                        {"error": "Days must be between 1 and 90"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except (ValueError, TypeError):
+                return Response(
+                    {"error": "Days must be a valid integer"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            logger.info(f"Starting AI analysis for user {request.user.id} with {days} days")
+            
+            # Trigger the analysis
+            analysis = ai_service.analyze_user_data(request.user, days)
+            
+            if analysis and analysis.get("analysis_successful", False):
+                return Response({
+                    "message": "Analysis completed successfully",
+                    "analysis_id": analysis.get("id"),
+                    "recommendations_created": analysis.get("recommendations_created", 0),
+                    "mood_score": analysis.get("mood_score"),
+                    "sentiment_score": analysis.get("sentiment_score"),
+                    "needs_attention": analysis.get("needs_attention", False),
+                    "data_points": analysis.get("data_points", 0),
+                    "analysis_method": analysis.get("analysis_method", "unknown"),
+                    "suggestions": analysis.get("suggestions", [])
+                })
+            else:
+                error_message = analysis.get("error", "Analysis failed") if analysis else "Analysis service unavailable"
                 return Response(
                     {
-                        "status": "success",
-                        "analysis": analysis,
-                    }
+                        "error": error_message,
+                        "analysis_successful": False,
+                        "recommendations_created": 0
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-            return Response(
-                {"error": "Could not generate analysis"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+                
         except Exception as e:
-            logger.error(f"Error in analyze_user: {str(e)}")
+            logger.error(f"Error triggering analysis: {str(e)}", exc_info=True)
             return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {
+                    "error": "Internal server error during analysis",
+                    "analysis_successful": False,
+                    "recommendations_created": 0
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
 class TherapyRecommendationViewSet(viewsets.ViewSet):
-    """
-    A viewset for handling therapy recommendations.
-
-    Instead of using ReadOnlyModelViewSet which causes schema generation issues,
-    we're using a basic ViewSet and implementing only the methods we need.
-    """
-
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = TherapyRecommendationSerializer
-
-    def get_queryset(self):
-        """Get therapy recommendations for the authenticated user"""
-        return TherapyRecommendation.objects.filter(user=self.request.user).order_by(
-            "-created_at"
-        )
-
-    def get_object(self):
-        """Get a specific recommendation"""
-        queryset = self.get_queryset()
-        obj = queryset.get(pk=self.kwargs["pk"])
-        return obj
+    """ViewSet for therapy recommendations"""
+    permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        """List all recommendations for the user"""
-        queryset = self.get_queryset()
-        serializer = TherapyRecommendationSerializer(queryset, many=True)
-        return Response(serializer.data)
+        """List therapy recommendations for the current user"""
+        try:
+            recommendations = TherapyRecommendation.objects.filter(
+                user=request.user
+            ).order_by('-created_at')[:10]
+            serializer = TherapyRecommendationSerializer(recommendations, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error listing recommendations: {str(e)}")
+            return Response(
+                {"error": "Failed to retrieve recommendations"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def retrieve(self, request, pk=None):
         """Retrieve a specific recommendation"""
         try:
-            instance = self.get_object()
-            serializer = TherapyRecommendationSerializer(instance)
-            return Response(serializer.data)
-        except TherapyRecommendation.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-    @action(detail=True, methods=["post"])
-    def mark_implemented(self, request, pk=None):
-        """Mark a recommendation as implemented"""
-        try:
-            recommendation = self.get_object()
-            recommendation.is_implemented = True
-            recommendation.save()
+            recommendation = TherapyRecommendation.objects.get(pk=pk, user=request.user)
             serializer = TherapyRecommendationSerializer(recommendation)
             return Response(serializer.data)
         except TherapyRecommendation.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Recommendation not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=['post'])
+    def mark_implemented(self, request, pk=None):
+        """Mark a recommendation as implemented"""
+        try:
+            recommendation = TherapyRecommendation.objects.get(pk=pk, user=request.user)
+            recommendation.is_implemented = True
+            recommendation.save()
+            return Response({"message": "Recommendation marked as implemented"})
+        except TherapyRecommendation.DoesNotExist:
+            return Response(
+                {"error": "Recommendation not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=True, methods=['post'])
     def rate_effectiveness(self, request, pk=None):
         """Rate the effectiveness of a recommendation"""
         try:
-            recommendation = self.get_object()
-            rating = request.data.get("rating")
-            if rating is not None and 1 <= rating <= 5:
-                recommendation.effectiveness_rating = rating
-                recommendation.save()
-                serializer = TherapyRecommendationSerializer(recommendation)
-                return Response(serializer.data)
-            return Response(
-                {"error": "Invalid rating. Must be between 1 and 5"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except TherapyRecommendation.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-
-class CommunicationAnalysisViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for communication pattern analysis"""
-
-    serializer_class = CommunicationPatternAnalysisSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return CommunicationPatternAnalysis.objects.filter(user=self.request.user)
-
-    @action(detail=False, methods=["post"])
-    def analyze_patterns(self, request):
-        """Trigger communication pattern analysis for the user"""
-        try:
-            days = request.data.get("days", 30)
-            analysis = communication_analysis_service.analyze_communication_patterns(
-                request.user, days=days
-            )
-
-            if "error" in analysis:
+            recommendation = TherapyRecommendation.objects.get(pk=pk, user=request.user)
+            rating = int(request.data.get('rating', 0))
+            
+            if not 1 <= rating <= 5:
                 return Response(
-                    {"error": analysis["error"]}, status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Rating must be between 1 and 5"},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
-
-            return Response(analysis, status=status.HTTP_200_OK)
-
-        except Exception as e:
+            
+            recommendation.effectiveness_rating = rating
+            recommendation.save()
+            return Response({"message": "Rating saved successfully"})
+        except TherapyRecommendation.DoesNotExist:
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Recommendation not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ValueError:
+            return Response(
+                {"error": "Invalid rating value"},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-    @action(detail=False, methods=["get"])
-    def therapeutic_relationship(self, request):
-        """Analyze therapeutic relationship with a specific therapist"""
-        therapist_id = request.query_params.get("therapist_id")
-        if not therapist_id:
-            return Response(
-                {"error": "therapist_id parameter required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
+class CommunicationAnalysisViewSet(viewsets.ViewSet):
+    """ViewSet for communication pattern analysis"""
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        """List communication analyses for the current user"""
         try:
-            analysis = communication_analysis_service.analyze_therapeutic_relationship(
-                request.user, therapist_id
-            )
-            return Response(analysis, status=status.HTTP_200_OK)
-
+            analyses = CommunicationPatternAnalysis.objects.filter(
+                user=request.user
+            ).order_by('-analysis_date')[:10]
+            serializer = CommunicationPatternAnalysisSerializer(analyses, many=True)
+            return Response(serializer.data)
         except Exception as e:
+            logger.error(f"Error listing communication analyses: {str(e)}")
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Failed to retrieve analyses"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def retrieve(self, request, pk=None):
+        """Retrieve a specific communication analysis"""
+        try:
+            analysis = CommunicationPatternAnalysis.objects.get(pk=pk, user=request.user)
+            serializer = CommunicationPatternAnalysisSerializer(analysis)
+            return Response(serializer.data)
+        except CommunicationPatternAnalysis.DoesNotExist:
+            return Response(
+                {"error": "Analysis not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=False, methods=['post'])
+    def analyze_patterns(self, request):
+        """Analyze communication patterns for the current user"""
+        try:
+            days = int(request.data.get('days', 30))
+            
+            # Use the AI analysis service for pattern analysis
+            analysis_result = ai_service.analyze_user_data(
+                request.user, days
+            )
+            
+            if analysis_result.get("error"):
+                return Response(
+                    {"error": analysis_result.get("message", "Analysis failed")},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            if not analysis_result.get("has_data", True):
+                return Response(
+                    {
+                        "message": analysis_result.get("message", "No communication data available for analysis"),
+                        "suggestions": analysis_result.get("suggestions", [])
+                    },
+                    status=status.HTTP_200_OK
+                )
+            
+            return Response(analysis_result)
+            
+        except ValueError:
+            return Response(
+                {"error": "Invalid days parameter"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error analyzing communication patterns: {str(e)}")
+            return Response(
+                {"error": "Failed to analyze communication patterns"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def therapeutic_relationship(self, request):
+        """Get therapeutic relationship analysis"""
+        try:
+            # Use AI service for relationship analysis
+            relationship_data = ai_service.analyze_user_data(
+                request.user, days=30
+            )
+            
+            if relationship_data.get("error"):
+                return Response(
+                    {"error": relationship_data.get("message", "Analysis failed")},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            if not relationship_data.get("has_relationships", True):
+                return Response(
+                    {
+                        "message": relationship_data.get("message", "No therapeutic relationship data found"),
+                        "suggestions": relationship_data.get("suggestions", [])
+                    },
+                    status=status.HTTP_200_OK
+                )
+            
+            return Response(relationship_data)
+            
+        except Exception as e:
+            logger.error(f"Error getting therapeutic relationship data: {str(e)}")
+            return Response(
+                {"error": "Failed to retrieve therapeutic relationship data"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def analyze_user(self, request):
+        """Analyze user communication patterns - alias for analyze_patterns"""
+        try:
+            days = int(request.data.get('days', 30))
+            
+            # Use the AI analysis service
+            analysis_result = ai_service.analyze_user_data(
+                request.user, days
+            )
+            
+            if analysis_result.get("error"):
+                return Response(
+                    {"error": analysis_result.get("message", "Analysis failed")},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            if not analysis_result.get("has_data", True):
+                return Response(
+                    {
+                        "message": analysis_result.get("message", "No communication data available for analysis"),
+                        "suggestions": analysis_result.get("suggestions", [])
+                    },
+                    status=status.HTTP_200_OK
+                )
+            
+            # Add additional metadata for the analyze_user endpoint
+            analysis_result.update({
+                "analysis_type": "communication_patterns",
+                "endpoint": "analyze_user", 
+                "user_id": request.user.id
+            })
+            
+            return Response(analysis_result)
+            
+        except ValueError:
+            return Response(
+                {"error": "Invalid days parameter"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error analyzing user communication: {str(e)}")
+            return Response(
+                {"error": "Failed to analyze user communication patterns"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class TipsViewSet(viewsets.ViewSet):
+    """ViewSet for generating personalized tips and suggestions"""
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def mood(self, request):
+        """Generate mood-based tips and suggestions"""
+        try:
+            # Get query parameters
+            days = int(request.query_params.get('days', 7))
+            tip_count = int(request.query_params.get('count', 5))
+            
+            # For now, return sample data since tips_service is not implemented
+            tips_data = {
+                "tips": [
+                    {
+                        "title": "Practice Deep Breathing",
+                        "description": "Take 5-10 minutes to practice deep breathing exercises to help regulate your mood and reduce stress.",
+                        "category": "mindfulness",
+                        "difficulty": "easy",
+                        "estimated_time": "5-10 minutes",
+                        "expected_benefit": "Reduced stress and improved emotional regulation"
+                    },
+                    {
+                        "title": "Go for a Short Walk",
+                        "description": "A brief 10-15 minute walk can help boost your mood and provide fresh perspective.",
+                        "category": "activity",
+                        "difficulty": "easy",
+                        "estimated_time": "10-15 minutes",
+                        "expected_benefit": "Improved mood and increased energy"
+                    }
+                ],
+                "mood_analysis": {"status": "sample_data"},
+                "analysis_period": f"{days} days",
+                "generated_at": timezone.now().isoformat(),
+                "tip_count": 2,
+            }
+            
+            return Response(tips_data, status=status.HTTP_200_OK)
+            
+        except ValueError:
+            return Response(
+                {"error": "Invalid parameters. Days and count must be integers."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error generating mood tips: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def journaling(self, request):
+        """Generate journaling-based tips and suggestions"""
+        try:
+            # Get query parameters
+            days = int(request.query_params.get('days', 14))
+            tip_count = int(request.query_params.get('count', 5))
+            
+            # Sample journaling tips
+            tips_data = {
+                "tips": [
+                    {
+                        "title": "Set a Daily Writing Routine",
+                        "description": "Try to write in your journal at the same time each day to build consistency and make it a habit.",
+                        "category": "habit",
+                        "difficulty": "easy",
+                        "estimated_time": "10 minutes",
+                        "expected_benefit": "Better emotional processing and self-awareness"
+                    },
+                    {
+                        "title": "Use Gratitude Prompts",
+                        "description": "End each journal entry with three things you're grateful for to focus on positive aspects of your day.",
+                        "category": "reflection",
+                        "difficulty": "easy",
+                        "estimated_time": "5 minutes",
+                        "expected_benefit": "Increased positive focus and emotional balance"
+                    }
+                ],
+                "journal_analysis": {"status": "sample_data"},
+                "analysis_period": f"{days} days",
+                "generated_at": timezone.now().isoformat(),
+                "tip_count": 2,
+            }
+            
+            return Response(tips_data, status=status.HTTP_200_OK)
+            
+        except ValueError:
+            return Response(
+                {"error": "Invalid parameters. Days and count must be integers."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error generating journaling tips: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def combined(self, request):
+        """Generate combined tips based on both mood and journal data"""
+        try:
+            # Get query parameters
+            days = int(request.query_params.get('days', 14))
+            tip_count = int(request.query_params.get('count', 8))
+            
+            # Sample combined tips
+            tips_data = {
+                "tips": [
+                    {
+                        "title": "Create a Wellness Routine",
+                        "description": "Combine mood tracking with journaling for better self-awareness and emotional regulation.",
+                        "category": "holistic",
+                        "difficulty": "medium",
+                        "estimated_time": "15-20 minutes",
+                        "expected_benefit": "Improved overall wellbeing and self-understanding"
+                    },
+                    {
+                        "title": "Practice Mindful Reflection",
+                        "description": "Before logging your mood, take a moment to reflect on what influenced your feelings today.",
+                        "category": "mindfulness",
+                        "difficulty": "medium",
+                        "estimated_time": "10 minutes",
+                        "expected_benefit": "Better emotional awareness and mood management"
+                    }
+                ],
+                "mood_analysis": {"status": "sample_data"},
+                "journal_analysis": {"status": "sample_data"},
+                "combined_insights": {"overall_wellbeing": "developing"},
+                "analysis_period": f"{days} days",
+                "generated_at": timezone.now().isoformat(),
+                "tip_count": 2,
+            }
+            
+            return Response(tips_data, status=status.HTTP_200_OK)
+            
+        except ValueError:
+            return Response(
+                {"error": "Invalid parameters. Days and count must be integers."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error generating combined tips: {str(e)}", exc_info=True)
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

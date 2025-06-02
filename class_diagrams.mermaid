@@ -1,0 +1,415 @@
+---
+title: MindCare Mental Health Platform - Class Diagrams
+---
+
+classDiagram
+    %% User Management Layer
+    class CustomUser {
+        -BigAutoField id
+        -CharField username
+        -EmailField email
+        -CharField first_name
+        -CharField last_name
+        -CharField user_type
+        -CharField status
+        -CharField phone_number
+        -DateTimeField created_at
+        -DateTimeField date_joined
+        +get_full_name() String
+        +is_patient() Boolean
+        +is_therapist() Boolean
+    }
+    
+    class UserPreferences {
+        -OneToOneField user
+        -CharField language
+        -BooleanField notifications_enabled
+        -BooleanField email_notifications
+        -BooleanField push_notifications
+        -BooleanField dark_mode
+        +update_preferences() void
+    }
+    
+    class UserSettings {
+        -OneToOneField user
+        -CharField privacy_level
+        -BooleanField data_sharing
+        -BooleanField analytics_enabled
+        +apply_privacy_settings() void
+    }
+    
+    class BaseProfile {
+        <<abstract>>
+        -OneToOneField user
+        -ImageField profile_pic
+        -TextField bio
+        -DateTimeField created_at
+        -DateTimeField updated_at
+        +get_display_name() String
+        +update_profile() void
+    }
+    
+    class PatientProfile {
+        -DateField date_of_birth
+        -CharField gender
+        -CharField blood_type
+        -JSONField emergency_contact
+        -TextField medical_history
+        -TextField current_medications
+        +get_age() Integer
+        +has_medical_condition() Boolean
+    }
+    
+    class TherapistProfile {
+        -CharField license_number
+        -JSONField specializations
+        -IntegerField years_of_experience
+        -CharField verification_status
+        -JSONField education
+        -JSONField available_days
+        -JSONField languages
+        -JSONField therapy_types
+        -DecimalField hourly_rate
+        +is_verified() Boolean
+        +get_specializations() List
+        +check_availability() Boolean
+    }
+
+    %% Serializers Layer
+    class CustomUserSerializer {
+        -List USER_STATUS_CHOICES
+        +validate_user_type() String
+        +update() CustomUser
+        +create() CustomUser
+    }
+    
+    class PatientProfileSerializer {
+        +get_user_name() String
+        +validate_blood_type() String
+        +update() PatientProfile
+    }
+    
+    class TherapistProfileSerializer {
+        +validate_license_number() String
+        +validate_specializations() List
+        +update() TherapistProfile
+    }
+    
+    class UserPreferencesSerializer {
+        +validate_language() String
+        +update() UserPreferences
+    }
+    
+    class UserSettingsSerializer {
+        +validate_privacy_level() String
+        +update() UserSettings
+    }
+
+    %% Views Layer
+    class CustomUserViewSet {
+        -QuerySet queryset
+        -Serializer serializer_class
+        -List permission_classes
+        +list() Response
+        +create() Response
+        +retrieve() Response
+        +update() Response
+        +destroy() Response
+        +get_profile() Response
+        +update_user_type() Response
+    }
+    
+    class PatientProfileViewSet {
+        +get_queryset() QuerySet
+        +perform_create() void
+        +get_medical_history() Response
+        +update_preferences() Response
+    }
+    
+    class TherapistProfileViewSet {
+        +get_available_therapists() Response
+        +verify_therapist() Response
+        +get_specializations() Response
+        +update_availability() Response
+    }
+
+    %% Permissions Layer
+    class IsSuperUserOrSelf {
+        +has_permission() Boolean
+        +has_object_permission() Boolean
+    }
+    
+    class IsPatientOrTherapist {
+        +has_permission() Boolean
+        +has_object_permission() Boolean
+    }
+    
+    class IsVerifiedTherapist {
+        +has_permission() Boolean
+        +check_verification() Boolean
+    }
+
+    %% Healthcare Layer
+    class Appointment {
+        -CharField appointment_id
+        -ForeignKey patient
+        -ForeignKey therapist
+        -DateTimeField appointment_date
+        -CharField status
+        -TextField notes
+        -CharField duration
+        -CharField session_type
+        -URLField meeting_link
+        +can_cancel() Boolean
+        +can_reschedule() Boolean
+        +is_upcoming() Boolean
+    }
+    
+    class WaitingListEntry {
+        -ForeignKey patient
+        -ForeignKey therapist
+        -DateField preferred_date
+        -CharField status
+        -IntegerField priority
+        +process_entry() void
+        +notify_availability() void
+    }
+    
+    class MoodLog {
+        -ForeignKey user
+        -IntegerField mood_score
+        -IntegerField energy_level
+        -IntegerField anxiety_level
+        -TextField notes
+        -DateTimeField created_at
+        +calculate_trend() Float
+        +get_mood_category() String
+    }
+    
+    class JournalEntry {
+        -ForeignKey user
+        -CharField title
+        -TextField content
+        -IntegerField mood_before
+        -IntegerField mood_after
+        -JSONField tags
+        -BooleanField is_private
+        +analyze_sentiment() Dict
+        +extract_keywords() List
+    }
+    
+    class HealthMetric {
+        -ForeignKey patient
+        -CharField metric_type
+        -FloatField value
+        -CharField unit
+        -DateTimeField recorded_at
+        +get_trend() String
+        +is_normal_range() Boolean
+    }
+
+    %% Messaging Layer
+    class BaseConversation {
+        <<abstract>>
+        -ManyToManyField participants
+        -DateTimeField created_at
+        -BooleanField is_active
+        -DateTimeField last_activity
+        -BooleanField archived
+        +archive() void
+        +unarchive() void
+        +clean() void
+    }
+    
+    class BaseMessage {
+        <<abstract>>
+        -ForeignKey sender
+        -TextField content
+        -DateTimeField timestamp
+        -BooleanField is_read
+        -CharField message_type
+        -DateTimeField edited_at
+        +mark_as_read() void
+        +edit_message() void
+        +delete_message() void
+    }
+    
+    class OneToOneConversation {
+        -ForeignKey user1
+        -ForeignKey user2
+        +get_other_participant() CustomUser
+        +send_message() OneToOneMessage
+    }
+    
+    class GroupConversation {
+        -CharField name
+        -TextField description
+        -ForeignKey admin
+        -IntegerField max_participants
+        +add_participant() void
+        +remove_participant() void
+        +change_admin() void
+    }
+    
+    class OneToOneMessage {
+        -ForeignKey conversation
+        -ForeignKey reply_to
+        +get_conversation_context() List
+    }
+    
+    class GroupMessage {
+        -ForeignKey conversation
+        -ManyToManyField mentions
+        +mention_user() void
+        +get_mentions() List
+    }
+
+    %% AI Services Layer
+    class ChatbotService {
+        -List SENSITIVE_CONTENT_CATEGORIES
+        -String SYSTEM_TEMPLATE
+        -String FEW_SHOT_EXAMPLES
+        +process_message() Dict
+        +generate_response() String
+        +analyze_sentiment() Dict
+        +detect_crisis() Boolean
+        +humanize_response() String
+    }
+    
+    class AIAnalysisService {
+        -String base_url
+        -String default_model
+        -Integer batch_size
+        -Float risk_threshold
+        +initialize() Boolean
+        +analyze_user_data() Dict
+        +generate_insights() List
+        +assess_risk_level() Float
+        +create_recommendations() List
+    }
+    
+    class ConversationSummaryService {
+        +summarize_conversation() String
+        +extract_key_topics() List
+        +identify_concerns() List
+    }
+    
+    class CrisisMonitoringService {
+        +monitor_content() Dict
+        +assess_crisis_level() Integer
+        +trigger_alerts() void
+        +escalate_to_human() void
+    }
+    
+    class TherapyRAGService {
+        +search_knowledge_base() List
+        +get_relevant_techniques() List
+        +suggest_interventions() List
+    }
+
+    %% Notification Services
+    class UnifiedNotificationService {
+        -Dict type_cache
+        -Integer cache_timeout
+        +get_or_create_notification_type() NotificationType
+        +send_notification() void
+        +send_realtime_notification() void
+        +get_user_preferences() UserPreferences
+    }
+    
+    class Notification {
+        -ForeignKey recipient
+        -ForeignKey notification_type
+        -CharField title
+        -TextField message
+        -BooleanField is_read
+        -CharField priority
+        -JSONField data
+        +mark_as_read() void
+        +send_push_notification() void
+    }
+    
+    class NotificationType {
+        -CharField name
+        -TextField description
+        -BooleanField default_enabled
+        -BooleanField is_global
+        +get_enabled_users() QuerySet
+    }
+
+    %% Media & Files
+    class MediaFile {
+        -FileField file
+        -CharField file_type
+        -BigIntegerField file_size
+        -ForeignKey uploaded_by
+        -ForeignKey content_type
+        -PositiveIntegerField object_id
+        -GenericForeignKey content_object
+        +get_file_url() String
+        +validate_file_type() Boolean
+        +compress_image() void
+    }
+
+    %% Core Utilities
+    class RequestMiddleware {
+        +process_request() void
+        +process_response() Response
+        +process_exception() void
+    }
+    
+    class UnifiedWebSocketAuthMiddleware {
+        +authenticate_by_token() CustomUser
+        +authenticate_by_session() CustomUser
+        +__call__() void
+    }
+    
+    class PatientProfileFilter {
+        +filter_condition() QuerySet
+        +filter_by_blood_type() QuerySet
+    }
+
+    %% Inheritance Relationships
+    BaseProfile <|-- PatientProfile
+    BaseProfile <|-- TherapistProfile
+    BaseConversation <|-- OneToOneConversation
+    BaseConversation <|-- GroupConversation
+    BaseMessage <|-- OneToOneMessage
+    BaseMessage <|-- GroupMessage
+
+    %% Composition Relationships
+    CustomUser ||--|| UserPreferences : "has"
+    CustomUser ||--|| UserSettings : "has"
+    CustomUser ||--o| PatientProfile : "extends"
+    CustomUser ||--o| TherapistProfile : "extends"
+
+    %% Associations
+    PatientProfile ||--o{ Appointment : "books"
+    TherapistProfile ||--o{ Appointment : "provides"
+    PatientProfile ||--o{ MoodLog : "logs"
+    PatientProfile ||--o{ JournalEntry : "writes"
+    PatientProfile ||--o{ HealthMetric : "tracks"
+
+    OneToOneConversation ||--o{ OneToOneMessage : "contains"
+    GroupConversation ||--o{ GroupMessage : "contains"
+
+    CustomUser ||--o{ Notification : "receives"
+    NotificationType ||--o{ Notification : "categorizes"
+
+    %% Service Dependencies
+    ChatbotService ..> AIAnalysisService : "uses"
+    ChatbotService ..> CrisisMonitoringService : "uses"
+    ChatbotService ..> TherapyRAGService : "uses"
+    UnifiedNotificationService ..> NotificationType : "manages"
+    AIAnalysisService ..> MoodLog : "analyzes"
+    AIAnalysisService ..> JournalEntry : "processes"
+
+    %% Serializer Dependencies
+    CustomUserSerializer ..> CustomUser : "serializes"
+    PatientProfileSerializer ..> PatientProfile : "serializes"
+    TherapistProfileSerializer ..> TherapistProfile : "serializes"
+
+    %% View Dependencies
+    CustomUserViewSet ..> CustomUserSerializer : "uses"
+    PatientProfileViewSet ..> PatientProfileSerializer : "uses"
+    TherapistProfileViewSet ..> TherapistProfileSerializer : "uses"

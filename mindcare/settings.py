@@ -28,6 +28,7 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
+    "10.0.2.2",  # Android emulator special IP
     *os.getenv("ALLOWED_HOSTS", "").split(","),
 ]
 
@@ -360,6 +361,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
@@ -370,10 +374,6 @@ REST_FRAMEWORK = {
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
-    "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
-        "rest_framework.renderers.BrowsableAPIRenderer",
-    ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
         "rest_framework.parsers.FormParser",
@@ -405,6 +405,26 @@ SPECTACULAR_SETTINGS = {
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
+# CSRF Configuration for API access
+CSRF_COOKIE_SECURE = not DEBUG  # Use secure cookies in production
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access to CSRF cookie
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_NAME = 'csrftoken'
+
+# CSRF trusted origins - add your frontend domains
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8082",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://localhost:19006",
+    "http://127.0.0.1:19006",
+    "http://127.0.0.1:3000",
+    "http://10.0.2.2:8000",
+    "http://10.0.2.2:3000",
+    "http://10.0.2.2:19006",
+]
+
 # Allow your React Native/Web app
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8082",
@@ -413,7 +433,13 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",  # React Native Expo default
     "http://127.0.0.1:19006",
     "http://127.0.0.1:3000",
+    "http://10.0.2.2:8000",     # Android Emulator - points to host's localhost
+    "http://10.0.2.2:3000",     # Android Emulator - for other ports
+    "http://10.0.2.2:19006",    # Android Emulator - for Expo
 ]
+
+# Also consider adding this for Android emulators
+CORS_ALLOW_ALL_ORIGINS = True  # Use temporarily for debugging
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
@@ -440,6 +466,11 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+]
+
+# CORS CSRF settings
+CORS_EXPOSE_HEADERS = [
+    "X-CSRFToken",
 ]
 
 # WebSocket Configuration - Updated for better stability

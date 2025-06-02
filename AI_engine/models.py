@@ -74,25 +74,24 @@ class AIInsight(models.Model):
 
 
 class TherapyRecommendation(models.Model):
-    """AI-generated therapy recommendations"""
+    """Model for storing AI-generated therapy recommendations"""
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    RECOMMENDATION_TYPES = [
+        ("activity_suggestion", "Activity Suggestion"),
+        ("coping_strategy", "Coping Strategy"),
+        ("intervention", "Intervention"),
+        ("referral", "Referral"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="therapy_recommendations"
+    )
+    recommendation_type = models.CharField(max_length=50, choices=RECOMMENDATION_TYPES)
+    recommendation_data = models.JSONField()
+    context_data = models.JSONField(default=dict)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    recommendation_type = models.CharField(
-        max_length=50,
-        choices=[
-            ("coping_strategy", "Coping Strategy"),
-            ("activity_suggestion", "Activity Suggestion"),
-            ("resource_referral", "Resource Referral"),
-            ("intervention", "Intervention"),
-        ],
-    )
-    recommendation_data = models.JSONField(help_text="Structured recommendation data")
-    context_data = models.JSONField(
-        help_text="Context that triggered this recommendation"
-    )
-    is_implemented = models.BooleanField(default=False)
-    effectiveness_rating = models.IntegerField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -100,6 +99,9 @@ class TherapyRecommendation(models.Model):
             models.Index(fields=["user", "-created_at"]),
             models.Index(fields=["recommendation_type"]),
         ]
+
+    def __str__(self):
+        return f"{self.recommendation_type} for {self.user.username}"
 
 
 class SocialInteractionAnalysis(models.Model):

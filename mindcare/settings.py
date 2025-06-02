@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.google",
     "rest_framework",
     "rest_framework.authtoken",
+    "django_extensions",
     # Custom apps
     "core",
     "auth",
@@ -67,6 +68,7 @@ INSTALLED_APPS = [
     "patient",
     "feeds",
     "appointments",  # Added appointments app
+    "datawarehouse",  # Added datawarehouse app
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_filters",
@@ -413,10 +415,17 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",  # React Native Expo default
     "http://127.0.0.1:19006",
     "http://127.0.0.1:3000",
+    "http://10.0.2.2:8000",    # Android emulator accessing Django
+    "http://10.0.2.2:8081",    # React Native Metro bundler on Android emulator
+    "http://localhost:8081",   # React Native Metro bundler
+    "http://127.0.0.1:8081",   # React Native Metro bundler alternative
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+    r"^http://10\.0\.2\.2:\d+$",  # Android emulator IP range
+    r"^http://192\.168\.\d+\.\d+:\d+$",  # Local network range
 ]
 
 # Allow WebSocket connections

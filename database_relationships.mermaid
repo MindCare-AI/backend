@@ -1,0 +1,367 @@
+erDiagram
+    %% Core User Management
+    CustomUser {
+        int id PK
+        string username
+        string email UK
+        string user_type "patient|therapist"
+        string phone_number
+        date date_of_birth
+        boolean crisis_alert_enabled
+        boolean passcode_enabled
+        boolean is_online
+        datetime last_seen
+        datetime created_at
+        datetime updated_at
+    }
+
+    PatientProfile {
+        int id PK
+        int user_id FK
+        json emergency_contact
+        string blood_type
+        string gender
+        string profile_pic
+        datetime created_at
+        datetime updated_at
+    }
+
+    TherapistProfile {
+        int id PK
+        int user_id FK
+        text bio
+        json specializations
+        json education
+        json experience
+        int years_of_experience
+        string license_number UK
+        date license_expiry
+        json available_days
+        decimal hourly_rate
+        boolean is_verified
+        string verification_status
+        float rating
+        int total_ratings
+        int total_sessions
+        json languages
+        json therapy_types
+        string profile_picture
+    }
+
+    %% Appointments
+    Appointment {
+        int id PK
+        string appointment_id UK
+        int patient_id FK
+        int therapist_id FK
+        datetime appointment_date
+        duration duration
+        string status
+        text notes
+        string video_session_link
+        int cancelled_by_id FK
+        text cancellation_reason
+        datetime original_date
+        int reschedule_count
+        int rescheduled_by_id FK
+        json ai_recommendations
+        int pain_level
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% Messaging - One-to-One
+    OneToOneConversation {
+        int id PK
+        datetime created_at
+        boolean is_active
+        datetime last_activity
+        boolean archived
+        datetime archive_date
+    }
+
+    OneToOneMessage {
+        int id PK
+        int conversation_id FK
+        int sender_id FK
+        text content
+        datetime timestamp
+        json reactions
+        boolean edited
+        datetime edited_at
+        int edited_by_id FK
+        boolean deleted
+        string message_type
+        json metadata
+        json edit_history
+        string media
+    }
+
+    %% Messaging - Group
+    GroupConversation {
+        int id PK
+        string name
+        text description
+        boolean is_private
+        datetime created_at
+        datetime last_activity
+        boolean archived
+    }
+
+    GroupMessage {
+        int id PK
+        int conversation_id FK
+        int sender_id FK
+        text content
+        datetime timestamp
+        json reactions
+        string message_type
+        string media
+    }
+
+    %% Chatbot System
+    ChatbotConversation {
+        int id PK
+        int user_id FK
+        string title
+        datetime created_at
+        datetime last_activity
+        boolean is_active
+        json metadata
+    }
+
+    ChatMessage {
+        int id PK
+        int conversation_id FK
+        text content
+        boolean is_bot
+        datetime timestamp
+        string message_type
+        int sender_id FK
+        int parent_message_id FK
+        json metadata
+    }
+
+    %% Journal & Mood Tracking
+    JournalCategory {
+        int id PK
+        string name
+        int user_id FK
+        string color
+        string icon
+        datetime created_at
+        datetime updated_at
+    }
+
+    JournalEntry {
+        int id PK
+        string title
+        text content
+        int user_id FK
+        int category_id FK
+        date date
+        string mood
+        string weather
+        string activities
+        boolean is_private
+        boolean shared_with_therapist
+        datetime created_at
+        datetime updated_at
+    }
+
+    MoodLog {
+        int id PK
+        int user_id FK
+        int mood_rating "1-10"
+        int energy_level "1-5"
+        string activities
+        text notes
+        int journal_entry_id FK
+        datetime logged_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% Health Records
+    HealthMetric {
+        int id PK
+        int patient_id FK
+        string metric_type
+        string value
+        datetime timestamp
+    }
+
+    MedicalHistoryEntry {
+        int id PK
+        int patient_id FK
+        string title
+        text description
+        date date_occurred
+        boolean is_chronic
+    }
+
+    SessionNote {
+        int id PK
+        int therapist_id FK
+        int patient_id FK
+        int appointment_id FK
+        text notes
+        date session_date
+        datetime timestamp
+        datetime updated_at
+    }
+
+    %% Social Features
+    Post {
+        int id PK
+        int author_id FK
+        text content
+        string post_type
+        string topics
+        string visibility
+        datetime created_at
+        datetime updated_at
+    }
+
+    Reaction {
+        int id PK
+        int user_id FK
+        string reaction_type
+        int content_type_id FK
+        int object_id
+        datetime created_at
+    }
+
+    Topic {
+        int id PK
+        string name
+        text description
+        int created_by_id FK
+        string icon
+        string color
+        boolean is_active
+        datetime created_at
+    }
+
+    %% Notifications
+    NotificationType {
+        int id PK
+        string name UK
+        text description
+        boolean default_enabled
+        boolean is_global
+        datetime created_at
+    }
+
+    Notification {
+        int id PK
+        int user_id FK
+        int notification_type_id FK
+        string title
+        text message
+        boolean read
+        string priority
+        json metadata
+        int content_type_id FK
+        string object_id
+        datetime created_at
+    }
+
+    %% Media Management
+    MediaFile {
+        int id PK
+        string file
+        string media_type
+        string title
+        text description
+        int uploaded_by_id FK
+        bigint file_size
+        string mime_type
+        int content_type_id FK
+        int object_id
+        datetime uploaded_at
+    }
+
+    %% AI Analytics
+    UserAnalysis {
+        int id PK
+        int user_id FK
+        date analysis_date
+        float mood_score "-1 to 1"
+        float sentiment_score "-1 to 1"
+        json dominant_emotions
+        json topics_of_concern
+        json suggested_activities
+        json risk_factors
+        json improvement_metrics
+    }
+
+    AIInsight {
+        int id PK
+        int user_id FK
+        string insight_type
+        json insight_data
+        string priority
+        boolean is_addressed
+        datetime created_at
+    }
+
+    TherapyRecommendation {
+        int id PK
+        int user_id FK
+        string recommendation_type
+        json recommendation_data
+        json context_data
+        boolean is_implemented
+        int effectiveness_rating
+        datetime created_at
+    }
+
+    %% Relationships
+    CustomUser ||--|| PatientProfile : "has patient profile"
+    CustomUser ||--|| TherapistProfile : "has therapist profile"
+    
+    PatientProfile ||--o{ Appointment : "patient appointments"
+    TherapistProfile ||--o{ Appointment : "therapist appointments"
+    CustomUser ||--o{ Appointment : "cancelled by"
+    CustomUser ||--o{ Appointment : "rescheduled by"
+    
+    CustomUser ||--o{ OneToOneMessage : "sends messages"
+    OneToOneConversation ||--o{ OneToOneMessage : "contains messages"
+    CustomUser }|--|| OneToOneConversation : "participates in"
+    
+    CustomUser ||--o{ GroupMessage : "sends group messages"
+    GroupConversation ||--o{ GroupMessage : "contains group messages"
+    CustomUser }|--|| GroupConversation : "participates in groups"
+    CustomUser }|--|| GroupConversation : "moderates groups"
+    
+    CustomUser ||--o{ ChatbotConversation : "owns AI chats"
+    CustomUser }|--|| ChatbotConversation : "participates in AI chats"
+    ChatbotConversation ||--o{ ChatMessage : "contains AI messages"
+    CustomUser ||--o{ ChatMessage : "sends AI messages"
+    ChatMessage ||--o{ ChatMessage : "responds to"
+    
+    CustomUser ||--o{ JournalCategory : "creates categories"
+    CustomUser ||--o{ JournalEntry : "writes entries"
+    JournalCategory ||--o{ JournalEntry : "categorizes"
+    JournalEntry ||--|| MoodLog : "linked mood"
+    
+    PatientProfile ||--o{ HealthMetric : "tracks metrics"
+    PatientProfile ||--o{ MedicalHistoryEntry : "medical history"
+    
+    CustomUser ||--o{ SessionNote : "therapist creates"
+    CustomUser ||--o{ SessionNote : "patient receives"
+    Appointment ||--|| SessionNote : "session notes"
+    
+    CustomUser ||--o{ Post : "authors posts"
+    CustomUser ||--o{ Reaction : "reacts to content"
+    CustomUser ||--o{ Topic : "creates topics"
+    
+    CustomUser ||--o{ Notification : "receives notifications"
+    NotificationType ||--o{ Notification : "notification type"
+    
+    CustomUser ||--o{ MediaFile : "uploads media"
+    
+    CustomUser ||--o{ UserAnalysis : "AI analysis"
+    CustomUser ||--o{ AIInsight : "AI insights"
+    CustomUser ||--o{ TherapyRecommendation : "AI recommendations"

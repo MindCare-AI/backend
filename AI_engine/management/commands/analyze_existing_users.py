@@ -1,9 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.db.models import Count
 from AI_engine.services.ai_analysis import ai_service
-from mood.models import MoodLog
-from journal.models import JournalEntry
+from AI_engine.services.data_interface import ai_data_interface
 import logging
 import os
 
@@ -56,16 +54,23 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(f"User with ID {user_id} not found"))
                 return
         else:
-            # Find all users with mood logs and journal entries - use correct field names
-            users_with_data = User.objects.annotate(
-                mood_count=Count("mood_logs"),  # Changed from 'moodlog' to 'mood_logs'
-                journal_count=Count(
-                    "journal_entries"
-                ),  # Changed from 'journalentry' to 'journal_entries'
-            ).filter(mood_count__gt=0, journal_count__gt=0)
+            # Find all users with sufficient data using AI data interface
+            all_users = User.objects.all()
+            users_with_data = []
+            
+            self.stdout.write("Checking users for sufficient data...")
+            
+            for user in all_users:
+                # Use AI data interface to check data availability
+                dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
+                quality_metrics = dataset.get('quality_metrics', {})
+                
+                # Check if user has sufficient data for analysis
+                if quality_metrics.get('overall_quality', 0.0) > 0.1:
+                    users_with_data.append(user)
 
             self.stdout.write(
-                f"Found {users_with_data.count()} users with mood logs and journal entries"
+                f"Found {len(users_with_data)} users with sufficient data for analysis"
             )
 
             if kwargs.get("concurrent"):
@@ -104,16 +109,32 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Analysis completed successfully"))
 
     def analyze_user(self, user, days, dry_run=False):
-        """Analyze a specific user with enhanced logging and dry-run support"""
+        """Analyze a specific user using AI data interface with enhanced logging and dry-run support"""
         try:
-            # Check if user has recent data
-            mood_count = MoodLog.objects.filter(user=user).count()
-            journal_count = JournalEntry.objects.filter(user=user).count()
+            # Use AI data interface to get user data summary
+            dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
+            quality_metrics = dataset.get('quality_metrics', {})
+            data_sources = dataset.get('data_sources', [])
+            
+            # Extract data counts from dataset for logging
+            mood_data = dataset.get('mood_data', [])
+            journal_data = dataset.get('journal_data', [])
+            mood_count = len(mood_data)
+            journal_count = len(journal_data)
 
             self.stdout.write(
                 f"Analyzing user {user.username} (ID: {user.id}) - "
-                f"Moods: {mood_count}, Journals: {journal_count}"
+                f"Moods: {mood_count}, Journals: {journal_count}, "
+                f"Data Quality: {quality_metrics.get('overall_quality', 0.0):.2f}, "
+                f"Sources: {', '.join(data_sources)}"
             )
+
+            # Check if user has sufficient data
+            if quality_metrics.get('overall_quality', 0.0) < 0.1:
+                self.stdout.write(
+                    self.style.WARNING(f"⚠ Insufficient data quality for {user.username}")
+                )
+                return
 
             # Run the analysis with dry run option
             if dry_run:
@@ -137,7 +158,8 @@ class Command(BaseCommand):
                     self.style.SUCCESS(
                         f"✓ Analysis completed for {user.username} - "
                         f"Mood Score: {result.get('mood_score', 'N/A')}, "
-                        f"Recommendations: {result.get('recommendations_created', 0)}"
+                        f"Recommendations: {result.get('recommendations_created', 0)}, "
+                        f"Data Integration Score: {quality_metrics.get('completeness', 0.0):.2f}"
                     )
                 )
             else:

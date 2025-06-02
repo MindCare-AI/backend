@@ -1,0 +1,568 @@
+@startuml MindCare-IA_Global_Use_Case_Diagram
+!theme plain
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #F8F9FA
+    BorderColor #6C757D
+    FontName "Arial"
+    FontSize 10
+}
+
+title MindCare-IA Platform - Comprehensive Use Case Diagram
+
+left to right direction
+
+' ========== ACTORS ==========
+:Patient: as Patient
+:Therapist: as Therapist  
+:Admin: as Admin
+:AI Engine: as AI_Engine
+:Chatbot: as Chatbot
+:Notification System: as NotificationSystem
+:Media Handler: as MediaHandler
+:Analytics Engine: as AnalyticsEngine
+
+' ========== SYSTEM BOUNDARY ==========
+rectangle "MindCare-IA Platform" {
+
+    ' ========== USER MANAGEMENT & AUTHENTICATION ==========
+    package "User Management & Authentication" {
+        (Register Account) as UC001
+        (Login with Email) as UC002
+        (Login with Google OAuth) as UC003
+        (Verify Email) as UC004
+        (Reset Password) as UC005
+        (Resend Verification Email) as UC006
+        (Manage User Profile) as UC007
+        (Update Profile Information) as UC008
+        (Upload Profile Picture) as UC009
+        (Manage Privacy Settings) as UC010
+        (Manage User Preferences) as UC011
+        (Update User Settings) as UC012
+        (Logout) as UC013
+    }
+
+    ' ========== MOOD TRACKING ==========
+    package "Mood Tracking & Monitoring" {
+        (Log Daily Mood) as UC014
+        (Track Energy Level) as UC015
+        (Record Mood Activities) as UC016
+        (Add Mood Notes) as UC017
+        (View Mood History) as UC018
+        (Filter Mood Logs) as UC019
+        (Search Mood Entries) as UC020
+        (Export Mood Data) as UC021
+        (Bulk Create Mood Logs) as UC022
+        (Generate Mood Analytics) as UC023
+        (View Mood Trends) as UC024
+        (Calculate Mood Statistics) as UC025
+        (Connect Mood to Journal) as UC026
+    }
+
+    ' ========== JOURNAL SYSTEM ==========
+    package "Journal & Emotional Writing" {
+        (Create Journal Entry) as UC027
+        (Edit Journal Entry) as UC028
+        (Delete Journal Entry) as UC029
+        (View Journal History) as UC030
+        (Search Journal Entries) as UC031
+        (Filter by Date Range) as UC032
+        (Categorize Journal Entries) as UC033
+        (Create Journal Categories) as UC034
+        (Manage Categories) as UC035
+        (Share Journal with Therapist) as UC036
+        (Set Journal Privacy) as UC037
+        (Add Mood to Journal) as UC038
+        (Track Writing Progress) as UC039
+        (View Journal Statistics) as UC040
+    }
+
+    ' ========== AI CHATBOT ==========
+    package "AI Therapy Chatbot" {
+        (Start Chatbot Conversation) as UC041
+        (Send Message to Chatbot) as UC042
+        (Receive AI Response) as UC043
+        (View Conversation History) as UC044
+        (Update Conversation Metadata) as UC045
+        (Filter Conversations) as UC046
+        (Generate Therapeutic Recommendations) as UC047
+        (Detect Crisis Situations) as UC048
+        (Provide Coping Strategies) as UC049
+        (Analyze Conversation Sentiment) as UC050
+        (Store Conversation Context) as UC051
+    }
+
+    ' ========== APPOINTMENTS ==========
+    package "Appointment Management" {
+        (Schedule Appointment) as UC052
+        (View Available Time Slots) as UC053
+        (Confirm Appointment) as UC054
+        (Reschedule Appointment) as UC055
+        (Cancel Appointment) as UC056
+        (View Appointment History) as UC057
+        (Set Appointment Reminders) as UC058
+        (Create Session Notes) as UC059
+        (View Session Notes) as UC060
+        (Update Session Notes) as UC061
+        (Track Pain Level) as UC062
+        (Manage Therapist Availability) as UC063
+        (Generate Video Session Link) as UC064
+    }
+
+    ' ========== MESSAGING ==========
+    package "Secure Messaging" {
+        (Send One-to-One Message) as UC065
+        (Send Group Message) as UC066
+        (Receive Message) as UC067
+        (Edit Message) as UC068
+        (Delete Message) as UC069
+        (View Message History) as UC070
+        (Search Messages) as UC071
+        (Mark Message as Read) as UC072
+        (Send Read Receipt) as UC073
+        (Show Typing Indicator) as UC074
+        (Add Message Reaction) as UC075
+        (Share Media in Message) as UC076
+        (View Edit History) as UC077
+        (Handle Offline Messages) as UC078
+        (Sync Message Queue) as UC079
+    }
+
+    ' ========== NOTIFICATIONS ==========
+    package "Notification System" {
+        (Send In-App Notification) as UC080
+        (Send Email Notification) as UC081
+        (Send Push Notification) as UC082
+        (View Notifications) as UC083
+        (Mark Notification as Read) as UC084
+        (Mark All Notifications Read) as UC085
+        (Delete Notification) as UC086
+        (Bulk Delete Notifications) as UC087
+        (Get Notification Count) as UC088
+        (Filter Notifications) as UC089
+        (Manage Notification Preferences) as UC090
+        (Send Appointment Reminders) as UC091
+        (Send Crisis Alerts) as UC092
+        (Send System Alerts) as UC093
+    }
+
+    ' ========== FEEDS & SOCIAL ==========
+    package "Social Feeds & Community" {
+        (Create Post) as UC094
+        (Edit Post) as UC095
+        (Delete Post) as UC096
+        (View Posts Feed) as UC097
+        (Filter Posts) as UC098
+        (Search Posts) as UC099
+        (React to Post) as UC100
+        (Remove Reaction) as UC101
+        (Comment on Post) as UC102
+        (Reply to Comment) as UC103
+        (React to Comment) as UC104
+        (View Post Comments) as UC105
+        (Share Post) as UC106
+        (Report Post) as UC107
+        (Create Topic) as UC108
+        (Upload Media to Post) as UC109
+        (View Post Analytics) as UC110
+    }
+
+    ' ========== MEDIA MANAGEMENT ==========
+    package "Media Management" {
+        (Upload Media File) as UC111
+        (View Media File) as UC112
+        (Download Media File) as UC113
+        (Delete Media File) as UC114
+        (Filter Media by Type) as UC115
+        (Manage Media Permissions) as UC116
+        (Optimize Media Storage) as UC117
+        (Generate Media Thumbnails) as UC118
+        (Validate Media Format) as UC119
+        (Track Media Usage) as UC120
+    }
+
+    ' ========== PATIENT PROFILE ==========
+    package "Patient Health Management" {
+        (Create Patient Profile) as UC121
+        (Update Patient Profile) as UC122
+        (View Patient Profile) as UC123
+        (Add Medical History) as UC124
+        (Update Medical History) as UC125
+        (View Medical History) as UC126
+        (Track Current Medications) as UC127
+        (Record Health Metrics) as UC128
+        (View Health Progress) as UC129
+        (Set Health Goals) as UC130
+        (Track Goal Progress) as UC131
+        (Generate Health Reports) as UC132
+    }
+
+    ' ========== THERAPIST PROFILE ==========
+    package "Therapist Profile Management" {
+        (Create Therapist Profile) as UC133
+        (Update Therapist Profile) as UC134
+        (Verify Credentials) as UC135
+        (Manage Specializations) as UC136
+        (Set Treatment Approaches) as UC137
+        (Update Experience) as UC138
+        (Manage Languages) as UC139
+        (Set Availability) as UC140
+        (View Public Profile) as UC141
+        (Update License Information) as UC142
+    }
+
+    ' ========== AI ANALYSIS ==========
+    package "AI Analysis & Insights" {
+        (Analyze User Data) as UC143
+        (Generate Mood Predictions) as UC144
+        (Detect Mood Patterns) as UC145
+        (Predict Crisis Risk) as UC146
+        (Analyze Journal Sentiment) as UC147
+        (Generate Therapeutic Tips) as UC148
+        (Create AI Insights) as UC149
+        (Monitor User Engagement) as UC150
+        (Analyze Social Interactions) as UC151
+        (Generate Progress Reports) as UC152
+        (Predict Therapy Outcomes) as UC153
+        (Log Crisis Events) as UC154
+        (Trigger Interventions) as UC155
+    }
+
+    ' ========== ANALYTICS & REPORTING ==========
+    package "Analytics & Reporting" {
+        (Generate User Analytics) as UC156
+        (Create Dashboard Reports) as UC157
+        (Export Data Reports) as UC158
+        (Track System Performance) as UC159
+        (Monitor User Engagement) as UC160
+        (Analyze Usage Patterns) as UC161
+        (Generate Clinical Reports) as UC162
+        (Create Custom Reports) as UC163
+        (Schedule Report Generation) as UC164
+        (Share Reports with Healthcare Providers) as UC165
+    }
+
+    ' ========== ADMIN FUNCTIONS ==========
+    package "Administrative Functions" {
+        (Manage User Accounts) as UC166
+        (View System Statistics) as UC167
+        (Configure System Settings) as UC168
+        (Manage Notification Types) as UC169
+        (Monitor System Health) as UC170
+        (Manage Content Moderation) as UC171
+        (Handle Crisis Interventions) as UC172
+        (Manage Data Backups) as UC173
+        (Configure Security Settings) as UC174
+        (Audit System Logs) as UC175
+    }
+}
+
+' ========== USER RELATIONSHIPS ==========
+Patient --> UC001 : registers
+Patient --> UC002 : authenticates
+Patient --> UC003 : OAuth login
+Patient --> UC004 : verifies email
+Patient --> UC005 : resets password
+Patient --> UC006 : resends verification
+Patient --> UC007 : manages profile
+Patient --> UC008 : updates info
+Patient --> UC009 : uploads picture
+Patient --> UC010 : sets privacy
+Patient --> UC011 : manages preferences
+Patient --> UC012 : updates settings
+Patient --> UC013 : logs out
+
+Patient --> UC014 : logs mood
+Patient --> UC015 : tracks energy
+Patient --> UC016 : records activities
+Patient --> UC017 : adds notes
+Patient --> UC018 : views history
+Patient --> UC019 : filters logs
+Patient --> UC020 : searches entries
+Patient --> UC021 : exports data
+Patient --> UC022 : bulk creates
+Patient --> UC023 : views analytics
+Patient --> UC024 : checks trends
+Patient --> UC025 : views statistics
+Patient --> UC026 : connects to journal
+
+Patient --> UC027 : creates entry
+Patient --> UC028 : edits entry
+Patient --> UC029 : deletes entry
+Patient --> UC030 : views history
+Patient --> UC031 : searches entries
+Patient --> UC032 : filters by date
+Patient --> UC033 : categorizes entries
+Patient --> UC034 : creates categories
+Patient --> UC035 : manages categories
+Patient --> UC036 : shares with therapist
+Patient --> UC037 : sets privacy
+Patient --> UC038 : adds mood
+Patient --> UC039 : tracks progress
+Patient --> UC040 : views statistics
+
+Patient --> UC041 : starts conversation
+Patient --> UC042 : sends message
+Patient --> UC043 : receives response
+Patient --> UC044 : views history
+Patient --> UC045 : updates metadata
+Patient --> UC046 : filters conversations
+
+Patient --> UC052 : schedules appointment
+Patient --> UC053 : views time slots
+Patient --> UC054 : confirms appointment
+Patient --> UC055 : reschedules appointment
+Patient --> UC056 : cancels appointment
+Patient --> UC057 : views history
+Patient --> UC058 : sets reminders
+Patient --> UC062 : tracks pain level
+
+Patient --> UC065 : sends message
+Patient --> UC066 : sends group message
+Patient --> UC067 : receives message
+Patient --> UC068 : edits message
+Patient --> UC069 : deletes message
+Patient --> UC070 : views history
+Patient --> UC071 : searches messages
+Patient --> UC072 : marks as read
+Patient --> UC073 : sends receipt
+Patient --> UC074 : shows typing
+Patient --> UC075 : adds reaction
+Patient --> UC076 : shares media
+Patient --> UC077 : views edit history
+Patient --> UC078 : handles offline
+Patient --> UC079 : syncs queue
+
+Patient --> UC083 : views notifications
+Patient --> UC084 : marks as read
+Patient --> UC085 : marks all read
+Patient --> UC086 : deletes notification
+Patient --> UC087 : bulk deletes
+Patient --> UC088 : gets count
+Patient --> UC089 : filters notifications
+Patient --> UC090 : manages preferences
+
+Patient --> UC094 : creates post
+Patient --> UC095 : edits post
+Patient --> UC096 : deletes post
+Patient --> UC097 : views feed
+Patient --> UC098 : filters posts
+Patient --> UC099 : searches posts
+Patient --> UC100 : reacts to post
+Patient --> UC101 : removes reaction
+Patient --> UC102 : comments on post
+Patient --> UC103 : replies to comment
+Patient --> UC104 : reacts to comment
+Patient --> UC105 : views comments
+Patient --> UC106 : shares post
+Patient --> UC107 : reports post
+Patient --> UC108 : creates topic
+Patient --> UC109 : uploads media
+Patient --> UC110 : views analytics
+
+Patient --> UC111 : uploads media
+Patient --> UC112 : views media
+Patient --> UC113 : downloads media
+Patient --> UC114 : deletes media
+Patient --> UC115 : filters media
+Patient --> UC116 : manages permissions
+
+Patient --> UC121 : creates profile
+Patient --> UC122 : updates profile
+Patient --> UC123 : views profile
+Patient --> UC124 : adds medical history
+Patient --> UC125 : updates medical history
+Patient --> UC126 : views medical history
+Patient --> UC127 : tracks medications
+Patient --> UC128 : records health metrics
+Patient --> UC129 : views health progress
+Patient --> UC130 : sets health goals
+Patient --> UC131 : tracks goal progress
+Patient --> UC132 : generates health reports
+
+' ========== THERAPIST RELATIONSHIPS ==========
+Therapist --> UC001 : registers
+Therapist --> UC002 : authenticates
+Therapist --> UC003 : OAuth login
+Therapist --> UC007 : manages profile
+Therapist --> UC008 : updates info
+Therapist --> UC009 : uploads picture
+Therapist --> UC010 : sets privacy
+Therapist --> UC011 : manages preferences
+Therapist --> UC012 : updates settings
+Therapist --> UC013 : logs out
+
+Therapist --> UC052 : manages appointments
+Therapist --> UC053 : sets availability
+Therapist --> UC054 : confirms appointment
+Therapist --> UC055 : reschedules appointment
+Therapist --> UC056 : cancels appointment
+Therapist --> UC057 : views history
+Therapist --> UC059 : creates session notes
+Therapist --> UC060 : views session notes
+Therapist --> UC061 : updates session notes
+Therapist --> UC063 : manages availability
+Therapist --> UC064 : generates video link
+
+Therapist --> UC065 : sends message
+Therapist --> UC066 : sends group message
+Therapist --> UC067 : receives message
+Therapist --> UC068 : edits message
+Therapist --> UC069 : deletes message
+Therapist --> UC070 : views history
+Therapist --> UC071 : searches messages
+Therapist --> UC072 : marks as read
+Therapist --> UC073 : sends receipt
+Therapist --> UC074 : shows typing
+Therapist --> UC075 : adds reaction
+Therapist --> UC076 : shares media
+
+Therapist --> UC083 : views notifications
+Therapist --> UC084 : marks as read
+Therapist --> UC085 : marks all read
+Therapist --> UC086 : deletes notification
+Therapist --> UC087 : bulk deletes
+Therapist --> UC088 : gets count
+Therapist --> UC089 : filters notifications
+Therapist --> UC090 : manages preferences
+
+Therapist --> UC094 : creates post
+Therapist --> UC095 : edits post
+Therapist --> UC096 : deletes post
+Therapist --> UC097 : views feed
+Therapist --> UC098 : filters posts
+Therapist --> UC099 : searches posts
+Therapist --> UC100 : reacts to post
+Therapist --> UC101 : removes reaction
+Therapist --> UC102 : comments on post
+Therapist --> UC103 : replies to comment
+Therapist --> UC104 : reacts to comment
+Therapist --> UC105 : views comments
+Therapist --> UC106 : shares post
+Therapist --> UC108 : creates topic
+Therapist --> UC109 : uploads media
+
+Therapist --> UC111 : uploads media
+Therapist --> UC112 : views media
+Therapist --> UC113 : downloads media
+Therapist --> UC114 : deletes media
+Therapist --> UC115 : filters media
+Therapist --> UC116 : manages permissions
+
+Therapist --> UC133 : creates profile
+Therapist --> UC134 : updates profile
+Therapist --> UC135 : verifies credentials
+Therapist --> UC136 : manages specializations
+Therapist --> UC137 : sets treatment approaches
+Therapist --> UC138 : updates experience
+Therapist --> UC139 : manages languages
+Therapist --> UC140 : sets availability
+Therapist --> UC141 : views public profile
+Therapist --> UC142 : updates license info
+
+Therapist --> UC156 : generates analytics
+Therapist --> UC157 : creates reports
+Therapist --> UC158 : exports data
+Therapist --> UC162 : generates clinical reports
+Therapist --> UC163 : creates custom reports
+Therapist --> UC165 : shares reports
+
+' ========== ADMIN RELATIONSHIPS ==========
+Admin --> UC002 : authenticates
+Admin --> UC007 : manages profile
+Admin --> UC013 : logs out
+
+Admin --> UC166 : manages user accounts
+Admin --> UC167 : views system statistics
+Admin --> UC168 : configures system settings
+Admin --> UC169 : manages notification types
+Admin --> UC170 : monitors system health
+Admin --> UC171 : manages content moderation
+Admin --> UC172 : handles crisis interventions
+Admin --> UC173 : manages data backups
+Admin --> UC174 : configures security settings
+Admin --> UC175 : audits system logs
+
+Admin --> UC156 : generates analytics
+Admin --> UC157 : creates reports
+Admin --> UC158 : exports data
+Admin --> UC159 : tracks performance
+Admin --> UC160 : monitors engagement
+Admin --> UC161 : analyzes usage patterns
+Admin --> UC162 : generates clinical reports
+Admin --> UC163 : creates custom reports
+Admin --> UC164 : schedules reports
+
+' ========== AI ENGINE RELATIONSHIPS ==========
+AI_Engine --> UC143 : analyzes user data
+AI_Engine --> UC144 : generates mood predictions
+AI_Engine --> UC145 : detects mood patterns
+AI_Engine --> UC146 : predicts crisis risk
+AI_Engine --> UC147 : analyzes journal sentiment
+AI_Engine --> UC148 : generates therapeutic tips
+AI_Engine --> UC149 : creates AI insights
+AI_Engine --> UC150 : monitors user engagement
+AI_Engine --> UC151 : analyzes social interactions
+AI_Engine --> UC152 : generates progress reports
+AI_Engine --> UC153 : predicts therapy outcomes
+AI_Engine --> UC154 : logs crisis events
+AI_Engine --> UC155 : triggers interventions
+
+' ========== CHATBOT RELATIONSHIPS ==========
+Chatbot --> UC042 : processes messages
+Chatbot --> UC043 : generates responses
+Chatbot --> UC047 : generates recommendations
+Chatbot --> UC048 : detects crisis situations
+Chatbot --> UC049 : provides coping strategies
+Chatbot --> UC050 : analyzes sentiment
+Chatbot --> UC051 : stores context
+
+' ========== NOTIFICATION SYSTEM RELATIONSHIPS ==========
+NotificationSystem --> UC080 : sends in-app notifications
+NotificationSystem --> UC081 : sends email notifications
+NotificationSystem --> UC082 : sends push notifications
+NotificationSystem --> UC091 : sends appointment reminders
+NotificationSystem --> UC092 : sends crisis alerts
+NotificationSystem --> UC093 : sends system alerts
+
+' ========== MEDIA HANDLER RELATIONSHIPS ==========
+MediaHandler --> UC111 : handles uploads
+MediaHandler --> UC112 : serves media files
+MediaHandler --> UC113 : handles downloads
+MediaHandler --> UC114 : manages deletion
+MediaHandler --> UC117 : optimizes storage
+MediaHandler --> UC118 : generates thumbnails
+MediaHandler --> UC119 : validates formats
+MediaHandler --> UC120 : tracks usage
+
+' ========== ANALYTICS ENGINE RELATIONSHIPS ==========
+AnalyticsEngine --> UC156 : generates user analytics
+AnalyticsEngine --> UC157 : creates dashboard reports
+AnalyticsEngine --> UC158 : exports data reports
+AnalyticsEngine --> UC159 : tracks system performance
+AnalyticsEngine --> UC160 : monitors user engagement
+AnalyticsEngine --> UC161 : analyzes usage patterns
+AnalyticsEngine --> UC162 : generates clinical reports
+AnalyticsEngine --> UC163 : creates custom reports
+AnalyticsEngine --> UC164 : schedules report generation
+
+' ========== INCLUDE RELATIONSHIPS ==========
+UC001 ..> UC004 : <<include>>
+UC002 ..> UC007 : <<include>>
+UC003 ..> UC007 : <<include>>
+UC014 ..> UC026 : <<include>>
+UC027 ..> UC033 : <<include>>
+UC036 ..> UC094 : <<include>>
+UC041 ..> UC048 : <<include>>
+UC042 ..> UC050 : <<include>>
+UC052 ..> UC058 : <<include>>
+UC065 ..> UC072 : <<include>>
+UC094 ..> UC109 : <<include>>
+UC100 ..> UC080 : <<include>>
+UC102 ..> UC080 : <<include>>
+UC121 ..> UC124 : <<include>>
+UC143 ..> UC149 : <<include>>
+UC146 ..> UC154 : <<include>>
+UC048 ..> UC092 : <<include>>
+
+@enduml

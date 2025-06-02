@@ -1,7 +1,6 @@
-from typing import Dict, List, Any, Optional
+#AI_engine/services/tips_service.py
+from typing import Dict, List, Any
 import logging
-import requests
-import json
 import numpy as np
 from django.conf import settings
 from django.utils import timezone
@@ -28,15 +27,27 @@ class TipsService:
         )
 
     def generate_mood_tips(self, user, days: int = 7, tip_count: int = 5) -> Dict[str, Any]:
-        """Generate personalized tips based on mood tracking data"""
+        """Generate personalized tips based on mood tracking data using AI data interface"""
         cache_key = f"mood_tips_{user.id}_{days}_{tip_count}"
         cached_result = cache.get(cache_key)
         if cached_result:
             return cached_result
 
         try:
-            # Collect mood data
-            mood_data = self._collect_mood_data(user, days)
+            # Import AI data interface service
+            from .data_interface import ai_data_interface
+            
+            # Get AI-ready dataset through data interface
+            dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
+            
+            # Check data quality and availability
+            quality_metrics = dataset.get('quality_metrics', {})
+            if quality_metrics.get('overall_quality', 0.0) < 0.1:
+                logger.warning(f"Insufficient data quality for user {user.id} mood tips: {quality_metrics}")
+                return self._create_default_mood_tips()
+
+            # Extract mood data from AI-ready dataset
+            mood_data = self._extract_mood_data_from_dataset(dataset)
             
             if not mood_data["mood_logs"]:
                 return self._create_default_mood_tips()
@@ -47,13 +58,20 @@ class TipsService:
             # Generate tips using AI
             tips = self._generate_ai_mood_tips(mood_analysis, tip_count)
             
-            # Format response
+            # Format response with datawarehouse integration metrics
             result = {
                 "tips": tips,
                 "mood_analysis": mood_analysis,
                 "analysis_period": f"{days} days",
                 "generated_at": timezone.now().isoformat(),
                 "tip_count": len(tips),
+                "data_integration": {
+                    "data_sources_used": dataset.get("data_sources", []),
+                    "data_quality_score": quality_metrics.get("overall_quality", 0.0),
+                    "completeness_score": quality_metrics.get("completeness", 0.0),
+                    "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
+                    "datawarehouse_version": dataset.get("processing_metadata", {}).get("processing_version", "unknown"),
+                }
             }
             
             # Cache the result
@@ -61,19 +79,31 @@ class TipsService:
             return result
 
         except Exception as e:
-            logger.error(f"Error generating mood tips: {str(e)}", exc_info=True)
+            logger.error(f"Error generating mood tips with AI data interface: {str(e)}", exc_info=True)
             return self._create_default_mood_tips()
 
     def generate_journaling_tips(self, user, days: int = 14, tip_count: int = 5) -> Dict[str, Any]:
-        """Generate personalized tips based on journal analysis"""
+        """Generate personalized tips based on journal analysis using AI data interface"""
         cache_key = f"journal_tips_{user.id}_{days}_{tip_count}"
         cached_result = cache.get(cache_key)
         if cached_result:
             return cached_result
 
         try:
-            # Collect journal data
-            journal_data = self._collect_journal_data(user, days)
+            # Import AI data interface service
+            from .data_interface import ai_data_interface
+            
+            # Get AI-ready dataset through data interface
+            dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
+            
+            # Check data quality and availability
+            quality_metrics = dataset.get('quality_metrics', {})
+            if quality_metrics.get('overall_quality', 0.0) < 0.1:
+                logger.warning(f"Insufficient data quality for user {user.id} journal tips: {quality_metrics}")
+                return self._create_default_journaling_tips()
+
+            # Extract journal data from AI-ready dataset
+            journal_data = self._extract_journal_data_from_dataset(dataset)
             
             if not journal_data["journal_entries"]:
                 return self._create_default_journaling_tips()
@@ -84,13 +114,20 @@ class TipsService:
             # Generate tips using AI
             tips = self._generate_ai_journal_tips(journal_analysis, tip_count)
             
-            # Format response
+            # Format response with datawarehouse integration metrics
             result = {
                 "tips": tips,
                 "journal_analysis": journal_analysis,
                 "analysis_period": f"{days} days",
                 "generated_at": timezone.now().isoformat(),
                 "tip_count": len(tips),
+                "data_integration": {
+                    "data_sources_used": dataset.get("data_sources", []),
+                    "data_quality_score": quality_metrics.get("overall_quality", 0.0),
+                    "completeness_score": quality_metrics.get("completeness", 0.0),
+                    "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
+                    "datawarehouse_version": dataset.get("processing_metadata", {}).get("processing_version", "unknown"),
+                }
             }
             
             # Cache the result
@@ -98,7 +135,7 @@ class TipsService:
             return result
 
         except Exception as e:
-            logger.error(f"Error generating journal tips: {str(e)}", exc_info=True)
+            logger.error(f"Error generating journal tips with AI data interface: {str(e)}", exc_info=True)
             return self._create_default_journaling_tips()
 
     def generate_combined_tips(self, user, days: int = 14, tip_count: int = 8) -> Dict[str, Any]:
@@ -142,6 +179,156 @@ class TipsService:
             logger.error(f"Error generating combined tips: {str(e)}", exc_info=True)
             return self._create_default_combined_tips()
 
+    def _extract_mood_data_from_dataset(self, dataset: Dict) -> Dict[str, Any]:
+        """Extract mood data from AI-ready dataset in format expected by existing analysis methods"""
+        try:
+            mood_analytics = dataset.get("mood_analytics", {})
+            
+            # Convert AI-ready format to expected format
+            mood_logs = []
+            daily_patterns = defaultdict(list)
+            weekly_patterns = defaultdict(list)
+            activity_patterns = defaultdict(list)
+            note_keywords = defaultdict(int)
+            
+            # Extract mood entries from analytics if available
+            if mood_analytics.get("mood_entries"):
+                for entry in mood_analytics["mood_entries"]:
+                    mood_entry = {
+                        "rating": entry.get("rating", entry.get("mood_rating", 5)),
+                        "activities": entry.get("activities", []),
+                        "notes": entry.get("notes", ""),
+                        "logged_at": entry.get("logged_at", entry.get("timestamp", "")),
+                        "day_of_week": entry.get("day_of_week", 0),
+                        "hour_of_day": entry.get("hour_of_day", 12),
+                        "date": entry.get("date", ""),
+                        "week_of_year": entry.get("week_of_year", 1),
+                        "is_weekend": entry.get("is_weekend", False),
+                        "time_of_day": entry.get("time_of_day", "afternoon"),
+                    }
+                    mood_logs.append(mood_entry)
+                    
+                    # Build patterns for analysis
+                    if mood_entry["date"]:
+                        daily_patterns[mood_entry["date"]].append(mood_entry["rating"])
+                    weekly_patterns[mood_entry["day_of_week"]].append(mood_entry["rating"])
+                    
+                    for activity in mood_entry["activities"]:
+                        activity_patterns[activity].append({
+                            "mood": mood_entry["rating"],
+                            "time": mood_entry["hour_of_day"],
+                            "day": mood_entry["day_of_week"]
+                        })
+                    
+                    # Extract keywords from notes
+                    if mood_entry["notes"]:
+                        keywords = self._extract_mood_keywords(mood_entry["notes"].lower())
+                        for keyword in keywords:
+                            note_keywords[keyword] += 1
+
+            # Calculate advanced metrics using available data
+            mood_volatility = self._calculate_detailed_volatility(mood_logs) if mood_logs else {}
+            activity_effectiveness = self._analyze_activity_effectiveness(activity_patterns) if activity_patterns else {}
+            temporal_insights = self._analyze_detailed_temporal_patterns(mood_logs) if mood_logs else {}
+            stress_indicators = self._identify_stress_patterns(mood_logs, note_keywords) if mood_logs else {}
+            
+            return {
+                "mood_logs": mood_logs,
+                "total_logs": len(mood_logs),
+                "date_range": dataset.get("processing_metadata", {}).get("date_range", {}),
+                "daily_patterns": dict(daily_patterns),
+                "weekly_patterns": dict(weekly_patterns),
+                "activity_patterns": dict(activity_patterns),
+                "note_keywords": dict(note_keywords),
+                "mood_volatility": mood_volatility,
+                "activity_effectiveness": activity_effectiveness,
+                "temporal_insights": temporal_insights,
+                "stress_indicators": stress_indicators,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting mood data from dataset: {str(e)}")
+            return {"mood_logs": [], "total_logs": 0, "date_range": {}}
+
+    def _extract_journal_data_from_dataset(self, dataset: Dict) -> Dict[str, Any]:
+        """Extract journal data from AI-ready dataset in format expected by existing analysis methods"""
+        try:
+            journal_analytics = dataset.get("journal_analytics", {})
+            
+            # Convert AI-ready format to expected format
+            journal_entries = []
+            emotional_keywords = defaultdict(int)
+            topic_clusters = defaultdict(list)
+            writing_quality_metrics = []
+            sentiment_evolution = []
+            
+            # Extract journal entries from analytics if available
+            if journal_analytics.get("journal_entries"):
+                for entry in journal_analytics["journal_entries"]:
+                    entry_data = {
+                        "content": entry.get("content", "")[:500],  # Limit for analysis
+                        "full_content_length": len(entry.get("content", "")),
+                        "word_count": entry.get("word_count", 0),
+                        "sentence_count": entry.get("sentence_count", 0),
+                        "mood": entry.get("mood", "neutral"),
+                        "activities": entry.get("activities", []),
+                        "created_at": entry.get("created_at", entry.get("timestamp", "")),
+                        "day_of_week": entry.get("day_of_week", 0),
+                        "hour_of_day": entry.get("hour_of_day", 12),
+                        "date": entry.get("date", ""),
+                        "is_weekend": entry.get("is_weekend", False),
+                        "time_of_day": entry.get("time_of_day", "afternoon"),
+                        "emotions": entry.get("emotions", {}),
+                        "topics": entry.get("topics", []),
+                        "sentiment_score": entry.get("sentiment_score", 0.0),
+                        "writing_quality": entry.get("writing_quality", {}),
+                    }
+                    journal_entries.append(entry_data)
+                    
+                    # Build patterns for analysis
+                    for emotion, score in entry_data["emotions"].items():
+                        emotional_keywords[emotion] += score
+                    
+                    for topic in entry_data["topics"]:
+                        topic_clusters[topic].append({
+                            "date": entry_data["date"],
+                            "sentiment": entry_data["sentiment_score"],
+                            "mood": entry_data["mood"]
+                        })
+                    
+                    writing_quality_metrics.append(entry_data["word_count"])
+                    sentiment_evolution.append({
+                        "date": entry_data["date"],
+                        "sentiment": entry_data["sentiment_score"]
+                    })
+
+            # Use existing analysis methods for advanced metrics
+            writing_consistency = self._analyze_writing_consistency(journal_entries) if journal_entries else {}
+            emotional_progression = self._track_emotional_progression(sentiment_evolution) if sentiment_evolution else {}
+            topic_focus_analysis = self._analyze_topic_focus(topic_clusters) if topic_clusters else {}
+            therapeutic_indicators = self._identify_therapeutic_progress(journal_entries) if journal_entries else {}
+            
+            return {
+                "journal_entries": journal_entries,
+                "total_entries": len(journal_entries),
+                "date_range": dataset.get("processing_metadata", {}).get("date_range", {}),
+                "emotional_keywords": dict(emotional_keywords),
+                "topic_clusters": dict(topic_clusters),
+                "writing_quality_metrics": {
+                    "average_word_count": np.mean(writing_quality_metrics) if writing_quality_metrics else 0,
+                    "consistency": writing_consistency,
+                },
+                "emotional_progression": emotional_progression,
+                "topic_focus_analysis": topic_focus_analysis,
+                "therapeutic_indicators": therapeutic_indicators,
+                "sentiment_evolution": sentiment_evolution,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting journal data from dataset: {str(e)}")
+            return {"journal_entries": [], "total_entries": 0, "date_range": {}}
+
+    # Legacy data collection methods (now deprecated in favor of AI data interface)
     def _collect_mood_data(self, user, days: int) -> Dict[str, Any]:
         """Collect comprehensive mood tracking data for analysis"""
         try:

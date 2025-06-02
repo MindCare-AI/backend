@@ -8,6 +8,7 @@ from .views import (
     CommunicationAnalysisViewSet,
     TipsViewSet,
 )
+from . import views  # Import views for user resume endpoints
 
 # Create router only for the AIAnalysisViewSet which is a full ModelViewSet
 router = routers.DefaultRouter()
@@ -103,6 +104,9 @@ urlpatterns = [
         TipsViewSet.as_view({"get": "combined"}),
         name="ai-tips-combined",
     ),
+    # User Resume endpoints for therapists
+    path('resume/<int:id>/', views.user_resume_view, name='user-resume'),
+    path('resume/<int:id>/card/<str:card_type>/', views.user_analytics_card_view, name='user-analytics-card'),
 ]
 
 # Add the router's URLs to our urlpatterns

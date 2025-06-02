@@ -1,11 +1,13 @@
 # AI_engine/views.py
 import logging
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from datetime import timedelta
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 from .models import (
     UserAnalysis,
@@ -18,8 +20,10 @@ from .serializers import (
     AIInsightSerializer,
     TherapyRecommendationSerializer,
     CommunicationPatternAnalysisSerializer,
+    UserResumeSerializer,
 )
 from .services.ai_analysis import ai_service
+from .services.user_resume_service import user_resume_service
 
 logger = logging.getLogger(__name__)
 
@@ -539,3 +543,211 @@ class TipsViewSet(viewsets.ViewSet):
                 {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+@extend_schema(
+    summary="Get AI-driven user resume for therapists",
+    description="Generate a comprehensive AI-driven user resume with 4 analytics cards plus AI summary for therapist guidance",
+    parameters=[
+        OpenApiParameter(
+            name='id',
+            description='User ID to generate resume for',
+            required=True,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+        ),
+        OpenApiParameter(
+            name='period_days',
+            description='Number of days to analyze (default: 30)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(
+            response=UserResumeSerializer,
+            description="User resume successfully generated"
+        ),
+        404: OpenApiResponse(description="User not found"),
+        500: OpenApiResponse(description="Error generating resume"),
+    }
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_resume_view(request, id):
+    """
+    Generate AI-driven user resume for therapists
+    
+    This endpoint provides therapists with a comprehensive overview of a user's
+    mental health status through 4 analytics cards and an AI-generated summary:
+    
+    1. Mental Health Overview - Mood trends, emotions, risk indicators
+    2. Behavioral Patterns - App usage, engagement, activity patterns  
+    3. Social Engagement - Communication patterns, social health
+    4. Progress Tracking - Progress indicators, recommendations, alerts
+    
+    Plus an AI-generated therapist summary with clinical insights and recommendations.
+    """
+    try:
+        # Get period parameter
+        period_days = int(request.query_params.get('period_days', 30))
+        
+        # Validate period_days
+        if period_days < 1 or period_days > 365:
+            return Response(
+                {'error': 'period_days must be between 1 and 365'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Generating user resume for user {id} with {period_days} days period")
+        
+        # Generate the resume
+        resume_data = user_resume_service.generate_user_resume(id, period_days)
+        
+        # Check for errors
+        if 'error' in resume_data:
+            if 'not found' in resume_data['error']:
+                return Response(
+                    {'error': resume_data['error']},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            else:
+                return Response(
+                    {'error': resume_data['error']},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        # Serialize the response
+        serializer = UserResumeSerializer(resume_data)
+        
+        logger.info(f"Successfully generated user resume for user {id}")
+        
+        return Response({
+            'status': 'success',
+            'message': f'User resume generated successfully for {period_days} days period',
+            'data': serializer.data,
+            'metadata': {
+                'generated_for_therapist': True,
+                'auto_updating': True,
+                'cards_count': 4,
+                'ai_powered': True
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except ValueError as e:
+        return Response(
+            {'error': 'Invalid period_days parameter - must be an integer'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error generating resume for user {id}: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@extend_schema(
+    summary="Get individual analytics card",
+    description="Get a specific analytics card from the user resume",
+    parameters=[
+        OpenApiParameter(
+            name='id',
+            description='User ID',
+            required=True,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+        ),
+        OpenApiParameter(
+            name='card_type',
+            description='Type of card to retrieve',
+            required=True,
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.PATH,
+            enum=['mental_health', 'behavioral', 'social', 'progress']
+        ),
+        OpenApiParameter(
+            name='period_days',
+            description='Number of days to analyze (default: 30)',
+            required=False,
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
+    responses={
+        200: OpenApiResponse(description="Analytics card data"),
+        404: OpenApiResponse(description="User or card type not found"),
+        400: OpenApiResponse(description="Invalid card type"),
+    }
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_analytics_card_view(request, id, card_type):
+    """
+    Get individual analytics card for real-time updates
+    
+    Allows frontend to request specific cards for real-time updates
+    without regenerating the entire resume.
+    """
+    try:
+        # Validate card type
+        valid_card_types = ['mental_health', 'behavioral', 'social', 'progress']
+        if card_type not in valid_card_types:
+            return Response(
+                {'error': f'Invalid card_type. Must be one of: {", ".join(valid_card_types)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        period_days = int(request.query_params.get('period_days', 30))
+        
+        # Generate full resume (cached internally)
+        resume_data = user_resume_service.generate_user_resume(id, period_days)
+        
+        if 'error' in resume_data:
+            if 'not found' in resume_data['error']:
+                return Response(
+                    {'error': resume_data['error']},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            else:
+                return Response(
+                    {'error': resume_data['error']},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        # Extract specific card
+        card_mapping = {
+            'mental_health': 'mental_health_overview',
+            'behavioral': 'behavioral_patterns', 
+            'social': 'social_engagement',
+            'progress': 'progress_tracking'
+        }
+        
+        card_data = resume_data['analytics_cards'].get(card_mapping[card_type])
+        
+        if not card_data:
+            return Response(
+                {'error': f'Card data not available for {card_type}'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        return Response({
+            'card_type': card_type,
+            'user_id': id,
+            'period_days': period_days,
+            'data': card_data,
+            'last_updated': resume_data['last_updated']
+        }, status=status.HTTP_200_OK)
+        
+    except ValueError:
+        return Response(
+            {'error': 'Invalid period_days parameter'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving {card_type} card for user {id}: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

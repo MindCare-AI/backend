@@ -449,6 +449,7 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-platform",  # Added this header to fix the CORS issue
 ]
 
 # WebSocket Configuration - Updated for better stability

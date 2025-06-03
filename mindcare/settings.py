@@ -415,10 +415,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",  # React Native Expo default
     "http://127.0.0.1:19006",
     "http://127.0.0.1:3000",
-    "http://10.0.2.2:8000",    # Android emulator accessing Django
-    "http://10.0.2.2:8081",    # React Native Metro bundler on Android emulator
-    "http://localhost:8081",   # React Native Metro bundler
-    "http://127.0.0.1:8081",   # React Native Metro bundler alternative
+    "http://10.0.2.2:8000",  # Android emulator accessing Django
+    "http://10.0.2.2:8081",  # React Native Metro bundler on Android emulator
+    "http://localhost:8081",  # React Native Metro bundler
+    "http://127.0.0.1:8081",  # React Native Metro bundler alternative
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

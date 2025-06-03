@@ -38,24 +38,28 @@ class SocialInteractionAnalysisService:
         try:
             # Import AI data interface service
             from .data_interface import ai_data_interface
-            
+
             # Get AI-ready dataset through data interface
             dataset = ai_data_interface.get_ai_ready_dataset(user.id, analysis_period)
-            
+
             # Check data quality and availability
-            quality_metrics = dataset.get('quality_metrics', {})
-            if quality_metrics.get('overall_quality', 0.0) < 0.1:
-                logger.warning(f"Insufficient data quality for user {user.id} social analysis: {quality_metrics}")
+            quality_metrics = dataset.get("quality_metrics", {})
+            if quality_metrics.get("overall_quality", 0.0) < 0.1:
+                logger.warning(
+                    f"Insufficient data quality for user {user.id} social analysis: {quality_metrics}"
+                )
                 result = self._create_default_analysis()
-                result.update({
-                    "data_integration": {
-                        "data_sources_used": [],
-                        "data_quality_score": 0.0,
-                        "completeness_score": 0.0,
-                        "analysis_recommendation": "insufficient_data",
-                        "datawarehouse_version": "unknown",
+                result.update(
+                    {
+                        "data_integration": {
+                            "data_sources_used": [],
+                            "data_quality_score": 0.0,
+                            "completeness_score": 0.0,
+                            "analysis_recommendation": "insufficient_data",
+                            "datawarehouse_version": "unknown",
+                        }
                     }
-                })
+                )
                 return result
 
             # Extract interaction and mood data from AI-ready dataset
@@ -103,20 +107,28 @@ class SocialInteractionAnalysisService:
             self._check_for_concerning_patterns(user, analysis)
 
             # Cache the result with datawarehouse integration metrics
-            quality_metrics = dataset.get('quality_metrics', {})
-            processing_metadata = dataset.get('processing_metadata', {})
-            
+            quality_metrics = dataset.get("quality_metrics", {})
+            processing_metadata = dataset.get("processing_metadata", {})
+
             result = self._format_analysis_result(social_analysis, analysis)
-            result.update({
-                "data_integration": {
-                    "data_sources_used": dataset.get("data_sources", []),
-                    "data_quality_score": quality_metrics.get("overall_quality", 0.0),
-                    "completeness_score": quality_metrics.get("completeness", 0.0),
-                    "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
-                    "datawarehouse_version": processing_metadata.get("processing_version", "unknown"),
+            result.update(
+                {
+                    "data_integration": {
+                        "data_sources_used": dataset.get("data_sources", []),
+                        "data_quality_score": quality_metrics.get(
+                            "overall_quality", 0.0
+                        ),
+                        "completeness_score": quality_metrics.get("completeness", 0.0),
+                        "analysis_recommendation": quality_metrics.get(
+                            "analysis_recommendation", "unknown"
+                        ),
+                        "datawarehouse_version": processing_metadata.get(
+                            "processing_version", "unknown"
+                        ),
+                    }
                 }
-            })
-            
+            )
+
             cache.set(cache_key, result, self.cache_timeout)
 
             return result
@@ -1040,14 +1052,24 @@ Provide comprehensive analysis in JSON format:
         """Extract social interaction data from AI-ready dataset"""
         try:
             # Get social feeds data from the unified dataset
-            feeds_data = dataset.get('feeds_data', {})
-            
+            feeds_data = dataset.get("feeds_data", {})
+
             # Extract posts, comments, and likes from the dataset
-            created_posts = self._format_posts_data_from_dataset(feeds_data.get('user_posts', []))
-            received_comments = self._format_comments_data_from_dataset(feeds_data.get('received_comments', []))
-            given_comments = self._format_comments_data_from_dataset(feeds_data.get('given_comments', []))
-            given_likes = self._format_likes_data_from_dataset(feeds_data.get('given_likes', []))
-            received_likes = self._format_likes_data_from_dataset(feeds_data.get('received_likes', []))
+            created_posts = self._format_posts_data_from_dataset(
+                feeds_data.get("user_posts", [])
+            )
+            received_comments = self._format_comments_data_from_dataset(
+                feeds_data.get("received_comments", [])
+            )
+            given_comments = self._format_comments_data_from_dataset(
+                feeds_data.get("given_comments", [])
+            )
+            given_likes = self._format_likes_data_from_dataset(
+                feeds_data.get("given_likes", [])
+            )
+            received_likes = self._format_likes_data_from_dataset(
+                feeds_data.get("received_likes", [])
+            )
 
             return {
                 "created_posts": created_posts,
@@ -1070,35 +1092,38 @@ Provide comprehensive analysis in JSON format:
         """Extract mood data from AI-ready dataset for correlation analysis"""
         try:
             # Get mood data from the unified dataset
-            mood_entries = dataset.get('mood_data', {}).get('mood_logs', [])
-            
+            mood_entries = dataset.get("mood_data", {}).get("mood_logs", [])
+
             formatted_mood_data = []
             for entry in mood_entries:
                 try:
                     # Extract timestamp information
-                    logged_at = entry.get('logged_at')
+                    logged_at = entry.get("logged_at")
                     if logged_at:
                         # Handle different timestamp formats
                         if isinstance(logged_at, str):
                             from django.utils.dateparse import parse_datetime
+
                             timestamp = parse_datetime(logged_at)
                         else:
                             timestamp = logged_at
-                        
+
                         if timestamp:
-                            formatted_mood_data.append({
-                                "rating": entry.get('mood_rating', 5),
-                                "logged_at": timestamp.isoformat(),
-                                "date": timestamp.date().isoformat(),
-                                "hour": timestamp.hour,
-                                "day_of_week": timestamp.weekday(),
-                                "activities": entry.get("activities", []),
-                                "notes": entry.get("notes", ""),
-                            })
+                            formatted_mood_data.append(
+                                {
+                                    "rating": entry.get("mood_rating", 5),
+                                    "logged_at": timestamp.isoformat(),
+                                    "date": timestamp.date().isoformat(),
+                                    "hour": timestamp.hour,
+                                    "day_of_week": timestamp.weekday(),
+                                    "activities": entry.get("activities", []),
+                                    "notes": entry.get("notes", ""),
+                                }
+                            )
                 except Exception as e:
                     logger.warning(f"Error processing mood entry: {str(e)}")
                     continue
-            
+
             return formatted_mood_data
 
         except Exception as e:
@@ -1110,64 +1135,81 @@ Provide comprehensive analysis in JSON format:
         formatted_posts = []
         for post_data in posts_data:
             try:
-                content = post_data.get('content', '')
-                created_at = post_data.get('created_at', '')
-                
+                content = post_data.get("content", "")
+                created_at = post_data.get("created_at", "")
+
                 # Parse timestamp if needed
                 if isinstance(created_at, str):
                     from django.utils.dateparse import parse_datetime
+
                     timestamp = parse_datetime(created_at)
                 else:
                     timestamp = created_at
-                
+
                 if timestamp:
-                    formatted_posts.append({
-                        "id": post_data.get('id'),
-                        "content": content[:200] if len(content) > 200 else content,
-                        "content_length": len(content),
-                        "likes_count": post_data.get('likes_count', 0),
-                        "comments_count": post_data.get('comments_count', 0),
-                        "engagement_score": post_data.get('likes_count', 0) + post_data.get('comments_count', 0),
-                        "created_at": timestamp.isoformat(),
-                        "hour_of_day": timestamp.hour,
-                        "day_of_week": timestamp.weekday(),
-                        "topics": post_data.get("topics", []),
-                        "sentiment_keywords": self._extract_sentiment_keywords(content),
-                    })
+                    formatted_posts.append(
+                        {
+                            "id": post_data.get("id"),
+                            "content": content[:200] if len(content) > 200 else content,
+                            "content_length": len(content),
+                            "likes_count": post_data.get("likes_count", 0),
+                            "comments_count": post_data.get("comments_count", 0),
+                            "engagement_score": post_data.get("likes_count", 0)
+                            + post_data.get("comments_count", 0),
+                            "created_at": timestamp.isoformat(),
+                            "hour_of_day": timestamp.hour,
+                            "day_of_week": timestamp.weekday(),
+                            "topics": post_data.get("topics", []),
+                            "sentiment_keywords": self._extract_sentiment_keywords(
+                                content
+                            ),
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Error formatting post data: {str(e)}")
                 continue
         return formatted_posts
 
-    def _format_comments_data_from_dataset(self, comments_data: List[Dict]) -> List[Dict]:
+    def _format_comments_data_from_dataset(
+        self, comments_data: List[Dict]
+    ) -> List[Dict]:
         """Format comments data from dataset with enhanced analysis"""
         formatted_comments = []
         for comment_data in comments_data:
             try:
-                content = comment_data.get('content', '')
-                created_at = comment_data.get('created_at', '')
-                
+                content = comment_data.get("content", "")
+                created_at = comment_data.get("created_at", "")
+
                 # Parse timestamp if needed
                 if isinstance(created_at, str):
                     from django.utils.dateparse import parse_datetime
+
                     timestamp = parse_datetime(created_at)
                 else:
                     timestamp = created_at
-                
+
                 if timestamp:
-                    formatted_comments.append({
-                        "id": comment_data.get('id'),
-                        "content": content[:100] if len(content) > 100 else content,
-                        "content_length": len(content),
-                        "commenter": comment_data.get("commenter_username", "Unknown"),
-                        "commenter_id": comment_data.get("commenter_id"),
-                        "post_creator": comment_data.get("post_creator_username", "Unknown"),
-                        "created_at": timestamp.isoformat(),
-                        "hour_of_day": timestamp.hour,
-                        "day_of_week": timestamp.weekday(),
-                        "sentiment_keywords": self._extract_sentiment_keywords(content),
-                        "is_supportive": self._is_supportive_comment(content),
-                    })
+                    formatted_comments.append(
+                        {
+                            "id": comment_data.get("id"),
+                            "content": content[:100] if len(content) > 100 else content,
+                            "content_length": len(content),
+                            "commenter": comment_data.get(
+                                "commenter_username", "Unknown"
+                            ),
+                            "commenter_id": comment_data.get("commenter_id"),
+                            "post_creator": comment_data.get(
+                                "post_creator_username", "Unknown"
+                            ),
+                            "created_at": timestamp.isoformat(),
+                            "hour_of_day": timestamp.hour,
+                            "day_of_week": timestamp.weekday(),
+                            "sentiment_keywords": self._extract_sentiment_keywords(
+                                content
+                            ),
+                            "is_supportive": self._is_supportive_comment(content),
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Error formatting comment data: {str(e)}")
                 continue
@@ -1178,31 +1220,38 @@ Provide comprehensive analysis in JSON format:
         formatted_likes = []
         for like_data in likes_data:
             try:
-                created_at = like_data.get('created_at', '')
-                
+                created_at = like_data.get("created_at", "")
+
                 # Parse timestamp if needed
                 if isinstance(created_at, str):
                     from django.utils.dateparse import parse_datetime
+
                     timestamp = parse_datetime(created_at)
                 else:
                     timestamp = created_at
-                
+
                 if timestamp:
-                    formatted_likes.append({
-                        "id": like_data.get('id'),
-                        "user": like_data.get("user_username", "Unknown"),
-                        "user_id": like_data.get("user_id"),
-                        "post_creator": like_data.get("post_creator_username", "Unknown"),
-                        "post_id": like_data.get('post_id'),
-                        "created_at": timestamp.isoformat(),
-                        "hour_of_day": timestamp.hour,
-                        "day_of_week": timestamp.weekday(),
-                    })
+                    formatted_likes.append(
+                        {
+                            "id": like_data.get("id"),
+                            "user": like_data.get("user_username", "Unknown"),
+                            "user_id": like_data.get("user_id"),
+                            "post_creator": like_data.get(
+                                "post_creator_username", "Unknown"
+                            ),
+                            "post_id": like_data.get("post_id"),
+                            "created_at": timestamp.isoformat(),
+                            "hour_of_day": timestamp.hour,
+                            "day_of_week": timestamp.weekday(),
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Error formatting like data: {str(e)}")
                 continue
         return formatted_likes
 
-    def _calculate_engagement_metrics_from_dataset(self, interaction_data: Dict) -> Dict:
+    def _calculate_engagement_metrics_from_dataset(
+        self, interaction_data: Dict
+    ) -> Dict:
         """Calculate engagement metrics from dataset-based interaction data"""
         return self._calculate_advanced_engagement_metrics(interaction_data)

@@ -196,7 +196,11 @@ def analyze_for_upcoming_appointment(sender, instance, created, **kwargs):
             if analysis.get("success"):
                 logger.info(f"Therapy analysis completed for appointment {instance.id}")
             else:
-                logger.warning(f"Therapy analysis failed for appointment {instance.id}: {analysis.get('message', 'Unknown error')}")
+                logger.warning(
+                    f"Therapy analysis failed for appointment {instance.id}: {analysis.get('message', 'Unknown error')}"
+                )
 
         except Exception as e:
-            logger.error(f"Error in therapy analysis for appointment: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error in therapy analysis for appointment: {str(e)}", exc_info=True
+            )

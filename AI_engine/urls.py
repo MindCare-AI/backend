@@ -105,8 +105,12 @@ urlpatterns = [
         name="ai-tips-combined",
     ),
     # User Resume endpoints for therapists
-    path('resume/<int:id>/', views.user_resume_view, name='user-resume'),
-    path('resume/<int:id>/card/<str:card_type>/', views.user_analytics_card_view, name='user-analytics-card'),
+    path("resume/<int:id>/", views.user_resume_view, name="user-resume"),
+    path(
+        "resume/<int:id>/card/<str:card_type>/",
+        views.user_analytics_card_view,
+        name="user-analytics-card",
+    ),
 ]
 
 # Add the router's URLs to our urlpatterns

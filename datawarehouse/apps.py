@@ -6,23 +6,21 @@ logger = logging.getLogger(__name__)
 
 
 class DatawarehouseConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'datawarehouse'
-    verbose_name = 'MindCare Data Warehouse'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "datawarehouse"
+    verbose_name = "MindCare Data Warehouse"
 
     def ready(self):
         """Initialize data warehouse services when app is ready"""
         try:
             # Import and initialize the data collection service
-            from .services.data_collection import data_collector
-            from .services.etl_service import etl_service
-            
+
             # Start background monitoring (if configured)
-            if hasattr(self, 'start_monitoring'):
+            if hasattr(self, "start_monitoring"):
                 self.start_monitoring()
-                
+
             logger.info("Data Warehouse app initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize Data Warehouse app: {str(e)}")
 

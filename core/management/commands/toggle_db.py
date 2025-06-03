@@ -1,3 +1,4 @@
+#core/management/commands/toggle_db.py
 from django.core.management.base import BaseCommand
 import os
 from dotenv import load_dotenv, set_key

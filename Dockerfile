@@ -9,9 +9,6 @@ RUN groupadd -r django && useradd -r -g django django
 
 WORKDIR /app
 
-# Ensure logs directory exists and is owned by django
-RUN mkdir -p /app/logs && chown django:django /app/logs
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \

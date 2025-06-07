@@ -84,7 +84,9 @@ class TherapyRecommendation(models.Model):
     ]
 
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="therapy_recommendations"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="therapy_recommendations",
     )
     recommendation_type = models.CharField(max_length=50, choices=RECOMMENDATION_TYPES)
     recommendation_data = models.JSONField()
@@ -180,7 +182,9 @@ class CommunicationPatternAnalysis(models.Model):
         ]
 
     def __str__(self):
-        return f"Communication Analysis for {self.user.username} on {self.analysis_date}"
+        return (
+            f"Communication Analysis for {self.user.username} on {self.analysis_date}"
+        )
 
 
 class ConversationSummary(models.Model):

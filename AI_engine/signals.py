@@ -17,13 +17,11 @@ def trigger_mood_analysis(sender, instance, created, **kwargs):
         try:
             # Check data quality before triggering analysis
             dataset = ai_data_interface.get_ai_ready_dataset(instance.user.id, 7)
-            quality_metrics = dataset.get('quality_metrics', {})
-            
+            quality_metrics = dataset.get("quality_metrics", {})
+
             # Only trigger analysis if there's sufficient data quality
-            if quality_metrics.get('overall_quality', 0.0) > 0.2:
-                analysis = ai_service.analyze_user_data(
-                    instance.user, date_range=7
-                )
+            if quality_metrics.get("overall_quality", 0.0) > 0.2:
+                analysis = ai_service.analyze_user_data(instance.user, date_range=7)
 
                 if analysis:
                     logger.info(
@@ -49,13 +47,11 @@ def trigger_journal_analysis(sender, instance, created, **kwargs):
         try:
             # Check data quality before triggering analysis
             dataset = ai_data_interface.get_ai_ready_dataset(instance.user.id, 7)
-            quality_metrics = dataset.get('quality_metrics', {})
-            
+            quality_metrics = dataset.get("quality_metrics", {})
+
             # Only trigger analysis if there's sufficient data quality
-            if quality_metrics.get('overall_quality', 0.0) > 0.2:
-                analysis = ai_service.analyze_user_data(
-                    instance.user, date_range=7
-                )
+            if quality_metrics.get("overall_quality", 0.0) > 0.2:
+                analysis = ai_service.analyze_user_data(instance.user, date_range=7)
 
                 if analysis:
                     logger.info(

@@ -346,8 +346,11 @@ class TherapyAnalysisService:
                     activity_analysis[activity] = {
                         "average_mood": float(np.mean(moods)),
                         "frequency": len(moods),
-                        "mood_range": float(max(moods) - min(moods)) if len(moods) > 1 else 0,
-                        "positive_correlation": float(np.mean(moods)) > 6.0,  # Above neutral
+                        "mood_range": float(max(moods) - min(moods))
+                        if len(moods) > 1
+                        else 0,
+                        "positive_correlation": float(np.mean(moods))
+                        > 6.0,  # Above neutral
                     }
 
             return activity_analysis

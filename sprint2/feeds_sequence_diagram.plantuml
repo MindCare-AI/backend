@@ -1,0 +1,84 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "SocialFeedService" as SocialFeedService
+participant "NotificationService" as NotificationService
+database "Database" as Database
+
+' === Social Feed System ===
+group Social Feed System
+    Patient -> Frontend: Create post
+    Frontend -> SocialFeedService: Submit post content (POST /api/feeds/posts/)
+    SocialFeedService -> Database: Store post
+    alt Successful Post Creation
+        Database --> SocialFeedService: Post stored
+        SocialFeedService --> Frontend: Return success
+        Frontend --> Patient: Display post
+    else Failed Post Creation
+        Database --> SocialFeedService: Error storing post
+        SocialFeedService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Add media to post
+    Frontend -> SocialFeedService: Upload media files (POST /api/feeds/posts/)
+    SocialFeedService -> Database: Store media references
+    alt Successful Media Upload
+        Database --> SocialFeedService: Media stored
+        SocialFeedService --> Frontend: Return success
+        Frontend --> Patient: Display post with media
+    else Failed Media Upload
+        Database --> SocialFeedService: Error storing media
+        SocialFeedService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Like a post
+    Frontend -> SocialFeedService: Submit like action (POST /api/feeds/posts/{id}/likes/)
+    SocialFeedService -> Database: Store like
+    alt Successful Like
+        Database --> SocialFeedService: Like stored
+        SocialFeedService -> NotificationService: Notify post owner
+        SocialFeedService --> Frontend: Return updated like count
+        Frontend --> Patient: Update UI
+    else Failed Like
+        Database --> SocialFeedService: Error storing like
+        SocialFeedService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Comment on post
+    Frontend -> SocialFeedService: Submit comment (POST /api/feeds/posts/{id}/comments/)
+    SocialFeedService -> Database: Store comment
+    SocialFeedService -> NotificationService: Notify relevant users
+    Database --> SocialFeedService: Comment stored
+    SocialFeedService --> Frontend: Return success
+    Frontend --> Patient: Display comment
+    
+    Patient -> Frontend: Reply to comment
+    Frontend -> SocialFeedService: Submit nested reply (POST /api/feeds/comments/)
+    SocialFeedService -> Database: Store nested comment
+    SocialFeedService -> NotificationService: Notify parent comment author
+    Database --> SocialFeedService: Reply stored
+    SocialFeedService --> Frontend: Return success
+    Frontend --> Patient: Display nested reply
+    
+    Patient -> Frontend: View social feed
+    Frontend -> SocialFeedService: Request feed content (GET /api/feeds/posts/)
+    SocialFeedService -> Database: Fetch recent posts
+    Database --> SocialFeedService: Return posts data
+    SocialFeedService -> SocialFeedService: Apply personalization
+    SocialFeedService --> Frontend: Return feed data
+    Frontend --> Patient: Display social feed
+end
+
+@enduml

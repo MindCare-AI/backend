@@ -1,0 +1,72 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "NotificationService" as NotificationService
+participant "MoodService" as MoodService
+participant "GroupChatService" as GroupChatService
+participant "SocialFeedService" as SocialFeedService
+participant "UserPreferenceService" as UserPreferenceService
+database "Database" as Database
+
+
+
+' === Notification System ===
+group Notification System
+    note over NotificationService: Handling notifications for various events
+    
+    ' Journal notification flow
+    MoodService -> NotificationService: Trigger journal notification (POST /api/notifications/)
+    NotificationService -> NotificationService: Create notification
+    NotificationService -> Database: Store notification
+    Database --> NotificationService: Notification stored
+    
+    ' Mood tracking reminder flow
+    NotificationService -> NotificationService: Generate mood reminder
+    NotificationService -> Database: Store reminder notification (POST /api/notifications/)
+    Database --> NotificationService: Notification stored
+    
+    ' Group message notification flow
+    GroupChatService -> NotificationService: Trigger message notification
+    NotificationService -> NotificationService: Create notification
+    NotificationService -> Database: Store notification
+    Database --> NotificationService: Notification stored
+    
+    ' Social feed notification flow
+    SocialFeedService -> NotificationService: Trigger engagement notification
+    NotificationService -> NotificationService: Create notification
+    NotificationService -> Database: Store notification
+    Database --> NotificationService: Notification stored
+    
+    NotificationService -> UserPreferenceService: Check notification preferences
+    UserPreferenceService -> Database: Fetch preferences
+    Database --> UserPreferenceService: Return preferences
+    UserPreferenceService --> NotificationService: Return delivery settings (GET /api/preferences/notifications/)
+    
+    NotificationService -> NotificationService: Determine delivery channels
+    
+    alt WebSocket Notification
+        NotificationService --> Frontend: Push real-time notification (WebSocket /ws/notifications/)
+        Frontend --> Patient: Display notification
+    else Email Notification
+        NotificationService -> NotificationService: Generate email content
+        NotificationService --> Patient: Send email notification
+    end
+    
+    Patient -> Frontend: Interact with notification
+    Frontend -> NotificationService: Mark as read (PATCH /api/notifications/{id}/)
+    NotificationService -> Database: Update notification status
+    Database --> NotificationService: Status updated
+    NotificationService --> Frontend: Return success
+    Frontend --> Patient: Update notification UI
+end
+
+@enduml

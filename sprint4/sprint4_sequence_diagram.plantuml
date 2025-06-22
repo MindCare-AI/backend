@@ -1,0 +1,155 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+participant "Frontend" as frontend
+participant "UserResumeService" as userResumeService
+participant "AIDataInterfaceService" as aiDataInterface
+participant "UnifiedDataCollectionService" as unifiedCollection
+participant "DataSecurityService" as dataSecurity
+participant "ETLPipelineService" as etlService
+participant "RealtimeAnalyticsService" as realtimeAnalytics
+participant "MedicationAnalysisService" as medicationService
+participant "ConversationSummaryService" as conversationService
+participant "MoodService" as moodService
+participant "TherapistService" as therapistService
+participant "SocialService" as socialService
+participant "MedicalService" as medicalService
+participant "AIAnalysisService" as aiAnalysis
+participant "PredictiveService" as predictiveService
+participant "AIRecommendationService" as recommendationService
+participant "ContentModerationService" as moderationService
+participant "TopicExtractionService" as topicService
+participant "ContentDiversityService" as diversityService
+participant "ChatbotService" as chatbotService
+participant "TherapyRAGService" as ragService
+participant "LocalVectorStore" as vectorStore
+participant "CrisisMonitoringService" as crisisService
+participant "EnhancedNotificationService" as notificationService
+
+user -> frontend : Request personalized insights
+frontend -> userResumeService : GET /api/ai/resume/{user_id}/?period_days=30
+
+alt Successful request
+  userResumeService -> aiDataInterface : get_ai_ready_dataset(user_id, period_days)
+  aiDataInterface -> unifiedCollection : collect_comprehensive_user_data(user_id, date_range)
+  
+  alt Access granted
+    unifiedCollection -> dataSecurity : validate_access_permission(user, data_type)
+    dataSecurity --> unifiedCollection : access granted
+    unifiedCollection -> moodService : GET /api/mood/logs/analytics/
+    unifiedCollection -> therapistService : collect_therapy_data(user, days)
+    unifiedCollection -> socialService : collect_social_data(user, days)
+    unifiedCollection -> medicalService : collect_medication_data(user, days)
+    unifiedCollection -> etlService : process_batch_data(data_type, batch)
+    etlService -> dataSecurity : encrypt_sensitive_data(data, level)
+    dataSecurity --> etlService : encrypted data
+    etlService --> unifiedCollection : transformed data
+    unifiedCollection -> unifiedCollection : _generate_cross_domain_insights(user, date_range, snapshot)
+    unifiedCollection --> aiDataInterface : comprehensive data
+    aiDataInterface --> userResumeService : ai-ready dataset
+    userResumeService -> aiAnalysis : POST /api/ai/insights/analyze-user/
+    userResumeService -> predictiveService : predict_therapy_outcomes(user, timeframe_days)
+    userResumeService -> medicationService : analyze_medication_adherence(user, period_days)
+    userResumeService --> frontend : personalized user insights
+    frontend --> user : Display AI-generated mental health profile
+  else Access denied
+    unifiedCollection -> dataSecurity : validate_access_permission(user, data_type)
+    dataSecurity --> unifiedCollection : access denied
+    unifiedCollection --> aiDataInterface : access permission error
+    aiDataInterface --> userResumeService : security error
+    userResumeService --> frontend : 403 Forbidden
+    frontend --> user : Display permission error message
+  end
+  
+else Request failed
+  frontend -> user : Display error "Request failed"
+end
+
+user -> frontend : View medication effects
+frontend -> medicationService : calculate_medication_effects(user, medication_id)
+
+alt Successful request
+  medicationService -> medicationService : _analyze_side_effects(medication_data)
+  medicationService -> medicationService : _calculate_adherence_score(intake_data)
+  medicationService --> frontend : medication analysis results
+  frontend --> user : Display medication insights and adherence patterns
+else Analysis failed
+  medicationService --> frontend : 422 Unprocessable Entity
+  frontend --> user : Display error "Insufficient data for medication analysis"
+end
+
+user -> frontend : Request conversation summary
+frontend -> conversationService : generate_conversation_summary(conversation_id)
+
+alt Successful request
+  conversationService -> conversationService : _prepare_conversation_chunks(messages)
+  conversationService -> conversationService : _summarize_with_ollama(text)
+  conversationService -> conversationService : _extract_therapeutic_insights(summary)
+  conversationService -> conversationService : _extract_action_items(summary)
+  conversationService --> frontend : comprehensive conversation summary
+  frontend --> user : Display therapeutic insights from conversations
+else Summary generation failed
+  conversationService --> frontend : 500 Internal Server Error
+  frontend --> user : Display error "Unable to generate conversation summary"
+end
+
+user -> frontend : Browse content feed
+frontend -> recommendationService : POST /api/feeds/ai/personalized-feed/
+recommendationService -> topicService : extract_topics(user_interests)
+recommendationService -> moodService : GET /api/mood/logs/analytics/
+recommendationService -> diversityService : apply_diversity_algorithm(recommendations, history)
+recommendationService -> moderationService : check_content_toxicity(content)
+moderationService -> moderationService : _check_with_perspective_api(content)
+moderationService -> moderationService : _apply_moderation_rules(scores)
+moderationService --> recommendationService : toxicity assessment
+recommendationService --> frontend : personalized, safe content recommendations
+frontend --> user : Display personalized therapeutic content feed
+
+user -> frontend : send message
+frontend -> chatbotService : POST /api/chatbot/{id}/send_message/
+chatbotService -> chatbotService : _enhanced_crisis_detection(message)
+chatbotService -> crisisService : log_crisis_event(user, message, detection_data)
+crisisService -> crisisService : _determine_crisis_level(confidence)
+crisisService -> crisisService : _trigger_immediate_response(user, crisis_event)
+crisisService -> notificationService : send_notification(priority=urgent)
+crisisService -> realtimeAnalytics : POST /api/datawarehouse/realtime-analytics/process-event/
+chatbotService -> chatbotService : _generate_crisis_response(user, message, crisis_detection)
+chatbotService --> frontend : Crisis-appropriate response
+frontend --> user : Display crisis support message
+chatbotService -> ragService : get_therapy_approach(query, user_data)
+ragService -> vectorStore : search_similar_chunks(query, limit)
+vectorStore --> ragService : relevant therapy passages
+ragService -> ragService : _apply_expert_rules(query, therapy_type, confidence)
+ragService --> chatbotService : therapy recommendation
+chatbotService -> aiAnalysis : POST /api/ai/insights/chatbot-context/
+aiAnalysis --> chatbotService : user context
+chatbotService -> chatbotService : _humanize_response(response_text)
+chatbotService -> chatbotService : _track_conversation_context(message, response)
+chatbotService --> frontend : Personalized therapeutic response
+frontend --> user : Display chatbot response
+
+user -> frontend : Configure notification preferences
+frontend -> notificationService : PATCH /api/users/{user_id}/update_preferences/
+notificationService -> notificationService : update_notification_preference_settings(user, preferences)
+notificationService -> notificationService : schedule_notification(recipient, type, message, timestamp)
+notificationService -> medicalService : get_medication_schedule(user)
+medicalService --> notificationService : upcoming medications
+notificationService -> notificationService : _determine_delivery_channel(recipient, "medication", "medium")
+notificationService --> user : Medication reminder notification
+crisisService -> notificationService : broadcast_to_group("therapists", "crisis_alert", crisis_data)
+notificationService -> notificationService : _format_notification("crisis", title, message)
+notificationService -> therapistService : notify_crisis_team_members(crisis_data)
+user -> frontend : View personal mental health tips
+frontend -> recommendationService : GET /api/ai/recommendations/
+recommendationService --> frontend : therapeutic suggestions
+frontend -> notificationService : POST /api/notifications/
+notificationService --> user : Mental health tip notification
+
+@enduml

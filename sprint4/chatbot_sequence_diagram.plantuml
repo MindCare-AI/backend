@@ -1,0 +1,187 @@
+@startuml Chatbot_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+skinparam dpi 150
+scale 0.7
+
+actor "User" as user
+participant "Frontend" as frontend
+participant "ChatbotService" as chatbotService
+participant "TherapyRAGService" as ragService
+participant "LocalVectorStore" as vectorStore
+participant "AIAnalysisService" as aiAnalysis
+participant "CrisisMonitoringService" as crisisService
+
+user -> frontend : send message
+frontend -> chatbotService : POST /api/chatbot/{id}/send_message/
+
+alt Successful request
+  chatbotService -> chatbotService : _store_message_in_context(message)
+  chatbotService -> chatbotService : _enhanced_crisis_detection(message)
+
+  alt Crisis Detected
+      chatbotService -> crisisService : log_crisis_event(user, message, detection_data)
+      
+      alt Crisis logging successful
+        chatbotService -> chatbotService : _generate_crisis_response(user, message, crisis_detection)
+        chatbotService --> frontend : Crisis-appropriate response
+        frontend --> user : Display crisis support message
+      else Crisis logging failed
+        crisisService --> chatbotService : 500 Service unavailable
+        chatbotService --> frontend : Standard response with error flag
+        frontend --> user : Display regular response with subtle crisis resources
+      end
+      
+  else Normal Interaction
+      chatbotService -> ragService : get_therapy_approach(query, user_data)
+      
+      alt RAG retrieval successful
+        ragService -> vectorStore : search_similar_chunks(query, limit)
+        vectorStore -> vectorStore : _perform_vector_search(query_embedding, index)
+        vectorStore -> vectorStore : _retrieve_relevant_passages(search_results)
+        vectorStore --> ragService : relevant therapy passages
+        
+        ragService -> ragService : _process_retrieved_passages(passages)
+        ragService -> ragService : _apply_expert_rules(query, therapy_type, confidence)
+        ragService -> ragService : _select_optimal_therapy_approach(passages, rules)
+        ragService --> chatbotService : therapy recommendation
+        
+        chatbotService -> aiAnalysis : POST /api/ai/insights/chatbot-context/
+        
+        alt Context retrieval successful
+          aiAnalysis -> aiAnalysis : _analyze_recent_mood_data(user)
+          aiAnalysis -> aiAnalysis : _extract_sentiment_patterns(interactions)
+          aiAnalysis --> chatbotService : user context
+          
+          chatbotService -> chatbotService : _generate_response(message, therapy_approach, context)
+          chatbotService -> chatbotService : _humanize_response(response_text)
+          chatbotService -> chatbotService : _personalize_response(response, user_data)
+          chatbotService -> chatbotService : _track_conversation_context(message, response)
+          chatbotService --> frontend : Personalized therapeutic response
+          frontend --> user : Display chatbot response
+        else Context retrieval failed
+          aiAnalysis --> chatbotService : 500 Internal Server Error
+          chatbotService -> chatbotService : _generate_response_without_context(message, therapy_approach)
+          chatbotService --> frontend : Basic therapeutic response
+          frontend --> user : Display basic chatbot response
+        end
+        
+      else RAG retrieval failed
+        ragService --> chatbotService : 500 Retrieval error
+        chatbotService -> chatbotService : _generate_fallback_response(message)
+        chatbotService --> frontend : Fallback therapeutic response
+        frontend --> user : Display generic chatbot response
+      end
+  end
+  
+else Message sending failed
+  chatbotService --> frontend : 400 Bad Request
+  frontend --> user : Display error "Unable to process message"
+end
+
+chatbotService -> chatbotService : _update_session_history(message, response)
+chatbotService -> chatbotService : _store_conversation_vectors(message, response)
+chatbotService -> vectorStore : add_to_conversation_history(user, message_vector, response_vector)
+
+user -> frontend : follow-up message
+frontend -> chatbotService : POST /api/chatbot/{id}/send_message/
+chatbotService -> chatbotService : _retrieve_conversation_context(user, message)
+chatbotService -> chatbotService : _link_with_previous_sessions(user, context)
+chatbotService -> vectorStore : get_related_conversation_history(query_vector)
+vectorStore --> chatbotService : related conversations
+chatbotService -> chatbotService : _apply_multi_session_context(message, history)
+chatbotService -> ragService : get_contextualized_therapy_approach(query, context)
+ragService --> chatbotService : contextual therapy recommendation
+chatbotService -> chatbotService : _generate_contextual_response(message, recommendation, context)
+chatbotService --> frontend : Context-aware response
+frontend --> user : Display updated response
+
+== Conversation Management ==
+user -> frontend : view conversations
+frontend -> chatbotService : GET /api/chatbot/
+chatbotService --> frontend : conversation list
+frontend --> user : Display conversation list
+
+user -> frontend : create new conversation
+frontend -> chatbotService : POST /api/chatbot/
+chatbotService --> frontend : new conversation
+frontend --> user : Open new chat
+
+user -> frontend : get conversation messages
+frontend -> chatbotService : GET /api/chatbot/{id}/messages/
+chatbotService --> frontend : message history
+frontend --> user : Display chat history
+
+user -> frontend : clear conversation
+frontend -> chatbotService : POST /api/chatbot/{id}/clear/
+chatbotService --> frontend : conversation cleared
+frontend --> user : Confirm clearing
+
+user -> frontend : archive/unarchive conversation
+frontend -> chatbotService : POST /api/chatbot/{id}/toggle_active/
+chatbotService --> frontend : conversation status updated
+frontend --> user : Update conversation status
+
+user -> frontend : update conversation title
+frontend -> chatbotService : PUT /api/chatbot/{id}/
+chatbotService --> frontend : conversation updated
+frontend --> user : Confirm title change
+
+user -> frontend : delete conversation
+frontend -> chatbotService : DELETE /api/chatbot/{id}/
+chatbotService --> frontend : conversation deleted
+frontend --> user : Confirm deletion
+
+== AI Insights Integration ==
+chatbotService -> aiAnalysis : POST /api/ai/insights/analyze-user/
+aiAnalysis -> aiAnalysis : analyze_user_data(user, date_range)
+aiAnalysis -> aiAnalysis : _analyze_with_ollama(analysis_data)
+aiAnalysis --> chatbotService : analysis results with insights
+
+chatbotService -> aiAnalysis : GET /api/ai/recommendations/
+aiAnalysis -> aiAnalysis : get_therapy_recommendations(user)
+aiAnalysis --> chatbotService : therapy recommendation list
+
+chatbotService -> aiAnalysis : GET /api/ai/tips/mood/?days=7&count=5
+aiAnalysis -> aiAnalysis : generate_mood_tips(user, days, tip_count)
+aiAnalysis --> chatbotService : personalized mood tips
+
+chatbotService -> aiAnalysis : GET /api/ai/communication/therapeutic-relationship/
+aiAnalysis -> aiAnalysis : get_therapeutic_relationship_data(user)
+aiAnalysis --> chatbotService : therapeutic relationship analysis
+
+chatbotService -> aiAnalysis : POST /api/ai/communication/analyze-user/
+aiAnalysis -> aiAnalysis : analyze_communication_patterns(user, days)
+aiAnalysis -> aiAnalysis : _analyze_with_ollama(communication_data)
+aiAnalysis --> chatbotService : communication pattern analysis
+
+chatbotService -> aiAnalysis : GET /api/ai/tips/combined/?days=14&count=8
+aiAnalysis -> aiAnalysis : generate_combined_tips(user, days, tip_count)
+aiAnalysis --> chatbotService : holistic wellness tips
+
+== User Resume for Therapists ==
+chatbotService -> aiAnalysis : GET /api/ai/resume/{user_id}/
+aiAnalysis -> aiAnalysis : generate_user_resume(user_id, period_days)
+aiAnalysis -> aiAnalysis : _generate_analytics_cards()
+aiAnalysis -> aiAnalysis : _generate_ai_therapist_summary()
+aiAnalysis --> chatbotService : comprehensive user resume
+
+chatbotService -> aiAnalysis : GET /api/ai/resume/{user_id}/card/{card_type}/
+aiAnalysis -> aiAnalysis : extract_card_data(card_type)
+aiAnalysis --> chatbotService : specific card data
+
+== System Information ==
+user -> frontend : check system status
+frontend -> chatbotService : GET /api/chatbot/system-info/
+chatbotService --> frontend : system information
+frontend --> user : Display system status
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+@enduml

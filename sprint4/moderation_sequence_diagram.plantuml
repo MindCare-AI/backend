@@ -1,0 +1,87 @@
+@startuml Moderation_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+actor "Moderator" as moderator
+participant "Frontend" as frontend
+participant "ContentModerationService" as moderationService
+participant "AIRecommendationService" as recommendationService
+
+user -> frontend : Create content (post, message)
+frontend -> moderationService : check_content_toxicity(content)
+
+alt Content Processing
+    moderationService -> moderationService : _check_with_perspective_api(content)
+    moderationService -> moderationService : _apply_pattern_recognition(content)
+    moderationService -> moderationService : _apply_moderation_rules(scores)
+    
+    alt Harmful Content Detected
+        moderationService -> moderationService : _score_content_confidence(severity_scores)
+        moderationService -> moderationService : _apply_auto_filtering_rules(confidence)
+        
+        alt High Confidence Toxicity
+            moderationService -> moderationService : _auto_block_content(content_id)
+            moderationService -> frontend : content_blocked(reason)
+            frontend -> user : Display content blocked message
+        else Borderline Content
+            moderationService -> moderationService : _flag_for_review(content, scores)
+            moderationService -> moderationService : _select_educational_redirect(content_type)
+            moderationService -> frontend : suggest_content_modification(suggestions)
+            frontend -> user : Display suggested content modifications
+        end
+    else Safe Content
+        moderationService -> frontend : content_approved
+        frontend -> frontend : publish_content(content)
+        frontend -> user : Display published content
+    end
+end
+
+moderationService -> recommendationService : toxicity_assessment
+recommendationService -> recommendationService : _filter_toxic_content(recommendations, threshold)
+recommendationService -> frontend : safe_content_recommendations
+frontend -> user : Display safe recommendations
+
+user -> frontend : Report inappropriate content
+frontend -> moderationService : report_content(content_id, reason)
+
+alt Report Processing
+    moderationService -> moderationService : _log_user_report(user, content, reason)
+    moderationService -> moderationService : _aggregate_reports(content_id)
+    moderationService -> moderationService : _verify_with_perspective_api(content)
+    moderationService -> moderationService : _determine_report_validity(api_result, reports)
+    moderationService -> moderationService : _escalate_to_moderation_queue(content_id, priority)
+    moderationService -> frontend : report_submitted
+    frontend -> user : Display report confirmation
+end
+
+moderator -> frontend : Access moderation dashboard
+frontend -> moderationService : get_moderation_queue(filters)
+
+alt Moderation Queue Retrieval
+    moderationService -> moderationService : _retrieve_flagged_content(filters, sort_by="priority")
+    moderationService -> moderationService : _attach_toxicity_scores(content_items)
+    moderationService -> frontend : moderation_queue_with_scores
+    frontend -> moderator : Display content for review with toxicity metrics
+end
+
+moderator -> frontend : Take moderation action
+frontend -> moderationService : moderate_content(content_id, action, reason)
+
+alt Moderation Action Processing
+    moderationService -> moderationService : _apply_moderation_action(content_id, action)
+    moderationService -> moderationService : _log_moderation_decision(moderator, content, action, reason)
+    moderationService -> moderationService : _update_moderation_statistics(content_type, action)
+    moderationService -> frontend : action_confirmed
+    frontend -> moderator : Display confirmation
+end
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+@enduml

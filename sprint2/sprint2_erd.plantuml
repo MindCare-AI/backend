@@ -1,0 +1,325 @@
+@startuml Sprint2_ERD
+!theme plain
+
+
+' Styling
+!define ENTITY_BORDER_COLOR #000000
+!define ENTITY_BG_COLOR #FFFFFF
+!define ENTITY_TEXT_COLOR #000000
+
+skinparam {
+    ClassBackgroundColor ENTITY_BG_COLOR
+    ClassBorderColor ENTITY_BORDER_COLOR
+    ClassFontColor ENTITY_TEXT_COLOR
+    ClassFontSize 12
+    ClassHeaderBackgroundColor ENTITY_BG_COLOR
+    monochrome true
+    shadowing false
+    linetype ortho
+    packageStyle rectangle
+}
+
+' Entities
+
+' Core User Entity
+entity "CustomUser" as user {
+    * id : BigAutoField <<PK>>
+    --
+    username : CharField
+    email : EmailField
+    password : CharField
+    user_type : CharField
+    phone_number : CharField
+    date_of_birth : DateField
+    created_at : DateTimeField
+    is_online : BooleanField
+    last_seen : DateTimeField
+    first_name : CharField
+    last_name : CharField
+    date_joined : DateTimeField
+    is_active : BooleanField
+    is_staff : BooleanField
+    is_superuser : BooleanField
+}
+
+' Patient Profile
+entity "PatientProfile" as patient_profile {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    emergency_contact : JSONField
+    blood_type : CharField
+    gender : CharField
+    profile_pic : ImageField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+}
+
+' User Preferences
+entity "UserPreferences" as user_preferences {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    theme : CharField
+    language : CharField
+    notification_settings : JSONField
+    privacy_settings : JSONField
+    display_settings : JSONField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+}
+
+' Mood Tracking
+entity "MoodLog" as mood_log {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    mood_rating : IntegerField
+    energy_level : IntegerField
+    activities : CharField
+    notes : TextField
+    logged_at : DateTimeField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    journal_entry_id : BigAutoField <<FK>>
+}
+
+' Journaling System
+entity "JournalCategory" as journal_category {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    name : CharField
+    color : CharField
+    icon : CharField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+}
+
+entity "JournalEntry" as journal_entry {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    title : CharField
+    content : TextField
+    mood_rating : IntegerField
+    weather : CharField
+    energy_level : IntegerField
+    activities : JSONField
+    * category_id : BigAutoField <<FK>>
+    created_at : DateTimeField
+    updated_at : DateTimeField
+}
+
+' Media Management
+entity "MediaFile" as media_file {
+    * id : BigAutoField <<PK>>
+    --
+    file : FileField
+    media_type : CharField
+    title : CharField
+    description : TextField
+    * uploaded_by_id : BigAutoField <<FK>>
+    uploaded_at : DateTimeField
+    file_size : BigIntegerField
+    mime_type : CharField
+    is_public : BooleanField
+    download_count : IntegerField
+    file_hash : CharField
+    thumbnail : ImageField
+}
+
+' Group Messaging
+entity "GroupConversation" as group_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    name : CharField
+    description : TextField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    last_activity : DateTimeField
+    is_active : BooleanField
+    max_participants : IntegerField
+}
+
+' Junction table for many-to-many relationship
+entity "GroupConversationParticipant" as group_participant {
+    * conversation_id : BigAutoField <<FK>>
+    * user_id : BigAutoField <<FK>>
+    --
+    joined_at : DateTimeField
+    is_moderator : BooleanField
+}
+
+entity "GroupMessage" as group_message {
+    * id : BigAutoField <<PK>>
+    --
+    * conversation_id : BigAutoField <<FK>>
+    * sender_id : BigAutoField <<FK>>
+    content : TextField
+    is_system_message : BooleanField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    message_type : CharField
+}
+
+' Junction table for many-to-many relationship
+entity "GroupMessageReadBy" as message_read_by {
+    * message_id : BigAutoField <<FK>>
+    * user_id : BigAutoField <<FK>>
+    --
+    read_at : DateTimeField
+}
+
+' Junction table for many-to-many relationship
+entity "GroupMessageMedia" as message_media {
+    * message_id : BigAutoField <<FK>>
+    * media_id : BigAutoField <<FK>>
+}
+
+entity "Reaction" as reaction {
+    * id : BigAutoField <<PK>>
+    --
+    * message_id : BigAutoField <<FK>>
+    * user_id : BigAutoField <<FK>>
+    reaction_type : CharField
+    created_at : DateTimeField
+}
+
+' Social Feed
+entity "Post" as post {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    content : TextField
+    topic : CharField
+    tags : JSONField
+    visibility : CharField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    likes_count : IntegerField
+    comments_count : IntegerField
+    is_pinned : BooleanField
+}
+
+' Junction table for many-to-many relationship
+entity "PostMedia" as post_media {
+    * post_id : BigAutoField <<FK>>
+    * media_id : BigAutoField <<FK>>
+}
+
+entity "Comment" as comment {
+    * id : BigAutoField <<PK>>
+    --
+    * post_id : BigAutoField <<FK>>
+    parent_comment_id : BigAutoField <<FK>>
+    * user_id : BigAutoField <<FK>>
+    content : TextField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    likes_count : IntegerField
+    is_edited : BooleanField
+}
+
+' Notifications
+entity "NotificationType" as notification_type {
+    * id : BigAutoField <<PK>>
+    --
+    name : CharField
+    description : TextField
+    default_enabled : BooleanField
+    is_global : BooleanField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    icon : CharField
+    color : CharField
+}
+
+entity "Notification" as notification {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    * notification_type_id : BigAutoField <<FK>>
+    title : CharField
+    message : TextField
+    read : BooleanField
+    priority : CharField
+    related_object_type : ContentType
+    related_object_id : PositiveIntegerField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    action_url : URLField
+    data : JSONField
+}
+
+' Chatbot
+entity "ChatbotConversation" as chatbot_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    * user_id : BigAutoField <<FK>>
+    title : CharField
+    is_active : BooleanField
+    session_data : JSONField
+    context_window : IntegerField
+    created_at : DateTimeField
+    last_activity : DateTimeField
+    updated_at : DateTimeField
+}
+
+entity "ChatMessage" as chat_message {
+    * id : BigAutoField <<PK>>
+    --
+    * conversation_id : BigAutoField <<FK>>
+    is_from_user : BooleanField
+    content : TextField
+    message_type : CharField
+    metadata : JSONField
+    tokens_used : IntegerField
+    response_time : FloatField
+    created_at : DateTimeField
+}
+
+' ===============================
+' RELATIONSHIPS WITH CARDINALITY
+' ===============================
+
+' One-to-One relationships
+user ||--o| patient_profile : "1:0..1"
+user ||--o| user_preferences : "1:0..1"
+
+' One-to-Many relationships
+user ||--o{ mood_log : "1:N"
+user ||--o{ journal_entry : "1:N"
+user ||--o{ journal_category : "1:N"
+user ||--o{ notification : "1:N"
+user ||--o{ chatbot_conversation : "1:N"
+user ||--o{ media_file : "1:N"
+user ||--o{ post : "1:N"
+user ||--o{ comment : "1:N"
+
+journal_category ||--o{ journal_entry : "1:N"
+mood_log |o--|| journal_entry : "1:1"
+
+' Many-to-Many relationships through junction tables
+user }|--|| group_participant
+group_conversation ||--|{ group_participant
+group_participant }|--|| user
+
+group_message }|--|| message_read_by
+message_read_by }|--|| user
+
+group_message }|--|| message_media
+message_media }|--|| media_file
+
+post }|--|| post_media
+post_media }|--|| media_file
+
+' Additional relationships
+group_conversation ||--o{ group_message : "1:N"
+group_message ||--o{ reaction : "1:N"
+post ||--o{ comment : "1:N"
+comment ||--o{ comment : "1:N"
+notification }o--|| notification_type : "N:1"
+chatbot_conversation ||--o{ chat_message : "1:N"
+
+@enduml

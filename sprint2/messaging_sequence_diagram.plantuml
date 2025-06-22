@@ -1,0 +1,102 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "GroupChatService" as GroupChatService
+participant "NotificationService" as NotificationService
+database "Database" as Database
+
+' No title for consistency
+
+' === Group Messaging ===
+group Group Chat System
+    Patient -> Frontend: Join support group
+    Frontend -> GroupChatService: Send join request (POST /api/messaging/groups/{id}/join/)
+    GroupChatService -> Database: Add user to group
+    alt Successful Group Join
+        Database --> GroupChatService: User added
+        GroupChatService --> Frontend: Return group info
+        Frontend --> Patient: Display group chat
+    else Failed Group Join
+        Database --> GroupChatService: Error adding user
+        GroupChatService --> Frontend: Return error message
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Send message
+    Frontend -> GroupChatService: Submit message via WebSocket (WebSocket ws/group/<str:conversation_id>)
+    GroupChatService -> Database: Store message
+    GroupChatService -> NotificationService: Trigger message notification
+    Database --> GroupChatService: Message stored
+    GroupChatService -> GroupChatService: Broadcast to group members
+    GroupChatService --> Frontend: Deliver message
+    Frontend --> Patient: Display message
+    
+    Patient -> Frontend: Upload media to chat
+    Frontend -> GroupChatService: Submit media content (POST /api/messaging/groups/messages)
+    GroupChatService -> Database: Store media reference
+    Database --> GroupChatService: Media stored
+    GroupChatService -> GroupChatService: Broadcast media message
+    GroupChatService --> Frontend: Deliver media message
+    Frontend --> Patient: Display media
+    
+    Patient -> Frontend: Search messages
+    Frontend -> GroupChatService: Submit search query (GET /api/messaging/groups/{id}/messages/?search=query)
+    GroupChatService -> Database: Execute search
+    Database --> GroupChatService: Return results
+    GroupChatService --> Frontend: Return search results
+    Frontend --> Patient: Display results
+    
+    Patient -> Frontend: React to message
+    Frontend -> GroupChatService: Submit reaction (POST /api/messaging/messages/{id}/reactions/)
+    GroupChatService -> Database: Store reaction
+    Database --> GroupChatService: Reaction stored
+    GroupChatService -> GroupChatService: Broadcast reaction
+    GroupChatService --> Frontend: Update message with reaction
+    Frontend --> Patient: Display reaction
+    
+    Patient -> Frontend: Leave support group
+    Frontend -> GroupChatService: Send leave request (DELETE /api/messaging/groups/{id}/remove/)
+    GroupChatService -> Database: Remove user from group
+    Database --> GroupChatService: User removed
+    GroupChatService -> GroupChatService: Broadcast member left message
+    GroupChatService --> Frontend: Confirm group exit
+    Frontend --> Patient: Display exit confirmation
+end
+
+' === Moderation Controls ===
+group Moderation Controls
+    Patient -> Frontend: Access moderator controls
+    Frontend -> GroupChatService: Check moderation permissions (GET /api/messaging/groups/{id}/)
+    GroupChatService -> Database: Verify moderator status
+    Database --> GroupChatService: Confirm moderator role
+    GroupChatService --> Frontend: Enable moderator features
+    Frontend --> Patient: Display moderator controls
+    
+    Patient -> Frontend: Delete message
+    Frontend -> GroupChatService: Submit delete action (DELETE /api/messaging/messages/{id}/)
+    GroupChatService -> Database: Mark message as deleted
+    Database --> GroupChatService: Message deleted
+    GroupChatService -> GroupChatService: Broadcast deletion
+    GroupChatService --> Frontend: Remove message from view
+    Frontend --> Patient: Update chat display
+    
+    Patient -> Frontend: Manage user in group
+    Frontend -> GroupChatService: Submit user action (mute/kick) (PATCH /api/messaging/groups/{id}/)
+    GroupChatService -> Database: Update user group status
+    Database --> GroupChatService: Status updated
+    GroupChatService -> GroupChatService: Broadcast user status change
+    GroupChatService -> NotificationService: Notify affected user
+    GroupChatService --> Frontend: Confirm user action
+    Frontend --> Patient: Display confirmation
+end
+
+@enduml

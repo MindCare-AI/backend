@@ -1,0 +1,103 @@
+@startuml Crisis_Monitoring_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+participant "Frontend" as frontend
+participant "ChatbotService" as chatbotService
+participant "CrisisMonitoringService" as crisisService
+participant "RealtimeAnalyticsService" as realtimeAnalytics
+participant "EnhancedNotificationService" as notificationService
+participant "TherapistService" as therapistService
+
+user -> frontend : send message
+frontend -> chatbotService : POST /api/chatbot/{id}/send_message/
+
+alt Successful request
+	chatbotService -> chatbotService : _enhanced_crisis_detection(message)
+
+	alt Crisis detected
+		chatbotService -> crisisService : log_crisis_event(user, message, detection_data)
+
+		alt Crisis logging successful
+			crisisService -> crisisService : _determine_crisis_level(confidence)
+			crisisService -> crisisService : _trigger_immediate_response(user, crisis_event)
+
+			alt Notification successful
+				crisisService -> notificationService : send_notification(priority=urgent)
+				notificationService --> crisisService : notification sent
+			else Notification failed
+				crisisService -> notificationService : send_notification(priority=urgent)
+				notificationService --> crisisService : 500 Notification service unavailable
+				crisisService -> crisisService : _log_notification_failure(crisis_event)
+			end
+
+			crisisService -> realtimeAnalytics : POST /api/datawarehouse/realtime-analytics/process-event/
+
+			crisisService -> crisisService : _analyze_historical_patterns(user, crisis_type)
+			crisisService -> crisisService : _create_crisis_intervention_workflow(severity, user)
+			crisisService -> crisisService : _assign_intervention_responsibilities(crisis_workflow)
+			crisisService -> crisisService : _schedule_follow_up_actions(crisis_event)
+
+			alt Team notification successful
+				crisisService -> notificationService : broadcast_to_group("therapists", "crisis_alert", crisis_data)
+				notificationService -> notificationService : _format_notification("crisis", title, message)
+				notificationService -> therapistService : notify crisis team members
+				therapistService -> therapistService : assign_crisis_response_team(crisis_data)
+				therapistService -> notificationService : send_escalation_notifications(team)
+			else Team notification failed
+				crisisService -> notificationService : broadcast_to_group("therapists", "crisis_alert", crisis_data)
+				notificationService --> crisisService : 500 Broadcast failed
+				crisisService -> crisisService : _log_escalation_failure(crisis_event)
+				crisisService -> crisisService : _trigger_backup_alert_procedure(crisis_event)
+			end
+
+			crisisService -> crisisService : _track_crisis_resolution(crisis_event_id)
+			crisisService -> crisisService : _update_crisis_statistics(user, crisis_type, resolution)
+			crisisService -> realtimeAnalytics : log_crisis_resolution(crisis_event_id, resolution_data)
+
+		else Crisis logging failed
+			chatbotService -> crisisService : log_crisis_event(user, message, detection_data)
+			crisisService --> chatbotService : 500 Internal Server Error
+			chatbotService -> chatbotService : _log_crisis_detection_locally(detection_data)
+			chatbotService -> chatbotService : _generate_safe_response(message)
+			chatbotService --> frontend : Crisis-aware fallback response
+			frontend --> user : Display safety-focused response
+		end
+
+	else No crisis detected
+		chatbotService -> chatbotService : _process_regular_message(message)
+		chatbotService --> frontend : Regular response
+		frontend --> user : Display standard message
+	end
+
+else Message sending failed
+	chatbotService --> frontend : 400 Bad Request
+	frontend --> user : Display error "Unable to process message"
+end
+
+group Crisis Dashboard
+	user -> frontend : view crisis dashboard
+	frontend -> realtimeAnalytics : GET /api/datawarehouse/realtime-analytics/crisis-detection/
+	realtimeAnalytics --> frontend : crisis detection data
+	frontend --> user : Display crisis monitoring dashboard
+end
+
+group Notification Management
+	user -> frontend : check notifications
+	frontend -> notificationService : GET /api/notifications/
+	notificationService --> frontend : notification list
+	frontend --> user : Display notifications
+
+	user -> frontend : mark notifications as read
+	frontend -> notificationService : POST /api/notifications/mark-all-read/
+	notificationService --> frontend : notifications marked as read
+	frontend --> user : Updated notification status
+end
+
+@enduml

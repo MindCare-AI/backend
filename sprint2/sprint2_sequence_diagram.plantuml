@@ -1,0 +1,256 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+'     Patient -> Frontend: Send message to chatbot
+    Frontend -> ChatbotService: Submit message (POST /api/chatbot/{id}/send_message/)
+    ChatbotService -> ChatbotService: Process input
+    ChatbotService -> ChatbotService: Call Gemini API
+    ChatbotService -> Database: Store conversation
+    Database --> ChatbotService: Conversation stored
+    ChatbotService --> Frontend: Return AI response
+    Frontend --> Patient: Display chatbot message
+    
+    Patient -> Frontend: Continue conversation
+    Frontend -> ChatbotService: Send follow-up (POST /api/chatbot/{id}/send_message/)
+    ChatbotService -> ChatbotService: Retrieve context
+    ChatbotService -> ChatbotService: Generate contextualized response
+    ChatbotService -> Database: Update conversation
+    Database --> ChatbotService: Update stored
+    ChatbotService --> Frontend: Return AI response
+    Frontend --> Patient: Display contextual responsets with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "AuthService" as AuthService
+participant "PatientService" as PatientService
+participant "MoodService" as MoodService
+participant "JournalService" as JournalService
+participant "GroupChatService" as GroupChatService
+participant "SocialFeedService" as SocialFeedService
+participant "NotificationService" as NotificationService
+participant "UserPreferenceService" as UserPreferenceService
+participant "ChatbotService" as ChatbotService
+database "Database" as Database
+
+
+
+' === Registration & Profile Management ===
+group Registration & Profile Management
+    Patient -> Frontend: Register new account
+    Frontend -> AuthService: Submit registration data (POST /api/auth/register/)
+    AuthService -> AuthService: Validate registration data
+    AuthService -> Database: Create user account
+    Database --> AuthService: User created successfully
+    AuthService -> PatientService: Assign patient role
+    PatientService -> Database: Create patient profile
+    Database --> PatientService: Profile created
+    PatientService --> AuthService: Role assigned
+    AuthService --> Frontend: Return registration success (JWT token)
+    Frontend --> Patient: Display success message
+
+    Patient -> Frontend: Upload profile picture
+    Frontend -> PatientService: Submit profile picture (POST /api/patient/profiles/<int:pk>/picture/)
+    PatientService -> Database: Store profile picture
+    Database --> PatientService: Picture stored
+    PatientService --> Frontend: Return success
+    Frontend --> Patient: Display updated profile
+end
+
+' === Mood Tracking System ===
+group Mood Tracking System
+    Patient -> Frontend: Log daily mood
+    Frontend -> MoodService: Submit mood data (1-10 scale) (POST /api/mood/logs/)
+    MoodService -> Database: Store mood entry
+    Database --> MoodService: Mood stored
+    
+    Patient -> Frontend: Log energy level
+    Frontend -> MoodService: Submit energy data (1-5 scale) (PATCH /api/mood/logs/<int:pk>/)
+    MoodService -> Database: Update mood entry with energy
+    Database --> MoodService: Energy stored
+    
+    Patient -> Frontend: Associate activities with mood
+    Frontend -> MoodService: Submit activity associations (POST /api/mood/logs/<int:pk>/activities/)
+    MoodService -> Database: Link activities to mood
+    Database --> MoodService: Activities linked
+    MoodService --> Frontend: Return success
+    Frontend --> Patient: Display confirmation
+    
+    Patient -> Frontend: View mood trends
+    Frontend -> MoodService: Request 30-day history (GET /api/mood/logs/analytics/?period=30d)
+    MoodService -> Database: Fetch mood history
+    Database --> MoodService: Return mood data
+    MoodService -> MoodService: Generate statistics
+    MoodService --> Frontend: Return mood trends & stats
+    Frontend --> Patient: Display mood visualization
+end
+
+' === Journaling System ===
+group Journaling System
+    Patient -> Frontend: Create journal entry
+    Frontend -> JournalService: Submit journal content (POST /api/journal/entries/)
+    JournalService -> Database: Store journal entry
+    Database --> JournalService: Entry stored
+    
+    Patient -> Frontend: Add metadata (mood, weather)
+    Frontend -> JournalService: Submit entry metadata (PATCH /api/journal/entries/<int:pk>/)
+    JournalService -> Database: Update entry with metadata
+    Database --> JournalService: Metadata stored
+    
+    Patient -> Frontend: Create journal category
+    Frontend -> JournalService: Submit category (color, icon) (POST /api/journal/categories/)
+    JournalService -> Database: Store category
+    Database --> JournalService: Category stored
+    
+    Patient -> Frontend: Categorize journal entry
+    Frontend -> JournalService: Submit entry with category (PATCH /api/journal/entries/<int:pk>/)
+    JournalService -> Database: Update entry categorization
+    Database --> JournalService: Category linked
+    JournalService --> Frontend: Return success
+    Frontend --> Patient: Display categorized entry
+end
+
+' === Group Messaging ===
+group Group Chat System
+    Patient -> Frontend: Join support group
+    Frontend -> GroupChatService: Send join request (POST /api/messaging/groups/{id}/join/)
+    GroupChatService -> Database: Add user to group
+    Database --> GroupChatService: User added
+    GroupChatService --> Frontend: Return group info
+    Frontend --> Patient: Display group chat
+    
+    Patient -> Frontend: Send message
+    Frontend -> GroupChatService: Submit message via WebSocket (WebSocket /ws/messaging/groups/{id}/)
+    GroupChatService -> Database: Store message
+    GroupChatService -> NotificationService: Trigger message notification
+    Database --> GroupChatService: Message stored
+    GroupChatService -> GroupChatService: Broadcast to group members
+    GroupChatService --> Frontend: Deliver message
+    Frontend --> Patient: Display message
+    
+    Patient -> Frontend: Upload media to chat
+    Frontend -> GroupChatService: Submit media content (POST /api/messaging/groups/{id}/media/)
+    GroupChatService -> Database: Store media reference
+    Database --> GroupChatService: Media stored
+    GroupChatService -> GroupChatService: Broadcast media message
+    GroupChatService --> Frontend: Deliver media message
+    Frontend --> Patient: Display media
+    
+    Patient -> Frontend: Search messages
+    Frontend -> GroupChatService: Submit search query (GET /api/messaging/groups/{id}/messages/?search=query)
+    GroupChatService -> Database: Execute search
+    Database --> GroupChatService: Return results
+    GroupChatService --> Frontend: Return search results
+    Frontend --> Patient: Display results
+end
+
+' === Social Feed System ===
+group Social Feed System
+    Patient -> Frontend: Create post
+    Frontend -> SocialFeedService: Submit post content (POST /api/feeds/posts/)
+    SocialFeedService -> Database: Store post
+    Database --> SocialFeedService: Post stored
+    SocialFeedService --> Frontend: Return success
+    Frontend --> Patient: Display post
+    
+    Patient -> Frontend: Add media to post
+    Frontend -> SocialFeedService: Upload media files (POST /api/feeds/posts/{id}/media/)
+    SocialFeedService -> Database: Store media references
+    Database --> SocialFeedService: Media stored
+    SocialFeedService --> Frontend: Return success
+    Frontend --> Patient: Display post with media
+    
+    Patient -> Frontend: Like a post
+    Frontend -> SocialFeedService: Submit like action (POST /api/feeds/posts/{id}/likes/)
+    SocialFeedService -> Database: Store like
+    SocialFeedService -> NotificationService: Notify post owner
+    Database --> SocialFeedService: Like stored
+    SocialFeedService --> Frontend: Return updated like count
+    Frontend --> Patient: Update UI
+    
+    Patient -> Frontend: Comment on post
+    Frontend -> SocialFeedService: Submit comment (POST /api/feeds/posts/{id}/comments/)
+    SocialFeedService -> Database: Store comment
+    SocialFeedService -> NotificationService: Notify relevant users
+    Database --> SocialFeedService: Comment stored
+    SocialFeedService --> Frontend: Return success
+    Frontend --> Patient: Display comment
+    
+    Patient -> Frontend: Reply to comment
+    Frontend -> SocialFeedService: Submit nested reply (POST /api/feeds/comments/{id}/replies/)
+    SocialFeedService -> Database: Store nested comment
+    SocialFeedService -> NotificationService: Notify parent comment author
+    Database --> SocialFeedService: Reply stored
+    SocialFeedService --> Frontend: Return success
+    Frontend --> Patient: Display nested reply
+end
+
+' === Notification System ===
+group Notification System
+    note over NotificationService: Handling notifications for various events
+    
+    NotificationService -> Database: Store notification (POST /api/notifications/)
+    Database --> NotificationService: Notification stored
+    NotificationService -> NotificationService: Determine delivery channels
+    
+    alt WebSocket Notification
+        NotificationService --> Frontend: Push real-time notification (WebSocket /ws/notifications/)
+        Frontend --> Patient: Display notification
+    else Email Notification
+        NotificationService -> NotificationService: Generate email content
+        NotificationService --> Patient: Send email notification
+    end
+    
+    Patient -> Frontend: Interact with notification
+    Frontend -> NotificationService: Mark as read (PATCH /api/notifications/{id}/)
+    NotificationService -> Database: Update notification status
+    Database --> NotificationService: Status updated
+    NotificationService --> Frontend: Return success
+    Frontend --> Patient: Update notification UI
+end
+
+' === User Preferences ===
+group User Preferences Management
+    Patient -> Frontend: Update display preferences
+    Frontend -> UserPreferenceService: Submit display settings (PATCH /api/preferences/display/)
+    UserPreferenceService -> Database: Store preferences
+    Database --> UserPreferenceService: Preferences stored
+    UserPreferenceService --> Frontend: Return success
+    Frontend -> Frontend: Apply new settings
+    Frontend --> Patient: Display updated interface
+    
+    Patient -> Frontend: Configure notifications
+    Frontend -> UserPreferenceService: Submit notification preferences (PATCH /api/preferences/notifications/)
+    UserPreferenceService -> Database: Store notification settings
+    Database --> UserPreferenceService: Settings stored
+    UserPreferenceService -> NotificationService: Update delivery rules
+    UserPreferenceService --> Frontend: Return success
+    Frontend --> Patient: Display updated settings
+end
+
+' === Basic AI Chatbot ===
+group Basic AI Chatbot
+    Patient -> Frontend: Send message to chatbot
+    Frontend -> ChatbotService: Submit message (POST /api/chatbot/messages/)
+    ChatbotService -> ChatbotService: Process input
+    ChatbotService -> ChatbotService: Call Gemini API
+    ChatbotService -> Database: Store conversation
+    Database --> ChatbotService: Conversation stored
+    ChatbotService --> Frontend: Return AI response
+    Frontend --> Patient: Display chatbot message
+    
+    Patient -> Frontend: Continue conversation
+    Frontend -> ChatbotService: Send follow-up (POST /api/chatbot/messages/)
+    ChatbotService -> ChatbotService: Retrieve context
+    ChatbotService -> ChatbotService: Generate contextualized response
+    ChatbotService -> Database: Update conversation
+    Database --> ChatbotService: Update stored
+    ChatbotService --> Frontend: Return AI response
+    Frontend --> Patient: Display contextual response
+end
+
+@enduml

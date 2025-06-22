@@ -1,0 +1,116 @@
+# Sprint 4: Use Cases by Actor with Include/Extend Relationships
+
+## 1. AI Engine
+
+### Primary Use Cases
+- Analyze patient data
+- Generate therapeutic recommendations
+- Predict mental health trends
+- Process multi-modal information
+- Monitor for crisis indicators
+
+### Include/Extend Relationships
+- "Analyze patient data" <<include>> "Access datawarehouse"
+- "Generate therapeutic recommendations" <<extend>> "Analyze patient data"
+- "Predict mental health trends" <<include>> "Access historical data patterns"
+- "Monitor for crisis indicators" <<extend>> "Analyze patient data"
+- "Process multi-modal information" <<include>> "Perform data fusion"
+
+## 2. Chatbot
+
+### Primary Use Cases
+- Conduct therapeutic conversations
+- Provide mental health resources
+- Monitor messages for crisis signals
+- Maintain conversation context
+- Generate personalized responses
+
+### Include/Extend Relationships
+- "Conduct therapeutic conversations" <<include>> "Access AI Engine insights"
+- "Monitor messages for crisis signals" <<extend>> "Conduct therapeutic conversations"
+- "Generate personalized responses" <<include>> "Access patient profile data"
+- "Provide mental health resources" <<extend>> "Conduct therapeutic conversations"
+- "Maintain conversation context" <<include>> "Store conversation history"
+
+## 3. Patient
+
+### Primary Use Cases
+- Record daily mood entries
+- Write journal entries
+- Engage in therapeutic chat sessions
+- View personalized content feeds
+- Respond to therapy exercises
+- Receive notifications and alerts
+
+### Include/Extend Relationships
+- "Engage in therapeutic chat sessions" <<include>> "Interact with chatbot"
+- "View personalized content feeds" <<include>> "Request content recommendations"
+- "Record daily mood entries" <<include>> "Submit health data"
+- "Receive notifications and alerts" <<extend>> "Set notification preferences"
+- "Respond to therapy exercises" <<extend>> "View exercise instructions"
+- "Write journal entries" <<include>> "Submit personal reflections"
+
+## 4. Therapist
+
+### Primary Use Cases
+- Review patient analytics dashboards
+- Receive crisis alerts
+- Create treatment plans
+- Schedule patient appointments
+- Document therapy sessions
+- Send secure messages to patients
+
+### Include/Extend Relationships
+- "Review patient analytics dashboards" <<include>> "Request AI-generated insights"
+- "Receive crisis alerts" <<extend>> "Monitor assigned patients"
+- "Create treatment plans" <<include>> "Access AI recommendations"
+- "Document therapy sessions" <<include>> "Submit clinical notes"
+- "Schedule patient appointments" <<include>> "Check calendar availability"
+- "Send secure messages to patients" <<include>> "Access messaging system"
+
+## 5. System
+
+### Primary Use Cases
+- Authenticate users
+- Enforce privacy policies
+- Moderate content
+- Generate activity logs
+- Schedule automated tasks
+- Distribute notifications
+- Backup and restore data
+
+### Include/Extend Relationships
+- "Authenticate users securely" <<include>> "Verify credentials"
+- "Moderate content for harmful material" <<include>> "Apply content filtering rules"
+- "Distribute notifications" <<extend>> "Check user notification preferences"
+- "Generate user activity logs" <<include>> "Record system events"
+- "Enforce privacy policies" <<include>> "Apply access control rules"
+- "Backup and restore data" <<include>> "Execute database operations"
+- "Schedule automated tasks" <<include>> "Manage task queue"
+
+## 6. Datawarehouse Subsystem
+
+### Subsystem Use Cases
+- Store patient data securely
+- Process ETL operations
+- Generate analytics datasets
+- Maintain data quality
+- Secure sensitive information
+- Provide data access interfaces
+
+### Include/Extend Relationships with Actors
+- AI Engine "Analyze patient data for insights" <<include>> Datawarehouse "Generate analytics datasets"
+- AI Engine "Access datawarehouse" <<include>> Datawarehouse "Provide data access interfaces"
+- System "Backup and restore data" <<include>> Datawarehouse "Store patient data securely"
+- Therapist "Review patient analytics dashboards" <<include>> Datawarehouse "Generate analytics datasets"
+
+## 7. Cross-Actor Interactions
+
+### Inter-Actor Relationships
+- Patient "Record daily mood entries" <<extend>> AI Engine "Analyze patient data for insights"
+- Therapist "Create treatment plans" <<include>> AI Engine "Generate therapeutic recommendations"
+- System "Moderate content for harmful material" <<extend>> Chatbot "Monitor user messages for crisis signals"
+- Chatbot "Generate personalized responses" <<include>> AI Engine "Process multi-modal patient information"
+- AI Engine "Monitor for crisis indicators" <<extend>> System "Distribute notifications"
+- Therapist "Receive crisis alerts" <<extend>> AI Engine "Monitor for crisis indicators"
+- Patient "Engage in therapeutic chat sessions" <<include>> Chatbot "Conduct therapeutic conversations"

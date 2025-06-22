@@ -1,135 +1,3 @@
-\chapter{Chapter 4}
-\section{Introduction}
-\section{Release 1: Mind-Care}
-\subsection{Introduction}
-\subsection{Sprint 1}
-\subsubsection{Introduction :}
-This sprint establishes the foundational infrastructure and authentication system for the application. This phase implements the core setup with Django, PostgreSQL, Redis, and Celery, alongside a comprehensive authentication framework and basic user settings.
-This sprint provides the essential foundation for all subsequent development phases.
-\subsubsection{Sprint backlog :}
-
-\begin{table}[h]
-\centering
-\caption{Sprint 1 Backlog}
-\begin{longtable}{|p{0.4\textwidth}|p{0.4\textwidth}|p{0.15\textwidth}|}
-\hline
-\textbf{User Story} & \textbf{Task} & \textbf{Estimation} \\
-\hline
-\endfirsthead
-
-\hline
-\textbf{User Story} & \textbf{Task} & \textbf{Estimation} \\
-\hline
-\endhead
-
-As a new user, I want to create an account so that I can access the platform & Implement user registration with Django REST Framework & High \\
-\hline
-
-As a user, I want to verify my email so that my account is secure & Build email verification system & High \\
-\hline
-
-As a user, I want to log in with social accounts so that registration is convenient & Integrate social authentication providers & High \\
-\hline
-
-As a user, I want to log in securely so that my account is protected & Implement authentication middleware and security measures & High \\
-\hline
-
-As a user, I want to customize my theme so that the interface suits my preference & Create light/dark theme settings & High \\
-\hline
-
-As a user, I want to set my timezone so that times display correctly for my location & Implement timezone configuration & High \\
-\hline
-
-As a user, I want to control my privacy so that I can manage who sees my information & Build privacy settings for profile visibility and online status & High \\
-\hline
-
-
-\end{longtable}
-\end{table}
-
-\subsubsection{Use Case description : }
-\begin{table}[h]
-\centering
-\begin{tabular}{|p{3cm}|p{10cm}|}
-\hline
-\textbf{Field} & \textbf{Details} \\
-\hline
-Title & User Registration \& Email Verification \\
-\hline
-Actor & New user \\
-\hline
-Description & A new user can register and verify his account \\
-\hline
-Condition & A valid email \\
-\hline
-Output & Account created and verified \\
-\hline
-Scenario & A new user signs up by entering their email, username, and password.
-\begin{itemize}
-\item The backend checks email uniqueness and creates an inactive account.
-\item A verification link is sent via email.
-\item When the user clicks the link, the backend activates their account.
-\end{itemize} \\
-\hline
-Error handling & Duplicate email during registration \\
-\hline
-\end{tabular}
-\caption{User Registration and Email Verification Process}
-\label{tab:user_registration}
-\end{table}
-
-\begin{table}[h]
-\centering
-\begin{tabular}{|p{3cm}|p{11cm}|}
-\hline
-\textbf{Field} & \textbf{Details} \\
-\hline
-Title & User Login and Settings Management \\
-\hline
-Actor & User \\
-\hline
-Description & An authenticated user can login to his account, reset password if forgotten and after he can manage his settings. \\
-\hline
-Condition & The user must be authenticated \\
-\hline
-Output & User logged in and able to manage his settings \\
-\hline
-Scenario & \textbf{Login Flows}
-\vspace{0.2cm}
-
-
-Users can log in using:
-\begin{itemize}
-\item Email and password, where the system checks credentials and email verification before issuing JWT tokens.
-\item Google OAuth, where users authenticate via Google, and their info is used to either log them in or create a new account.
-\end{itemize}
-
-\textbf{Password Reset}
-\vspace{0.2cm}
-
-Users who forget their password can request a reset email. After clicking the reset link and submitting a new password, the system updates the account.
-
-\textbf{Manage User Settings}
-\vspace{0.2cm}
-
-Authenticated users can view and update preferences like:
-\begin{itemize}
-\item Theme (light/dark)
-\item Timezone
-\item Privacy settings
-\end{itemize} \\
-\hline
-Error handling & Invalid login credentials
-
-Expired JWT tokens, including automatic refresh handling \\
-\hline
-\end{tabular}
-\caption{User Login and Settings Management Process}
-\label{tab:login_settings}
-\end{table}
-
-
-
 
 
 \section{Sprint 2}
@@ -189,13 +57,14 @@ As a patient, I want to chat with an AI & Integrate Gemini API for basic AI chat
 \end{table}
 
 
-\subsection{Functional Analysis}
+\subsubsection{Functional Analysis}
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{images/Chapter 4/sprint2.drawio.png}
-    \caption{Sprint 2 - Use Case Diagram for srpint 2}
+    \caption{Sprint 2 - Use Case Diagram for Sprint 2}
     \label{fig:use_case_patient}
 \end{figure}
+
 \begin{longtable}{|p{3cm}|p{12cm}|}
 \hline
 \textbf{Field} & \textbf{Details} \\
@@ -210,7 +79,7 @@ Condition & User must complete registration process and be authenticated \\
 \hline
 Output & Patient role assignment, complete profile with personal details, uploaded profile picture \\
 \hline
-Scenario & 1. User completes registration form \newline 2. System automatically assigns patient role \newline 3. Patient accesses profile section \newline 4. Patient enters personal information (name, phone, blood type, gender, emergency contact) \newline 5. Patient uploads profile picture \newline 6. System validates and saves all profile data \\
+Scenario & 1. User completes registration form with email and password credentials \newline 2. System automatically assigns patient role using Django signals during user creation \newline 3. Patient accesses their personal profile section through the secure dashboard \newline 4. Patient enters comprehensive personal information (full name, contact phone, blood type selection, gender identity, emergency contact details) \newline 5. Patient uploads profile picture with real-time preview and cropping capabilities \newline 6. System validates all input data for format and security compliance \newline 7. System securely stores profile data with encryption for sensitive fields \newline 8. Patient receives confirmation of successful profile update \\
 \hline
 Error handling & Registration failures, invalid profile data, profile picture upload errors, file format validation, database storage issues \\
 \hline
@@ -231,7 +100,7 @@ Condition & Patient must be authenticated and have active profile \\
 \hline
 Output & Daily mood logs, energy tracking data, activity associations, 30-day trend visualization, summary statistics \\
 \hline
-Scenario & 1. Patient accesses mood tracking interface \newline 2. Patient rates current mood (1-10 scale) \newline 3. Patient enters energy level (1-5 scale) \newline 4. Patient selects associated activities \newline 5. System saves mood entry with timestamp \newline 6. Patient views 30-day mood history and trends \newline 7. System displays summary statistics and patterns \\
+Scenario & 1. Patient accesses user-friendly mood tracking interface with visual mood scale indicators \newline 2. Patient rates current mood on a granular scale (1-10, where 1 is extremely negative and 10 is extremely positive) with descriptive tooltips \newline 3. Patient selects energy level from five distinct options (Very Low, Low, Moderate, High, Very High) with visual indicators \newline 4. Patient selects associated activities from a comprehensive list (Exercise, Meditation, Reading, Socializing, etc.) with multi-select capability \newline 5. Patient can add optional notes about their mood state and contextual factors \newline 6. System saves mood entry with precise timestamp and user association \newline 7. Patient views color-coded 30-day mood history with interactive data visualization \newline 8. System calculates and displays comprehensive statistics including averages, trends, patterns, and correlation between mood and activities \newline 9. Patient can export mood data for personal records or healthcare provider sharing \\
 \hline
 Error handling & Invalid mood/energy values, activity selection errors, data visualization issues, historical data retrieval problems \\
 \hline
@@ -252,7 +121,7 @@ Condition & Patient must be logged in and have journaling access \\
 \hline
 Output & Journal entries with rich metadata, custom categories with visual identifiers \\
 \hline
-Scenario & 1. Patient opens journaling interface \newline 2. Patient writes journal content \newline 3. Patient records current general day mood and weather conditions \newline 4. Patient can w relevant activities \newline 5. Patient creates or selects custom category with color and icon \newline 6. System saves journal entry with all metadata \\
+Scenario & 1. Patient opens rich journaling interface with text formatting options and templates \newline 2. Patient writes detailed journal content with support for formatting, paragraphs, and emotional expression \newline 3. Patient records current general mood state from five options (Very Negative to Very Positive) with emoji visualization \newline 4. Patient selects current weather conditions (Sunny, Cloudy, Rainy, Stormy, Snowy) to provide environmental context \newline 5. Patient tags relevant activities that influenced their mental state during the day \newline 6. Patient creates personalized categories with custom colors and icon selections for organization \newline 7. Patient assigns entry to one or multiple categories for effective journaling organization \newline 8. System automatically timestamps and associates entry with user profile \newline 9. System saves journal entry with all metadata and provides confirmation \newline 10. Patient can later search, filter, and review entries by various criteria including categories, mood, and date ranges \\
 \hline
 Error handling & Content validation errors, category creation failures, metadata saving issues, journal entry storage problems \\
 \hline
@@ -273,7 +142,7 @@ Condition & Patient must be authenticated and have group messaging permissions \
 \hline
 Output & Real-time group messaging, media attachments, typing indicators, read receipts, message reactions, search results, moderation actions \\
 \hline
-Scenario & 1. Patient joins support group \newline 2. Patient sends text messages (up to 5000 characters) via WebSocket \newline 3. Patient uploads media attachments (images, videos, PDFs) \newline 4. System displays typing indicators and read receipts in real-time \newline 5. Patient reacts to messages and searches chat history \newline 6. Moderator manages inappropriate content and users \newline 7. Patient can leave group when needed \\
+Scenario & 1. Patient discovers and joins relevant support groups based on mental health topics and interests \newline 2. Patient engages in group conversations with rich text messages (supporting up to 5000 characters) delivered instantly via WebSocket technology \newline 3. Patient receives real-time notifications when new messages arrive in any joined groups \newline 4. Patient uploads diverse media attachments (images for visual expression, videos for deeper sharing, PDFs for informational resources) with preview capabilities \newline 5. System displays real-time typing indicators showing which group members are composing messages \newline 6. System tracks and displays message read receipts to confirm message delivery and viewing \newline 7. Patient uses message reactions (emoji responses) for quick emotional feedback without typing \newline 8. Patient employs advanced search functionality to find specific content in conversation history \newline 9. Moderators have enhanced permissions to remove inappropriate content, mute disruptive users, and maintain supportive community standards \newline 10. System maintains message history for continuity of support and reference \newline 11. Patient can gracefully exit groups when needed while preserving past contributions \\
 \hline
 Error handling & WebSocket connection failures, media upload errors, message validation issues, moderation action failures, search functionality problems \\
 \hline
@@ -294,7 +163,7 @@ Condition & Patient must be authenticated and have social feed access \\
 \hline
 Output & Public posts with media content, engagement metrics (likes), comment threads with nested replies \\
 \hline
-Scenario & 1. Patient creates new post with text and media content \newline 2. Patient publishes post to social feed \newline 3. Patient browses community posts \newline 4. Patient likes posts and writes comments \newline 5. Patient creates nested replies to existing comments \newline 6. System tracks all engagement activities \\
+Scenario & 1. Patient creates new post with formatted text and selectable post topics for better categorization \newline 2. Patient enhances posts with multi-media content (images, videos) with automatic format optimization \newline 3. Patient adds relevant tags to increase post discoverability within the community \newline 4. Patient publishes post to the social feed with privacy level selection options \newline 5. Patient browses personalized community posts with topic filtering capabilities \newline 6. Patient expresses appreciation through likes with immediate visual feedback \newline 7. Patient engages in meaningful discussions through detailed comments on posts \newline 8. Patient participates in threaded conversations through nested replies (supporting multiple levels) \newline 9. System tracks all engagement metrics for content relevance algorithms \newline 10. Users receive real-time notifications when others engage with their content \newline 11. System automatically detects and flags potentially inappropriate content for review \\
 \hline
 Error handling & Post creation failures, media upload errors, engagement tracking issues, nested comment depth limitations, content moderation problems \\
 \hline
@@ -315,7 +184,7 @@ Condition & Patient must be authenticated and have notification permissions enab
 \hline
 Output & Real-time notifications for journal confirmations, messaging alerts, mood reminders, feed engagement notifications \\
 \hline
-Scenario & 1. System monitors user activities requiring notifications \newline 2. System sends journal creation confirmations \newline 3. System delivers messaging alerts (new messages, typing indicators) via WebSocket \newline 4. System sends mood tracking reminders \newline 5. System notifies about feed engagement (likes, comments) \newline 6. Patient receives notifications in real-time \\
+Scenario & 1. System continuously monitors user-related activities across all platform features requiring notification alerts \newline 2. System generates and sends journal creation confirmations with entry summary for user verification \newline 3. System delivers instant messaging alerts for new messages with sender preview through WebSocket connections \newline 4. System shows real-time typing indicators when group members are composing messages \newline 5. System sends personalized mood tracking reminders based on user habit patterns and preferences \newline 6. System generates notifications about social feed engagement (likes, comments, replies) with engagement preview \newline 7. Patient receives prioritized notifications in real-time with visual and optional sound indicators \newline 8. System delivers alternative notification delivery through email for important offline updates \newline 9. Notifications remain in queue until acknowledged or marked as read by the patient \newline 10. System applies user preference filters before delivering notifications to respect user settings \\
 \hline
 Error handling & WebSocket delivery failures, notification timing issues, permission errors, notification queue overload \\
 \hline
@@ -336,7 +205,7 @@ Condition & Patient must be authenticated and have access to preferences \\
 \hline
 Output & Customized display settings, configured notification preferences, selective notification controls \\
 \hline
-Scenario & 1. Patient accesses user preferences interface \newline 2. Patient configures display settings (dark mode, language) \newline 3. Patient sets notification controls (email, in-app preferences) \newline 4. Patient selectively disables specific notification types \newline 5. System applies all preference changes \newline 6. System maintains preferences across sessions \\
+Scenario & 1. Patient accesses comprehensive user preferences interface through profile settings \newline 2. Patient configures visual display preferences including dark/light mode with preview functionality \newline 3. Patient selects preferred language from supported options with immediate interface translation \newline 4. Patient customizes notification delivery channels (toggles between email, in-app, or both) \newline 5. Patient configures notification frequency settings to prevent overwhelming alerts \newline 6. Patient granularly enables/disables specific notification types by category (journaling, mood, messaging, feeds) \newline 7. Patient sets quiet hours during which non-critical notifications are suppressed \newline 8. System validates and applies all preference changes in real-time \newline 9. System securely stores preference settings in user profile \newline 10. System consistently applies saved preferences across all sessions and devices \newline 11. Patient can reset preferences to default values if needed \\
 \hline
 Error handling & Preference saving failures, display setting application errors, notification control conflicts, session persistence issues \\
 \hline
@@ -363,41 +232,88 @@ Error handling & Gemini API connection failures, response generation timeouts, i
 \hline
 \caption{Basic AI Chatbot Use Case}
 \end{longtable}
-
+\newpage
 
 \subsection{Database Design}
 
 This subsection presents the database schema used in the system. The design ensures data integrity, scalability, and normalization.
-
+ 
+\vfill
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{images/Chapter 4/sprint2_database.png}
+    \includegraphics[width=0.95\textheight, height=0.95\textwidth, angle=90]{images/Chapter 4/Sprint2_ERD.png}
     \caption{Database Design Diagram}
     \label{fig:database-design}
 \end{figure}
 
-\section{Software Design}
+
+
+\vfill
+\newpage
+
+\subsection{Software Design}
 
 This section provides a structural and behavioral view of the software system using UML diagrams.
 
-\subsection{Class Diagram}
+\paragraph{Class Diagram}
 
 The class diagram outlines the static structure of the system, detailing the classes, attributes, methods, and relationships.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{images/Chapter 4/sprint2_diagram_classe.png}
+    \includegraphics[width=1\textheight, height=0.95\textwidth, angle=90]{images/Chapter 4/sprint2_class_diagram.png}
     \caption{Class Diagram of the System}
     \label{fig:class-diagram}
 \end{figure}
 
-\subsection{Sequence Diagram}
+\paragraph{Sequence Diagrams}
 
-The sequence diagram illustrates the dynamic behavior of the system, focusing on object interactions over time.
+The following sequence diagrams illustrate the dynamic behavior of each major system component, focusing on object interactions over time for each Django application in Sprint 2.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.85\textwidth]{images/Chapter 4/sequential_sprint2.png}
-    \caption{Sequence Diagram of a Core Use Case}
-    \label{fig:sequence-diagram}
+    \includegraphics[width=0.75\textwidth]{images/Chapter 4/sprint2/Auth_Sequence_Diagram.png}
+    \caption{Authentication \& Role Assignment Sequence Diagram}
+    \label{fig:auth-sequence-diagram}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/Chapter 4/sprint2/Patient_Sequence_Diagram.png}
+    \caption{Patient Profile Management Sequence Diagram}
+    \label{fig:patient-sequence-diagram}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{images/Chapter 4/sprint2/Mood_Sequence_Diagram.png}
+    \caption{Mood Tracking }
+    \label{fig:mood-sequence-diagram}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.45\textwidth]{images/Chapter 4/sprint2/Messaging_Sequence_Diagram.png}
+    \caption{Group Messaging System Sequence Diagram}
+    \label{fig:messaging-sequence-diagram}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\textwidth]{images/Chapter 4/sprint2/Feeds_Sequence_Diagram.png}
+    \caption{Social Feed System Sequence Diagram}
+    \label{fig:feeds-sequence-diagram}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.70\textwidth]{images/Chapter 4/sprint2/Chatbot_Sequence_Diagram.png}
+    \caption{AI Chatbot System Sequence Diagram}
+    \label{fig:chatbot-sequence-diagram}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{images/Chapter 4/sprint2/Journal_Sequence_Diagram.png}
+    \caption{journal Sequence Diagram}
+    \label{fig:journaling-sequence-diagram}
 \end{figure}

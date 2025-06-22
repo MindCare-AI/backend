@@ -1,66 +1,47 @@
-# Virtual environment
-venv/
-env/
-vevn/
+# Copilot ignore file - list of files that should not be referenced by Copilot
 
-# Python compiled files
-__pycache__/
-*.py[cod]
-
-# Django logs
-logs/
-*.log
-
-# Database files
-*.sqlite3
-
-.env
-rag_data/
-# Static and media files
-staticfiles/
-media/
-chatbot/data/chunks/
-
-# IDE & OS-specific files
-.vscode/
-.idea/
-*.swp
-.DS_Store
-Thumbs.db
-
-# Deleted files that should not be referenced
+# Deleted documentation files
 CLASS_DIAGRAMS.md
 DATABASE.md
 DATABASE_SCHEMA.md
-check_mood_data.py
-class_diagrams.mermaid
-class_diagrams.puml
-cleanup_test_data.py
-database_relationships.mermaid
-database_relationships.puml
+explanation.txt
+general_use_cases.txt
 datawarehouse_requirements.txt
 doc1.txt
 doc1_updated.txt
-explanation.txt
-general_use_cases.txt
-generate_mood_trends.py
+
+# Deleted diagrams
+class_diagrams.mermaid
+class_diagrams.puml
+database_relationships.mermaid
+database_relationships.puml
 global_sequence_diagram_plantuml.puml
 global_use_case_diagram_plantuml.puml
 my_project_models.png
-plantuml.jar
+
+# Deleted scripts and utilities
+check_mood_data.py
+cleanup_test_data.py
+generate_mood_trends.py
 populate_mood_trends.py
 test_ai_datawarehouse_integration.py
+plantuml.jar
+
+# Deleted chatbot test files
 chatbot/management/commands/test_chatbot_accuracy.py
 chatbot/tests/chatbot_accuracy_test.py
 chatbot/tests/chatbot_accuracy_tester.py
 chatbot/tests/run_accuracy_tests.py
 chatbot/tests/results/*.json
 rag_evaluation_results.json
+
+# Deleted tex files
 main.tex
+chapter*.tex
+
+# Deleted messaging files
 messaging/serializers/all_conversations.py
 messaging/views/all_conversations.py
 
-# Deleted migration files
-**/migrations/000*.py
+# Deleted service files
 AI_engine/services/communication_analysis.py
-chapter*.tex

@@ -267,6 +267,44 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = "mindcareai://oauth_callback"
 
+# Google Perspective API Configuration
+PERSPECTIVE_API_KEY = os.getenv("PERSPECTIVE_API_KEY", "")
+PERSPECTIVE_API_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+
+# Content Moderation Settings
+CONTENT_MODERATION_SETTINGS = {
+    "PERSPECTIVE_API": {
+        "ENABLED": True,
+        "API_KEY": PERSPECTIVE_API_KEY,
+        "BASE_URL": PERSPECTIVE_API_URL,
+        "TIMEOUT": 10,  # seconds
+        "MAX_RETRIES": 3,
+        "RATE_LIMIT_DELAY": 1,  # seconds between requests
+    },
+    "TOXICITY_THRESHOLDS": {
+        "HIGH": 0.8,    # Auto-remove content
+        "MEDIUM": 0.6,  # Flag for review
+        "LOW": 0.4,     # Log for monitoring
+    },
+    "ATTRIBUTES_TO_CHECK": [
+        "TOXICITY",
+        "SEVERE_TOXICITY", 
+        "IDENTITY_ATTACK",
+        "INSULT",
+        "PROFANITY",
+        "THREAT",
+        "SEXUALLY_EXPLICIT",
+        "FLIRTATION"
+    ],
+    "MODERATION_ACTIONS": {
+        "AUTO_REMOVE": True,
+        "NOTIFY_MODERATORS": True,
+        "LOG_ALL_CHECKS": True,
+        "QUARANTINE_USER": False,  # Set to True to auto-suspend users with repeated violations
+    },
+    "BYPASS_ROLES": ["admin", "moderator"],  # User roles that bypass moderation
+}
+
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 

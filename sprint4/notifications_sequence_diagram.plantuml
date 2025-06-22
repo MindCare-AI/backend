@@ -1,0 +1,104 @@
+@startuml Notifications_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+actor "Therapist" as therapist
+participant "Frontend" as frontend
+participant "EnhancedNotificationService" as notificationService
+participant "MedicalService" as medicalService
+participant "CrisisMonitoringService" as crisisService
+participant "TherapistService" as therapistService
+participant "AIRecommendationService" as recommendationService
+
+user -> frontend : Configure notification preferences
+frontend -> notificationService : PATCH /api/users/{user_id}/update_preferences/
+
+alt Successful update
+  notificationService -> notificationService : update_notification_preference_settings(user, preferences)
+  notificationService --> frontend : preferences_saved
+  frontend --> user : Display confirmation
+else Update failed
+  notificationService --> frontend : 400 Bad Request
+  frontend --> user : Display error "Unable to save preferences"
+end
+
+notificationService -> notificationService : schedule_notification(recipient, type, message, timestamp)
+notificationService -> medicalService : get_medication_schedule(user)
+
+alt Schedule retrieved successfully
+  medicalService --> notificationService : upcoming medications
+  notificationService -> notificationService : _generate_medication_reminders(schedule)
+  notificationService -> notificationService : _determine_delivery_channel(recipient, "medication", "medium")
+  
+  alt WebSocket Notification
+    notificationService -> frontend : push_websocket_notification(user, notification)
+    
+    alt WebSocket connection active
+      frontend -> frontend : display_notification(notification)
+      frontend --> user : Real-time notification displayed
+    else WebSocket connection failed
+      notificationService -> notificationService : _log_websocket_failure(user_id, notification_id)
+      notificationService -> notificationService : _queue_for_alternative_delivery(notification)
+    end
+    
+  else Email Notification
+    notificationService -> notificationService : _generate_email_content(notification_type, content)
+    
+    alt Email sent successfully
+      notificationService --> user : Email notification
+    else Email sending failed
+      notificationService -> notificationService : _log_email_failure(user_id, notification_id)
+      notificationService -> notificationService : _retry_email_delivery(email, retry_count=1)
+    end
+  end
+  
+else Schedule retrieval failed
+  medicalService --> notificationService : 500 Internal Server Error
+  notificationService -> notificationService : _log_medication_schedule_error(user_id)
+end
+
+crisisService -> notificationService : broadcast_to_group("therapists", "crisis_alert", crisis_data)
+
+alt Broadcast successful
+  notificationService -> notificationService : _format_notification("crisis", title, message)
+  notificationService -> notificationService : _set_priority_level(notification, "urgent")
+  notificationService -> therapistService : notify_crisis_team_members(crisis_data)
+  therapistService -> therapistService : _get_on_call_therapists()
+  therapistService -> therapistService : _get_crisis_specialists(crisis_type)
+  therapistService -> notificationService : send_notifications(therapists_list, crisis_data)
+  notificationService --> therapist : Urgent crisis notification
+else Broadcast failed
+  notificationService -> notificationService : _log_broadcast_failure(group_id, crisis_data)
+  notificationService -> notificationService : _trigger_fallback_alert_procedure(crisis_data)
+end
+
+user -> frontend : View personal mental health tips
+frontend -> recommendationService : GET /api/ai/recommendations/
+recommendationService --> frontend : therapeutic suggestions
+frontend -> notificationService : POST /api/notifications/
+notificationService -> notificationService : _format_notification("tip", title, content)
+notificationService --> user : Mental health tip notification
+
+notificationService -> notificationService : send_platform_announcement(title, content, target_groups)
+notificationService -> notificationService : _filter_recipients_by_groups(announcement, groups)
+notificationService -> notificationService : _schedule_staggered_delivery(recipients, announcement)
+notificationService --> user : Platform announcement notification
+
+user -> frontend : Interact with notification
+frontend -> notificationService : PATCH /api/notifications/{id}/
+notificationService -> notificationService : update_notification_status(id, "read")
+notificationService --> frontend : status_updated
+frontend -> frontend : update_notification_display()
+frontend --> user : Updated notifications view
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+
+@enduml

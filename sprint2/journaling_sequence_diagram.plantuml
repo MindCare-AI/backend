@@ -1,0 +1,81 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "JournalService" as JournalService
+participant "NotificationService" as NotificationService
+database "Database" as Database
+
+' No title for consistency
+
+' === Journaling System ===
+group Journaling System
+    Patient -> Frontend: Create journal entry
+    Frontend -> JournalService: Submit journal content (POST /api/journal/entries/)
+    JournalService -> Database: Store journal entry
+    alt Successful Journal Entry
+        Database --> JournalService: Entry stored
+        JournalService --> Frontend: Return success
+        Frontend --> Patient: Display confirmation
+    else Failed Journal Entry
+        Database --> JournalService: Error storing entry
+        JournalService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Add metadata (mood, weather)
+    Frontend -> JournalService: Submit entry metadata (PATCH /api/journal/entries/<int:pk>/)
+    JournalService -> Database: Update entry with metadata
+    Database --> JournalService: Metadata stored
+    JournalService --> Frontend: Return success
+    Frontend --> Patient: Display updated entry
+    
+    Patient -> Frontend: Create journal category
+    Frontend -> JournalService: Submit category (color, icon) (POST /api/journal/categories/)
+    JournalService -> Database: Store category
+    Database --> JournalService: Category stored
+    JournalService --> Frontend: Return success
+    Frontend --> Patient: Display category created
+    
+    Patient -> Frontend: Categorize journal entry 
+    Frontend -> JournalService: Submit entry with category (POST /api/journal/entries/) or
+    Frontend -> JournalService: Update entry with category (PATCH /api/journal/entries/<int:pk>/)
+    JournalService -> Database: Update entry categorization
+    Database --> JournalService: Category linked
+    JournalService -> NotificationService: Trigger journal update notification (POST /api/notifications/)
+    NotificationService -> Database: Store notification
+    Database --> NotificationService: Notification stored
+    JournalService --> Frontend: Return success
+    Frontend --> Patient: Display categorized entry
+    
+    Patient -> Frontend: View journal entries
+    Frontend -> JournalService: Request entries (GET /api/journal/entries/)
+    JournalService -> Database: Fetch journal entries
+    Database --> JournalService: Return entries
+    JournalService --> Frontend: Return journal data
+    Frontend --> Patient: Display journal entries
+    
+    Patient -> Frontend: Filter entries by category
+    Frontend -> JournalService: Request filtered entries (GET /api/journal/categories/<int:pk>/entries/)
+    JournalService -> Database: Fetch filtered entries
+    Database --> JournalService: Return filtered entries
+    JournalService --> Frontend: Return filtered data
+    Frontend --> Patient: Display filtered entries
+    
+    Patient -> Frontend: View journal statistics 
+    Frontend -> JournalService: Request statistics (GET /api/journal/entries/statistics/)
+    JournalService -> Database: Calculate statistics
+    Database --> JournalService: Return statistics data
+    JournalService --> Frontend: Return statistical analysis
+    Frontend --> Patient: Display journal insights
+end
+
+@enduml

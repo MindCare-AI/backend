@@ -1,0 +1,102 @@
+@startuml Feeds_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+participant "Frontend" as frontend
+participant "AIRecommendationService" as recommendationService
+participant "TopicExtractionService" as topicService
+participant "MoodService" as moodService
+participant "ContentDiversityService" as diversityService
+participant "ContentModerationService" as moderationService
+participant "EnhancedNotificationService" as notificationService
+
+user -> frontend : Browse content feed
+frontend -> recommendationService : POST /api/feeds/ai/personalized-feed/
+
+alt Personalized Feed Generation
+    recommendationService -> topicService : extract_topics(user_interests)
+    
+    alt Topic Extraction
+        topicService -> topicService : _analyze_with_spacy_nlp(text)
+        topicService -> topicService : _extract_named_entities(analyzed_text)
+        topicService -> topicService : _rank_topics_by_relevance(topics)
+        topicService -> recommendationService : extracted_topics
+    end
+    
+    recommendationService -> moodService : GET /api/mood/logs/analytics/
+    moodService -> recommendationService : current_user_mood
+    
+    recommendationService -> recommendationService : _filter_content_by_topics(content, topics)
+    recommendationService -> recommendationService : _apply_mood_based_filtering(content, mood)
+    recommendationService -> recommendationService : _calculate_content_relevance_scores(user_profile, content)
+    
+    recommendationService -> diversityService : apply_diversity_algorithm(recommendations, history)
+    
+    alt Diversity Processing
+        diversityService -> diversityService : _calculate_topic_distribution(recommendations)
+        diversityService -> diversityService : _evaluate_content_diversity(distribution)
+        diversityService -> diversityService : _apply_thompson_sampling(recommendations)
+        diversityService -> recommendationService : diversified_recommendations
+    end
+    
+    recommendationService -> moderationService : check_content_toxicity(content)
+    
+    alt Content Moderation
+        moderationService -> moderationService : _check_with_perspective_api(content)
+        moderationService -> moderationService : _apply_moderation_rules(scores)
+        moderationService -> recommendationService : toxicity_assessment
+    end
+    
+    recommendationService -> recommendationService : _personalize_for_therapeutic_goals(content, user_goals)
+    recommendationService -> recommendationService : _adjust_content_ranking(recommendations)
+    recommendationService -> frontend : personalized_safe_content_recommendations
+    frontend -> user : Display personalized therapeutic content feed
+end
+
+user -> frontend : View personal mental health tips
+frontend -> recommendationService : POST /api/feeds/ai/mood-recommendations/
+
+alt Mental Health Tips
+    recommendationService -> recommendationService : _select_therapeutic_content(mood)
+    recommendationService -> recommendationService : _personalize_tip_content(user, content)
+    recommendationService -> frontend : therapeutic_suggestions
+    
+    frontend -> notificationService : POST /api/notifications/
+    notificationService -> user : Mental health tip notification
+end
+
+== AI Feeds Management ==
+
+user -> frontend : Get trending topics
+frontend -> recommendationService : GET /api/feeds/ai/trending-topics/
+recommendationService -> frontend : trending_topic_data
+frontend -> user : Display trending content
+
+user -> frontend : Provide feedback on recommendations
+frontend -> recommendationService : POST /api/feeds/ai/feedback/
+
+alt Feedback Processing
+    recommendationService -> recommendationService : _process_user_feedback(feedback)
+    recommendationService -> frontend : feedback_processed
+    frontend -> user : Confirm feedback received
+end
+
+user -> frontend : Update AI profile preferences
+frontend -> recommendationService : PATCH /api/feeds/ai/profile/update/
+
+alt Profile Update
+    recommendationService -> recommendationService : _update_recommendation_preferences(user, preferences)
+    recommendationService -> frontend : profile_updated
+    frontend -> user : Display updated preferences
+end
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+@enduml

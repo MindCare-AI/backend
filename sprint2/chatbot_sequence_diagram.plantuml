@@ -1,0 +1,83 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "ChatbotService" as ChatbotService
+participant "GeminiAPI" as GeminiAPI
+database "Database" as Database
+
+' === Basic AI Chatbot ===
+group Basic AI Chatbot
+    Patient -> Frontend: Access chatbot interface
+    Frontend -> ChatbotService: Initialize conversation (POST /api/chatbot/)
+    ChatbotService -> Database: Create conversation session
+    alt Successful Session Creation
+        Database --> ChatbotService: Session created
+        ChatbotService --> Frontend: Return welcome message
+        Frontend --> Patient: Display welcome message
+    else Failed Session Creation
+        Database --> ChatbotService: Error message
+        ChatbotService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Send message to chatbot
+    Frontend -> ChatbotService: Submit message (POST /api/chatbot/{id}/send_message/)
+    ChatbotService -> Database: Store user message
+    alt Successful Message Processing
+        Database --> ChatbotService: Message stored
+        ChatbotService -> ChatbotService: Process user input
+        ChatbotService -> GeminiAPI: Send query to Gemini
+        GeminiAPI --> ChatbotService: Return AI response
+        ChatbotService -> Database: Store AI response
+        Database --> ChatbotService: Response stored
+        ChatbotService --> Frontend: Return AI response
+        Frontend --> Patient: Display chatbot message
+    else Failed Message Processing
+        Database --> ChatbotService: Error storing message
+        ChatbotService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Continue conversation
+    Frontend -> ChatbotService: Send follow-up (POST /api/chatbot/{id}/send_message/)
+    ChatbotService -> Database: Store user message
+    alt Successful Follow-up Processing
+        Database --> ChatbotService: Message stored
+        ChatbotService -> Database: Retrieve conversation history
+        Database --> ChatbotService: Return conversation context
+        ChatbotService -> GeminiAPI: Send query with context
+        GeminiAPI --> ChatbotService: Return contextualized response
+        ChatbotService -> Database: Store AI response
+        Database --> ChatbotService: Response stored
+        ChatbotService --> Frontend: Return AI response
+        Frontend --> Patient: Display contextual response
+    else Failed Follow-up Processing
+        Database --> ChatbotService: Error message
+        ChatbotService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: End conversation
+    Frontend -> ChatbotService: Close conversation (POST /api/chatbot/{id}/toggle_active/)
+    ChatbotService -> Database: Mark conversation as completed
+    alt Successful Conversation Closure
+        Database --> ChatbotService: Conversation updated
+        ChatbotService --> Frontend: Return summary
+        Frontend --> Patient: Display conversation summary
+    else Failed Closure
+        Database --> ChatbotService: Error message
+        ChatbotService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+end
+
+@enduml

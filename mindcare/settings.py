@@ -267,6 +267,44 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_OAUTH_REDIRECT_URI = "mindcareai://oauth_callback"
 
+# Google Perspective API Configuration
+PERSPECTIVE_API_KEY = os.getenv("PERSPECTIVE_API_KEY", "")
+PERSPECTIVE_API_URL = "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze"
+
+# Content Moderation Settings
+CONTENT_MODERATION_SETTINGS = {
+    "PERSPECTIVE_API": {
+        "ENABLED": True,
+        "API_KEY": PERSPECTIVE_API_KEY,
+        "BASE_URL": PERSPECTIVE_API_URL,
+        "TIMEOUT": 10,  # seconds
+        "MAX_RETRIES": 3,
+        "RATE_LIMIT_DELAY": 1,  # seconds between requests
+    },
+    "TOXICITY_THRESHOLDS": {
+        "HIGH": 0.8,    # Auto-remove content
+        "MEDIUM": 0.6,  # Flag for review
+        "LOW": 0.4,     # Log for monitoring
+    },
+    "ATTRIBUTES_TO_CHECK": [
+        "TOXICITY",
+        "SEVERE_TOXICITY", 
+        "IDENTITY_ATTACK",
+        "INSULT",
+        "PROFANITY",
+        "THREAT",
+        "SEXUALLY_EXPLICIT",
+        "FLIRTATION"
+    ],
+    "MODERATION_ACTIONS": {
+        "AUTO_REMOVE": True,
+        "NOTIFY_MODERATORS": True,
+        "LOG_ALL_CHECKS": True,
+        "QUARANTINE_USER": False,  # Set to True to auto-suspend users with repeated violations
+    },
+    "BYPASS_ROLES": ["admin", "moderator"],  # User roles that bypass moderation
+}
+
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -415,10 +453,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:19006",  # React Native Expo default
     "http://127.0.0.1:19006",
     "http://127.0.0.1:3000",
-    "http://10.0.2.2:8000",    # Android emulator accessing Django
-    "http://10.0.2.2:8081",    # React Native Metro bundler on Android emulator
-    "http://localhost:8081",   # React Native Metro bundler
-    "http://127.0.0.1:8081",   # React Native Metro bundler alternative
+    "http://10.0.2.2:8000",  # Android emulator accessing Django
+    "http://10.0.2.2:8081",  # React Native Metro bundler on Android emulator
+    "http://localhost:8081",  # React Native Metro bundler
+    "http://127.0.0.1:8081",  # React Native Metro bundler alternative
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -449,6 +487,7 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-platform",  # Added this header to fix the CORS issue
 ]
 
 # WebSocket Configuration - Updated for better stability

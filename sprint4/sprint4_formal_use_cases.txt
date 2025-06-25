@@ -1,0 +1,225 @@
+# Sprint 4: Formal Use Case Relationships
+
+## Include Use Cases
+
+### AI Engine Inclusion Dependencies
+1. **Analyze Patient Data** 
+   - **Includes**: Access Datawarehouse
+   - **Description**: Access to the datawarehouse for data analysis
+   - **Implementation**: Uses AIDataInterfaceService to connect to the unified_data_collector
+
+2. **Predict Mental Health Trends**
+   - **Includes**: Access Historical Data Patterns
+   - **Description**: Retrieve historical data for trend predictions
+   - **Implementation**: Uses time-series analysis with predictive_service module
+
+3. **Process Multi-modal Information**
+   - **Includes**: Perform Data Fusion
+   - **Description**: Combine data from multiple sources into unified profiles
+   - **Implementation**: Uses data fusion techniques in AI_engine services
+
+### Chatbot Inclusion Dependencies
+4. **Conduct Therapeutic Conversations**
+   - **Includes**: Access AI Engine Insights
+   - **Description**: Chatbot requires AI-generated insights to provide therapeutic responses
+   - **Implementation**: Integration between chatbot and AI_engine services
+
+5. **Generate Personalized Responses**
+   - **Includes**: Access Patient Profile Data
+   - **Description**: Retrieves patient-specific information to personalize conversation
+   - **Implementation**: Uses context-aware personalization markers
+
+6. **Maintain Conversation Context**
+   - **Includes**: Store Conversation History
+   - **Description**: Preserves conversation state for contextual awareness
+   - **Implementation**: Uses memory vectors and session linking
+
+### Patient Inclusion Dependencies
+7. **Engage in Therapeutic Chat Sessions**
+   - **Includes**: Interact with Chatbot
+   - **Description**: Patient must interact with the chatbot interface
+   - **Implementation**: Through messaging interface with chatbot service
+
+8. **View Personalized Content Feeds**
+   - **Includes**: Request Content Recommendations
+   - **Description**: Content feed retrieves personalized recommendations
+   - **Implementation**: Uses TF-IDF vectorization with content-based filtering
+
+9. **Record Daily Mood Entries**
+   - **Includes**: Submit Health Data
+   - **Description**: Mood entry data is submitted to the system
+   - **Implementation**: Stored and processed through the mood tracking module
+
+10. **Write Journal Entries**
+    - **Includes**: Submit Personal Reflections
+    - **Description**: Journal content is saved to the system
+    - **Implementation**: Processed through journal analysis pipeline
+
+### Therapist Inclusion Dependencies
+11. **Review Patient Analytics Dashboards**
+    - **Includes**: Request AI-generated Insights
+    - **Description**: Dashboards incorporate AI analysis of patient data
+    - **Implementation**: Retrieves processed analytics from AI Engine
+
+12. **Create Treatment Plans**
+    - **Includes**: Access AI Recommendations
+    - **Description**: Treatment planning incorporates AI-suggested approaches
+    - **Implementation**: Uses recommendation engine output
+
+13. **Document Therapy Sessions**
+    - **Includes**: Submit Clinical Notes
+    - **Description**: Session documentation requires clinical note entry
+    - **Implementation**: Notes are processed for analytics and insights
+
+14. **Schedule Patient Appointments**
+    - **Includes**: Check Calendar Availability
+    - **Description**: Appointment scheduling requires calendar verification
+    - **Implementation**: Integrates with calendar service for availability
+
+15. **Send Secure Messages to Patients**
+    - **Includes**: Access Messaging System
+    - **Description**: Secure message sending requires messaging system access
+    - **Implementation**: Uses encrypted messaging service
+
+### System Inclusion Dependencies
+16. **Authenticate Users Securely**
+    - **Includes**: Verify Credentials
+    - **Description**: Authentication process verifies user identity
+    - **Implementation**: Uses multi-factor authentication and security protocols
+
+17. **Moderate Content for Harmful Material**
+    - **Includes**: Apply Content Filtering Rules
+    - **Description**: Content moderation applies filtering algorithms
+    - **Implementation**: Uses Google Perspective API and custom filters
+
+18. **Generate User Activity Logs**
+    - **Includes**: Record System Events
+    - **Description**: Activity logging records key system events
+    - **Implementation**: Uses structured logging for comprehensive audit trail
+
+19. **Enforce Privacy Policies**
+    - **Includes**: Apply Access Control Rules
+    - **Description**: Privacy enforcement requires access control rules
+    - **Implementation**: Uses role-based access controls (RBAC)
+
+20. **Backup and Restore Data**
+    - **Includes**: Execute Database Operations
+    - **Description**: Backup and restore functionality uses database operations
+    - **Implementation**: Uses transaction-safe database operations
+
+21. **Schedule Automated Tasks**
+    - **Includes**: Manage Task Queue
+    - **Description**: Task scheduling requires queue management
+    - **Implementation**: Uses Celery task management system
+
+### Cross-Actor Inclusions
+22. **Therapist "Create Treatment Plans"**
+    - **Includes**: AI Engine "Generate Therapeutic Recommendations"
+    - **Description**: Therapists incorporate AI recommendations in treatment plans
+    - **Implementation**: AI service integration in treatment planning workflow
+
+23. **Chatbot "Generate Personalized Responses"**
+    - **Includes**: AI Engine "Process Multi-modal Patient Information"
+    - **Description**: Chatbot responses incorporate multi-modal patient data processing
+    - **Implementation**: Integration between chatbot and AI data processing services
+
+24. **Patient "Engage in Therapeutic Chat Sessions"**
+    - **Includes**: Chatbot "Conduct Therapeutic Conversations"
+    - **Description**: Patient's chat sessions include interaction with therapeutic chatbot
+    - **Implementation**: User interface integration with chatbot service
+
+## Extend Use Cases
+
+### AI Engine Extensions
+1. **Generate Therapeutic Recommendations**
+   - **Extends**: Analyze Patient Data for Insights
+   - **Condition**: When analysis reveals actionable patterns
+   - **Description**: Creates recommendations based on data analysis results
+   - **Implementation**: Recommendation engine activated by analysis results
+
+2. **Monitor for Crisis Indicators**
+   - **Extends**: Analyze Patient Data for Insights
+   - **Condition**: When risk patterns are detected in patient data
+   - **Description**: Crisis monitoring activates when concerning patterns emerge
+   - **Implementation**: Risk detection algorithms with confidence threshold scoring
+
+### Chatbot Extensions
+3. **Monitor User Messages for Crisis Signals**
+   - **Extends**: Conduct Therapeutic Conversations
+   - **Condition**: When messages contain potential crisis indicators
+   - **Description**: Crisis detection activates during normal conversations
+   - **Implementation**: NLP pattern matching during conversation processing
+
+4. **Provide Mental Health Resources**
+   - **Extends**: Conduct Therapeutic Conversations
+   - **Condition**: When conversation indicates need for additional resources
+   - **Description**: Resource provision triggered by specific conversation topics
+   - **Implementation**: Contextual resource matching during conversation
+
+### Patient Extensions
+5. **Receive Notifications and Alerts**
+   - **Extends**: Set Notification Preferences
+   - **Condition**: When alert conditions match user preferences
+   - **Description**: Notifications delivered based on preference settings
+   - **Implementation**: Notification system with preference filtering
+
+6. **Respond to Therapy Exercises**
+   - **Extends**: View Exercise Instructions
+   - **Condition**: After viewing exercises that require response
+   - **Description**: Response mechanism activated after exercise viewing
+   - **Implementation**: Interactive exercise response system
+
+### System Extensions
+7. **Distribute Notifications**
+   - **Extends**: Check User Notification Preferences
+   - **Condition**: When notification content matches user preferences
+   - **Description**: Notification delivery triggered by preference match
+   - **Implementation**: Preference-filtered notification delivery system
+
+### Cross-Actor Extensions
+8. **Patient "Record Daily Mood Entries"**
+   - **Extends**: AI Engine "Analyze Patient Data for Insights"
+   - **Condition**: When new mood data is submitted
+   - **Description**: Analysis triggered by new mood entry data
+   - **Implementation**: Event-driven analysis pipeline
+
+9. **System "Moderate Content for Harmful Material"**
+   - **Extends**: Chatbot "Monitor User Messages for Crisis Signals"
+   - **Condition**: When potentially harmful content is detected
+   - **Description**: Advanced moderation triggered by initial signal detection
+   - **Implementation**: Multi-level content moderation pipeline
+
+10. **AI Engine "Monitor for Crisis Indicators"**
+    - **Extends**: System "Distribute Notifications"
+    - **Condition**: When crisis indicators exceed threshold
+    - **Description**: Crisis notifications triggered by threshold exceedance
+    - **Implementation**: Priority notification system for crisis alerts
+
+11. **Therapist "Receive Crisis Alerts"**
+    - **Extends**: AI Engine "Monitor for Crisis Indicators"
+    - **Condition**: When AI detects crisis requiring therapist intervention
+    - **Description**: Therapist alerts triggered by AI crisis detection
+    - **Implementation**: Escalation path from AI to appropriate therapist
+
+## Datawarehouse Relationships
+
+### Include Relationships with Actors
+1. **AI Engine "Analyze Patient Data for Insights"**
+   - **Includes**: Datawarehouse "Generate Analytics Datasets"
+   - **Description**: AI analysis requires generated datasets from datawarehouse
+   - **Implementation**: Data interface service requesting analytic datasets
+
+2. **AI Engine "Access Datawarehouse"**
+   - **Includes**: Datawarehouse "Provide Data Access Interfaces"
+   - **Description**: AI Engine uses standardized interfaces to access datawarehouse
+   - **Implementation**: API calls through AIDataInterfaceService
+
+3. **System "Backup and Restore Data"**
+   - **Includes**: Datawarehouse "Store Patient Data Securely"
+   - **Description**: Backup operations include secure storage procedures
+   - **Implementation**: Backup service integration with secure storage
+
+4. **Therapist "Review Patient Analytics Dashboards"**
+   - **Includes**: Datawarehouse "Generate Analytics Datasets"
+   - **Description**: Dashboard visualization uses analytics datasets
+   - **Implementation**: Dashboard queries to datawarehouse for processed data

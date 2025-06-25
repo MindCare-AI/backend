@@ -1,0 +1,238 @@
+@startuml Sprint4_ERD
+!theme plain
+skinparam linetype ortho
+skinparam monochrome true
+skinparam backgroundColor white
+skinparam entity {
+  BackgroundColor white
+  BorderColor black
+  FontColor black
+  FontSize 9
+}
+skinparam class {
+  BackgroundColor white
+  BorderColor black
+  FontColor black
+  FontSize 9
+}
+skinparam packageStyle rectangle
+skinparam nodesep 40
+skinparam ranksep 35
+
+scale 0.8
+
+' ===============================
+' TOP ROW - AI Analytics & Insights
+' ===============================
+entity "UserAnalysis" as user_analysis {
+  * id : BigAutoField <<PK>>
+  --
+  analysis_date : DateField
+  mood_score : FloatField
+  sentiment_score : FloatField
+  dominant_emotions : JSONField
+  topics_of_concern : JSONField
+  * user_id : BigIntegerField <<FK>>
+}
+
+entity "CrisisEvent" as crisis_event {
+  * id : BigAutoField <<PK>>
+  --
+  message_content : TextField
+  confidence : FloatField
+  crisis_level : CharField
+  timestamp : DateTimeField
+  resolved : BooleanField
+  * user_id : BigIntegerField <<FK>>
+}
+
+entity "UserDataSnapshot" as user_snapshot {
+  * id : BigAutoField <<PK>>
+  --
+  snapshot_date : DateField
+  avg_mood_score : FloatField
+  mood_volatility : FloatField
+  social_engagement_score : FloatField
+  needs_attention : BooleanField
+  * user_id : BigIntegerField <<FK>>
+}
+
+' Place top entities above center
+user_analysis -[hidden]- crisis_event
+crisis_event -[hidden]- user_snapshot
+
+' ===============================
+' CENTER - Main User Entity
+' ===============================
+entity "CustomUser" as user {
+  * id : BigAutoField <<PK>>
+  --
+  * username : CharField
+  * email : EmailField <<UNIQUE>>
+  * password : CharField
+  user_type : CharField
+  phone_number : CharField
+  crisis_alert_enabled : BooleanField
+  is_online : BooleanField
+  created_at : DateTimeField
+}
+
+' Position center entity below top row
+user_analysis -[hidden]down- user
+crisis_event -[hidden]down- user
+user_snapshot -[hidden]down- user
+
+' ===============================
+' LEFT SIDE - User Profiles
+' ===============================
+entity "PatientProfile" as patient {
+  * id : BigAutoField <<PK>>
+  --
+  bio : TextField
+  emergency_contact : JSONField
+  blood_type : CharField
+  gender : CharField
+  * user_id : BigIntegerField <<FK>>
+}
+
+entity "TherapistProfile" as therapist {
+  * id : BigAutoField <<PK>>
+  --
+  bio : TextField
+  specializations : JSONField
+  license_number : CharField
+  is_verified : BooleanField
+  rating : FloatField
+  * user_id : BigIntegerField <<FK>>
+}
+
+' Position left entities
+patient -[hidden]down- therapist
+patient -[hidden]right- user
+
+' ===============================
+' RIGHT SIDE - Data Sources
+' ===============================
+entity "MoodLog" as mood_log {
+  * id : BigAutoField <<PK>>
+  --
+  mood_rating : IntegerField
+  energy_level : IntegerField
+  activities : CharField
+  logged_at : DateTimeField
+  * user_id : BigIntegerField <<FK>>
+}
+
+entity "JournalEntry" as journal_entry {
+  * id : BigAutoField <<PK>>
+  --
+  title : CharField
+  content : TextField
+  date : DateField
+  mood : CharField
+  is_private : BooleanField
+  * user_id : BigIntegerField <<FK>>
+}
+
+entity "FeedRecommendation" as feed_recommendation {
+  * id : BigAutoField <<PK>>
+  --
+  recommendation_type : CharField
+  relevance_score : FloatField
+  therapeutic_value : FloatField
+  is_viewed : BooleanField
+  * user_id : BigIntegerField <<FK>>
+}
+
+' Position right entities
+mood_log -[hidden]down- journal_entry
+journal_entry -[hidden]down- feed_recommendation
+user -[hidden]right- mood_log
+
+' ===============================
+' BOTTOM ROW - Messaging & Social
+' ===============================
+entity "Post" as post {
+  * id : BigAutoField <<PK>>
+  --
+  content : TextField
+  post_type : CharField
+  visibility : CharField
+  views_count : PositiveIntegerField
+  moderation_status : CharField
+  * author_id : BigIntegerField <<FK>>
+}
+
+entity "Comment" as comment {
+  * id : BigAutoField <<PK>>
+  --
+  content : TextField
+  created_at : DateTimeField
+  * author_id : BigIntegerField <<FK>>
+  * post_id : BigIntegerField <<FK>>
+}
+
+entity "OneToOneMessage" as oto_message {
+  * id : BigAutoField <<PK>>
+  --
+  content : TextField
+  timestamp : DateTimeField
+  message_type : CharField
+  * conversation_id : BigIntegerField <<FK>>
+  * sender_id : BigIntegerField <<FK>>
+}
+
+entity "ChatMessage" as chat_message {
+  * id : BigAutoField <<PK>>
+  --
+  content : TextField
+  sender_type : CharField
+  confidence_score : FloatField
+  sentiment_score : FloatField
+  * conversation_id : BigIntegerField <<FK>>
+}
+
+entity "Notification" as notification {
+  * id : BigAutoField <<PK>>
+  --
+  title : CharField
+  message : TextField
+  read : BooleanField
+  priority : CharField
+  * user_id : BigIntegerField <<FK>>
+}
+
+' Position bottom entities
+post -[hidden]- comment
+comment -[hidden]- oto_message
+oto_message -[hidden]- chat_message
+chat_message -[hidden]- notification
+user -[hidden]down- comment
+
+' ===============================
+' RELATIONSHIPS WITH CARDINALITY
+' ===============================
+
+' User Profile Relationships
+user ||--o| patient : "1:0..1"
+user ||--o| therapist : "1:0..1"
+
+' Data Sources
+user ||--o{ mood_log : "1:N"
+user ||--o{ journal_entry : "1:N"
+
+' Social & Messaging
+user ||--o{ post : "1:N"
+user ||--o{ comment : "1:N"
+user ||--o{ oto_message : "1:N"
+user ||--o{ chat_message : "1:N"
+post ||--o{ comment : "1:N"
+
+' Sprint 4: AI Features
+user ||--o{ feed_recommendation : "1:N"
+user ||--o{ user_analysis : "1:N"
+user ||--o{ crisis_event : "1:N"
+user ||--o{ user_snapshot : "1:N"
+user ||--o{ notification : "1:N"
+
+@enduml

@@ -1,0 +1,242 @@
+@startuml Sprint4_ERD
+!theme plain
+scale 0.45
+skinparam dpi 150
+skinparam linetype ortho
+skinparam monochrome true
+skinparam backgroundColor white
+skinparam entity {
+    BackgroundColor white
+    BorderColor black
+    FontColor black
+    FontSize 8
+}
+skinparam packageStyle rectangle
+skinparam nodesep 30
+skinparam ranksep 30
+skinparam minlen 1
+
+' ===============================
+' TOP ROW: AI INSIGHTS & ANALYTICS
+' ===============================
+entity "UserAnalysis" as user_analysis {
+    * id : BigAutoField <<PK>>
+    --
+    analysis_date : Date
+    mood_score : Float
+    sentiment_score : Float
+    * user_id : FK
+}
+
+entity "AIInsight" as ai_insight {
+    * id : BigAutoField <<PK>>
+    --
+    insight_type : CharField
+    insight_data : JSON
+    priority : CharField
+    * user_id : FK
+}
+
+entity "CrisisEvent" as crisis_event {
+    * id : BigAutoField <<PK>>
+    --
+    confidence : Float
+    crisis_level : CharField
+    timestamp : DateTime
+    resolved : Boolean
+    * user_id : FK
+}
+
+entity "UserDataSnapshot" as user_snapshot {
+    * id : BigAutoField <<PK>>
+    --
+    snapshot_date : Date
+    avg_mood_score : Float
+    social_engagement_score : Float
+    * user_id : FK
+}
+
+' ===============================
+' CENTER: MAIN USER ENTITY
+' ===============================
+entity "CustomUser" as user {
+    * id : BigAutoField <<PK>>
+    --
+    username : CharField
+    email : EmailField
+    user_type : CharField
+    crisis_alert_enabled : Boolean
+}
+
+' ===============================
+' LEFT SIDE: USER PROFILES
+' ===============================
+entity "PatientProfile" as patient {
+    * id : BigAutoField <<PK>>
+    --
+    bio : TextField
+    emergency_contact : JSON
+    * user_id : FK
+}
+
+entity "TherapistProfile" as therapist {
+    * id : BigAutoField <<PK>>
+    --
+    bio : TextField
+    specializations : JSON
+    license_number : CharField
+    * user_id : FK
+}
+
+' ===============================
+' RIGHT SIDE: DATA SOURCES & FEEDS
+' ===============================
+entity "MoodLog" as mood_log {
+    * id : BigAutoField <<PK>>
+    --
+    mood_rating : Integer
+    energy_level : Integer
+    logged_at : DateTime
+    * user_id : FK
+}
+
+entity "JournalEntry" as journal_entry {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    content : TextField
+    mood : CharField
+    * user_id : FK
+}
+
+entity "FeedRecommendation" as feed_recommendation {
+    * id : BigAutoField <<PK>>
+    --
+    recommendation_type : CharField
+    relevance_score : Float
+    therapeutic_value : Float
+    * user_id : FK
+}
+
+' ===============================
+' BOTTOM ROW: MESSAGING, CHATBOT & SOCIAL
+' ===============================
+entity "OneToOneMessage" as oto_message {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    timestamp : DateTime
+    * conversation_id : FK
+    * sender_id : FK
+}
+
+entity "GroupMessage" as group_message {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    timestamp : DateTime
+    * conversation_id : FK
+    * sender_id : FK
+}
+
+entity "OneToOneConversation" as oto_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    is_active : Boolean
+}
+
+entity "GroupConversation" as group_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    is_active : Boolean
+    * created_by_id : FK
+}
+
+entity "ChatbotConversation" as chatbot_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    created_at : DateTime
+    is_active : Boolean
+    * user_id : FK
+}
+
+entity "ChatMessage" as chat_message {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    sender_type : CharField
+    confidence_score : Float
+    * conversation_id : FK
+}
+
+entity "Post" as post {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    moderation_status : CharField
+    * author_id : FK
+}
+
+entity "Comment" as comment {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    * author_id : FK
+    * post_id : FK
+}
+
+entity "Notification" as notification {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    message : TextField
+    read : Boolean
+    priority : CharField
+    * user_id : FK
+}
+
+' ===============================
+' RELATIONSHIPS WITH CARDINALITY
+' ===============================
+
+' User Profile Relationships
+user ||--o| patient : "1:0..1"
+user ||--o| therapist : "1:0..1"
+
+' Data Sources
+user ||--o{ mood_log : "1:N"
+user ||--o{ journal_entry : "1:N"
+
+' Messaging & Social
+user ||--o{ oto_message : "1:N"
+user ||--o{ group_message : "1:N"
+user ||--o{ post : "1:N"
+user ||--o{ comment : "1:N"
+oto_conversation ||--o{ oto_message : "1:N"
+group_conversation ||--o{ group_message : "1:N"
+post ||--o{ comment : "1:N"
+
+' Sprint 4: Enhanced Chatbot
+user ||--o{ chatbot_conversation : "1:N"
+chatbot_conversation ||--o{ chat_message : "1:N"
+
+' Sprint 4: AI Analysis & Insights
+user ||--o{ user_analysis : "1:N"
+user ||--o{ ai_insight : "1:N"
+
+' Sprint 4: Crisis Monitoring
+user ||--o{ crisis_event : "1:N"
+
+' Sprint 4: AI-Powered Feeds
+user ||--o{ feed_recommendation : "1:N"
+
+' Sprint 4: Data Analytics
+user ||--o{ user_snapshot : "1:N"
+
+' Sprint 4: Enhanced Notifications
+user ||--o{ notification : "1:N"
+
+@enduml

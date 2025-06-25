@@ -1,0 +1,61 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "PatientService" as PatientService
+database "Database" as Database
+participant "UserPreferenceService" as UserPreferenceService
+
+' No title for consistency
+
+' === Profile Management ===
+group Profile Management
+    Patient -> Frontend: Update profile information
+    Frontend -> PatientService: Submit profile data (PATCH /api/patient/profiles/<int:pk>/)
+    PatientService -> PatientService: Validate data
+    PatientService -> Database: Store profile information
+    alt Successful Update
+        Database --> PatientService: Profile updated
+        PatientService --> Frontend: Return success
+        Frontend --> Patient: Display updated profile
+    else Failed Update
+        Database --> PatientService: Error updating profile
+        PatientService --> Frontend: Return error message
+        Frontend --> Patient: Display error message
+    end
+
+    Patient -> Frontend: Upload profile picture
+    Frontend -> PatientService: Submit profile picture (POST /api/patient/profiles/<int:pk>/picture/)
+    PatientService -> Database: Store profile picture
+    Database --> PatientService: Picture stored
+    PatientService --> Frontend: Return success
+    Frontend --> Patient: Display updated profile
+end
+
+' === User Preferences ===
+group User Preferences Management
+    Patient -> Frontend: Update display preferences
+    Frontend -> UserPreferenceService: Submit display settings (PATCH /api/preferences/)
+    UserPreferenceService -> Database: Store preferences
+    Database --> UserPreferenceService: Preferences stored
+    UserPreferenceService --> Frontend: Return success
+    Frontend -> Frontend: Apply new settings
+    Frontend --> Patient: Display updated interface
+    
+    Patient -> Frontend: Configure notifications
+    Frontend -> UserPreferenceService: Submit notification preferences (PATCH /api/preferences/)
+    UserPreferenceService -> Database: Store notification settings
+    Database --> UserPreferenceService: Settings stored
+    UserPreferenceService --> Frontend: Return success
+    Frontend --> Patient: Display updated settings
+end
+
+@enduml

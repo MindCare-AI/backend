@@ -1,0 +1,511 @@
+@startuml Sprint4_ERD
+!theme plain
+scale 0.4
+skinparam dpi 150
+skinparam linetype ortho
+skinparam monochrome true
+skinparam backgroundColor white
+skinparam entity {
+    BackgroundColor white
+    BorderColor black
+    FontColor black
+    FontSize 10
+}
+skinparam class {
+    BackgroundColor white
+    BorderColor black
+    FontColor black
+    FontSize 10
+}
+skinparam packageStyle rectangle
+skinparam nodesep 50
+skinparam ranksep 40
+
+' ===============================
+' CORE USER MANAGEMENT (Sprint 4 Focus)
+' ===============================
+entity "CustomUser" as user {
+    * id : BigAutoField <<PK>>
+    --
+    * username : CharField
+    * email : EmailField <<UNIQUE>>
+    * password : CharField
+    user_type : CharField
+    phone_number : CharField
+    date_of_birth : DateField
+    crisis_alert_enabled : BooleanField
+    passcode_enabled : BooleanField
+    is_online : BooleanField
+    last_seen : DateTimeField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    date_joined : DateTimeField
+}
+
+entity "PatientProfile" as patient {
+    * id : BigAutoField <<PK>>
+    --
+    bio : TextField
+    profile_pic : ImageField
+    emergency_contact : JSONField
+    blood_type : CharField
+    gender : CharField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "TherapistProfile" as therapist {
+    * id : BigAutoField <<PK>>
+    --
+    bio : TextField
+    specializations : JSONField
+    license_number : CharField
+    license_expiry : DateField
+    years_of_experience : PositiveIntegerField
+    is_verified : BooleanField
+    verification_status : CharField
+    rating : FloatField
+    total_sessions : PositiveIntegerField
+    * user_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' MOOD TRACKING (Data Source for AI Analytics)
+' ===============================
+entity "MoodLog" as mood_log {
+    * id : BigAutoField <<PK>>
+    --
+    mood_rating : IntegerField
+    energy_level : IntegerField
+    activities : CharField
+    notes : TextField
+    logged_at : DateTimeField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' JOURNAL SYSTEM (Data Source for AI Analytics)
+' ===============================
+entity "JournalEntry" as journal_entry {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    content : TextField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    date : DateField
+    mood : CharField
+    is_private : BooleanField
+    shared_with_therapist : BooleanField
+    weather : CharField
+    activities : CharField
+    * user_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' MESSAGING SYSTEM (Data Source for AI Analytics)
+' ===============================
+entity "OneToOneConversation" as oto_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    last_message_at : DateTimeField
+    is_active : BooleanField
+    metadata : JSONField
+}
+
+entity "OneToOneMessage" as oto_message {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    timestamp : DateTimeField
+    message_type : CharField
+    reactions : JSONField
+    * conversation_id : BigIntegerField <<FK>>
+    * sender_id : BigIntegerField <<FK>>
+}
+
+entity "GroupConversation" as group_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    description : TextField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    is_active : BooleanField
+    * created_by_id : BigIntegerField <<FK>>
+}
+
+entity "GroupMessage" as group_message {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    timestamp : DateTimeField
+    message_type : CharField
+    reactions : JSONField
+    * conversation_id : BigIntegerField <<FK>>
+    * sender_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' ENHANCED CHATBOT WITH RAG (Sprint 4)
+' ===============================
+entity "ChatbotConversation" as chatbot_conversation {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    created_at : DateTimeField
+    last_activity : DateTimeField
+    is_active : BooleanField
+    metadata : JSONField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "ChatMessage" as chat_message {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    message_type : CharField
+    sender_type : CharField
+    timestamp : DateTimeField
+    confidence_score : FloatField
+    sentiment_score : FloatField
+    risk_score : FloatField
+    metadata : JSONField
+    ai_model_version : CharField
+    * conversation_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' FEEDS SYSTEM (Data Source for AI Analytics)
+' ===============================
+entity "Post" as post {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    post_type : CharField
+    topics : CharField
+    visibility : CharField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    views_count : PositiveIntegerField
+    tags : CharField
+    moderation_status : CharField
+    * author_id : BigIntegerField <<FK>>
+}
+
+entity "Comment" as comment {
+    * id : BigAutoField <<PK>>
+    --
+    content : TextField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    * author_id : BigIntegerField <<FK>>
+    * post_id : BigIntegerField <<FK>>
+}
+
+entity "Reaction" as reaction {
+    * id : BigAutoField <<PK>>
+    --
+    reaction_type : CharField
+    created_at : DateTimeField
+    object_id : PositiveIntegerField
+    * user_id : BigIntegerField <<FK>>
+    * content_type_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' AI-POWERED CUSTOM FEEDS (Sprint 4)
+' ===============================
+entity "FeedRecommendation" as feed_recommendation {
+    * id : BigAutoField <<PK>>
+    --
+    recommendation_type : CharField
+    priority : CharField
+    object_id : PositiveIntegerField
+    relevance_score : FloatField
+    confidence_score : FloatField
+    therapeutic_value : FloatField
+    mood_alignment : FloatField
+    recommendation_reason : JSONField
+    context_factors : JSONField
+    is_viewed : BooleanField
+    is_clicked : BooleanField
+    user_feedback : IntegerField
+    created_at : DateTimeField
+    expires_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+    * content_type_id : BigIntegerField <<FK>>
+}
+
+entity "FeedPersonalizationProfile" as feed_personalization {
+    * id : BigAutoField <<PK>>
+    --
+    preferred_topics : JSONField
+    avoided_topics : JSONField
+    engagement_style : CharField
+    therapeutic_goals : JSONField
+    trigger_warnings : JSONField
+    mood_based_preferences : JSONField
+    ai_recommendations_enabled : BooleanField
+    mood_based_filtering : BooleanField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "ContentScore" as content_score {
+    * id : BigAutoField <<PK>>
+    --
+    object_id : PositiveIntegerField
+    quality_score : FloatField
+    therapeutic_value : FloatField
+    sentiment_score : FloatField
+    detected_topics : JSONField
+    detected_emotions : JSONField
+    trigger_warnings : JSONField
+    analysis_confidence : FloatField
+    created_at : DateTimeField
+    * content_type_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' AI ENGINE SERVICES (Sprint 4)
+' ===============================
+entity "UserAnalysis" as user_analysis {
+    * id : BigAutoField <<PK>>
+    --
+    analysis_date : DateField
+    mood_score : FloatField
+    sentiment_score : FloatField
+    dominant_emotions : JSONField
+    topics_of_concern : JSONField
+    suggested_activities : JSONField
+    risk_factors : JSONField
+    improvement_metrics : JSONField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "AIInsight" as ai_insight {
+    * id : BigAutoField <<PK>>
+    --
+    created_at : DateTimeField
+    insight_type : CharField
+    insight_data : JSONField
+    priority : CharField
+    is_addressed : BooleanField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "TherapyRecommendation" as therapy_recommendation {
+    * id : BigAutoField <<PK>>
+    --
+    recommendation_type : CharField
+    recommendation_data : JSONField
+    context_data : JSONField
+    is_active : BooleanField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "SocialInteractionAnalysis" as social_analysis {
+    * id : BigAutoField <<PK>>
+    --
+    analysis_date : DateField
+    interaction_frequency : IntegerField
+    engagement_quality : FloatField
+    social_sentiment : FloatField
+    support_received : JSONField
+    support_given : JSONField
+    therapeutic_content : JSONField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "CommunicationPatternAnalysis" as communication_analysis {
+    * id : BigAutoField <<PK>>
+    --
+    analysis_date : DateField
+    therapeutic_relationships : JSONField
+    conversation_metrics : JSONField
+    communication_style : JSONField
+    response_patterns : JSONField
+    engagement_levels : JSONField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "MedicationEffectAnalysis" as medication_analysis {
+    * id : BigAutoField <<PK>>
+    --
+    analysis_date : DateField
+    medication_data : JSONField
+    mood_correlation : JSONField
+    side_effects : JSONField
+    adherence_patterns : JSONField
+    effectiveness_scores : JSONField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "ConversationSummary" as conversation_summary {
+    * id : BigAutoField <<PK>>
+    --
+    summary_text : TextField
+    key_topics : JSONField
+    sentiment_analysis : JSONField
+    risk_assessment : JSONField
+    therapeutic_insights : JSONField
+    confidence_score : FloatField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+    * conversation_id : BigIntegerField <<FK>>
+    * user_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' CRISIS MONITORING SYSTEM (Sprint 4)
+' ===============================
+entity "CrisisEvent" as crisis_event {
+    * id : BigAutoField <<PK>>
+    --
+    message_content : TextField
+    confidence : FloatField
+    crisis_level : CharField
+    matched_terms : JSONField
+    category : CharField
+    timestamp : DateTimeField
+    resolved : BooleanField
+    resolution_notes : TextField
+    staff_notified : BooleanField
+    follow_up_required : BooleanField
+    * user_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' AI ANALYTICS WAREHOUSE (Sprint 4)
+' ===============================
+entity "UserDataSnapshot" as user_snapshot {
+    * id : BigAutoField <<PK>>
+    --
+    snapshot_date : DateField
+    mood_entries_count : IntegerField
+    avg_mood_score : FloatField
+    mood_volatility : FloatField
+    journal_entries_count : IntegerField
+    avg_sentiment_score : FloatField
+    messages_sent : IntegerField
+    messages_received : IntegerField
+    posts_created : IntegerField
+    comments_made : IntegerField
+    social_engagement_score : FloatField
+    risk_indicators : JSONField
+    needs_attention : BooleanField
+    * user_id : BigIntegerField <<FK>>
+}
+
+entity "DataCollectionRun" as data_collection_run {
+    * id : UUIDField <<PK>>
+    --
+    run_type : CharField
+    status : CharField
+    started_at : DateTimeField
+    completed_at : DateTimeField
+    records_processed : IntegerField
+    errors_count : IntegerField
+    metadata : JSONField
+}
+
+entity "AIDataset" as ai_dataset {
+    * id : BigAutoField <<PK>>
+    --
+    dataset_type : CharField
+    period_days : IntegerField
+    data_snapshot : JSONField
+    quality_metrics : JSONField
+    generated_at : DateTimeField
+    expires_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' ENHANCED NOTIFICATIONS (Sprint 4)
+' ===============================
+entity "NotificationType" as notification_type {
+    * id : BigAutoField <<PK>>
+    --
+    name : CharField <<UNIQUE>>
+    description : TextField
+    default_enabled : BooleanField
+    is_global : BooleanField
+    created_at : DateTimeField
+    updated_at : DateTimeField
+}
+
+entity "Notification" as notification {
+    * id : BigAutoField <<PK>>
+    --
+    title : CharField
+    message : TextField
+    read : BooleanField
+    priority : CharField
+    metadata : JSONField
+    created_at : DateTimeField
+    * user_id : BigIntegerField <<FK>>
+    * notification_type_id : BigIntegerField <<FK>>
+}
+
+' ===============================
+' RELATIONSHIPS WITH CARDINALITY
+' ===============================
+
+' Core User Relationships
+user ||--o| patient : "1:0..1"
+user ||--o| therapist : "1:0..1"
+
+' Data Collection for AI Analytics
+user ||--o{ mood_log : "1:N"
+user ||--o{ journal_entry : "1:N"
+user ||--o{ oto_message : "1:N"
+user ||--o{ group_message : "1:N"
+user ||--o{ post : "1:N"
+user ||--o{ comment : "1:N"
+user ||--o{ reaction : "1:N"
+
+' Messaging Relationships
+oto_conversation ||--o{ oto_message : "1:N"
+group_conversation ||--o{ group_message : "1:N"
+post ||--o{ comment : "1:N"
+
+' Enhanced Chatbot (Sprint 4)
+user ||--o{ chatbot_conversation : "1:N"
+chatbot_conversation ||--o{ chat_message : "1:N"
+chatbot_conversation ||--o{ conversation_summary : "1:N"
+
+' AI-Powered Custom Feeds (Sprint 4)
+user ||--|| feed_personalization : "1:1"
+user ||--o{ feed_recommendation : "1:N"
+
+' AI Engine Services (Sprint 4)
+user ||--o{ user_analysis : "1:N"
+user ||--o{ ai_insight : "1:N"
+user ||--o{ therapy_recommendation : "1:N"
+user ||--o{ social_analysis : "1:N"
+user ||--o{ communication_analysis : "1:N"
+user ||--o{ medication_analysis : "1:N"
+
+' Crisis Monitoring System (Sprint 4)
+user ||--o{ crisis_event : "1:N"
+
+' AI Analytics Warehouse (Sprint 4)
+user ||--o{ user_snapshot : "1:N"
+user ||--o{ ai_dataset : "1:N"
+
+' Enhanced Notifications (Sprint 4)
+user ||--o{ notification : "1:N"
+notification_type ||--o{ notification : "1:N"
+
+@enduml

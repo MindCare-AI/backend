@@ -1,0 +1,38 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "AuthService" as AuthService
+participant "PatientService" as PatientService
+database "Database" as Database
+
+' === Registration & Role Assignment ===
+group Registration & Role Assignment
+    Patient -> Frontend: Register new account
+    Frontend -> AuthService: Submit registration data (POST /api/auth/register/)
+    AuthService -> AuthService: Validate registration data
+    AuthService -> Database: Create user account
+    Database --> AuthService: User created successfully
+    alt Successful Registration
+        AuthService -> PatientService: Assign patient role
+        PatientService -> Database: Create patient profile
+        Database --> PatientService: Profile created
+        PatientService --> AuthService: Role assigned
+        AuthService --> Frontend: Return registration success (JWT token)
+        Frontend --> Patient: Display success message
+    else Registration Failed
+        Database --> AuthService: Error message
+        AuthService --> Frontend: Return error response
+        Frontend --> Patient: Display error message
+    end
+end
+
+@enduml

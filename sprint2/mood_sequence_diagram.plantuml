@@ -1,0 +1,71 @@
+@startuml
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+' Define participants with actor icons
+actor "Patient" as Patient
+participant "Frontend" as Frontend
+participant "MoodService" as MoodService
+participant "NotificationService" as NotificationService
+database "Database" as Database
+
+' No title for consistency
+
+' === Mood Tracking System ===
+group Mood Tracking System
+    Patient -> Frontend: Log daily mood
+    Frontend -> MoodService: Submit mood data (1-10 scale) (POST /api/mood/logs/)
+    MoodService -> Database: Store mood entry
+    alt Successful Mood Entry
+        Database --> MoodService: Mood stored
+        MoodService --> Frontend: Return success
+        Frontend --> Patient: Display confirmation
+    else Failed Mood Entry
+        Database --> MoodService: Error storing mood
+        MoodService --> Frontend: Return error message 
+        Frontend --> Patient: Display error message
+    end
+    
+    Patient -> Frontend: Log energy level
+    Frontend -> MoodService: Submit energy data (1-5 scale) (PATCH /api/mood/logs/<int:pk>/)
+    MoodService -> Database: Update mood entry with energy
+    Database --> MoodService: Energy stored
+    MoodService --> Frontend: Return success
+    Frontend --> Patient: Display confirmation
+    
+    Patient -> Frontend: Associate activities with mood
+    Frontend -> MoodService: Submit activity associations (POST /api/mood/logs/<int:pk>/activities/)
+    MoodService -> Database: Link activities to mood
+    Database --> MoodService: Activities linked
+    MoodService --> Frontend: Return success
+    Frontend --> Patient: Display confirmation
+    
+    Patient -> Frontend: View mood trends
+    Frontend -> MoodService: Request 30-day history (GET /api/mood/logs/analytics/)
+    MoodService -> Database: Fetch mood history
+    Database --> MoodService: Return mood data
+    MoodService -> MoodService: Generate statistics
+    MoodService --> Frontend: Return mood trends & stats
+    Frontend --> Patient: Display mood visualization
+    
+    Patient -> Frontend: Export mood data
+    Frontend -> MoodService: Request data export (GET /api/mood/logs/export/)
+    MoodService -> Database: Fetch mood logs
+    Database --> MoodService: Return mood data
+    MoodService -> MoodService: Generate export file
+    MoodService --> Frontend: Return CSV file
+    Frontend --> Patient: Download mood data
+    
+    Patient -> Frontend: Bulk create mood entries
+    Frontend -> MoodService: Submit multiple mood logs (POST /api/mood/logs/bulk_create/)
+    MoodService -> Database: Store multiple entries
+    Database --> MoodService: Entries stored
+    MoodService --> Frontend: Return success
+    Frontend --> Patient: Display confirmation
+end
+@enduml

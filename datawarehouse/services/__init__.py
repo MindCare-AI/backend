@@ -4,7 +4,10 @@ from .etl_service import etl_service, ETLService
 
 # Import unified data collection service
 try:
-    from .unified_data_collection_service import unified_data_collector, UnifiedDataCollectionService
+    from .unified_data_collection_service import (
+        unified_data_collector,
+        UnifiedDataCollectionService,
+    )
 except ImportError:
     unified_data_collector = None
     UnifiedDataCollectionService = None
@@ -21,12 +24,12 @@ except ImportError:
     TherapistSessionNotesCollectionService = None
 
 __all__ = [
-    'data_collector',
-    'DataCollectionService',
-    'etl_service', 
-    'ETLService',
-    'unified_data_collector',
-    'UnifiedDataCollectionService',
-    'FeedsCollectionService',
-    'TherapistSessionNotesCollectionService',
+    "data_collector",
+    "DataCollectionService",
+    "etl_service",
+    "ETLService",
+    "unified_data_collector",
+    "UnifiedDataCollectionService",
+    "FeedsCollectionService",
+    "TherapistSessionNotesCollectionService",
 ]

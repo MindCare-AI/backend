@@ -1,0 +1,195 @@
+@startuml AI_Engine_Sequence_Diagram
+skinparam dpi 150
+scale 0.7
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+participant "Frontend" as frontend
+participant "UserResumeService" as userResumeService
+participant "AIAnalysisService" as aiAnalysis
+participant "PredictiveService" as predictiveService
+participant "MedicationAnalysisService" as medicationService
+participant "ConversationSummaryService" as conversationService
+participant "MedicalService" as medicalService
+
+== User Analysis & Insights ==
+
+user -> frontend : Request AI analysis
+frontend -> aiAnalysis : POST /api/ai/insights/analyze-user/
+
+alt Analysis Processing
+    aiAnalysis -> aiAnalysis : analyze_user_data(user, date_range)
+    aiAnalysis -> aiAnalysis : _analyze_with_ollama(analysis_data)
+    aiAnalysis -> frontend : analysis_results_with_insights
+    frontend -> user : Display AI insights and recommendations
+end
+
+user -> frontend : View therapy recommendations
+frontend -> aiAnalysis : GET /api/ai/recommendations/
+
+alt Recommendations Processing
+    aiAnalysis -> aiAnalysis : get_therapy_recommendations(user)
+    aiAnalysis -> frontend : therapy_recommendation_list
+    frontend -> user : Display personalized recommendations
+end
+
+== User Resume for Therapists ==
+
+user -> frontend : Therapist views user resume
+frontend -> userResumeService : GET /api/ai/resume/{user_id}/
+
+alt Resume Generation
+    userResumeService -> userResumeService : generate_user_resume(user_id, period_days)
+    userResumeService -> aiAnalysis : get_ai_ready_dataset(user_id)
+    aiAnalysis -> userResumeService : ai_dataset
+    
+    userResumeService -> userResumeService : _generate_analytics_cards()
+    userResumeService -> userResumeService : _generate_ai_therapist_summary()
+    userResumeService -> frontend : comprehensive_user_resume
+    frontend -> user : Display 4 analytics cards + AI summary
+end
+
+user -> frontend : Request specific analytics card
+frontend -> userResumeService : GET /api/ai/resume/{user_id}/card/{card_type}/
+
+alt Card Extraction
+    userResumeService -> userResumeService : extract_card_data(card_type)
+    userResumeService -> frontend : specific_card_data
+    frontend -> user : Display updated card information
+end
+
+== Predictive Analysis ==
+
+user -> frontend : Request mood predictions
+frontend -> predictiveService : POST /api/ai/insights/analyze-user/
+
+alt Mood Prediction Processing
+    predictiveService -> predictiveService : predict_mood_decline(user, timeframe_days)
+    predictiveService -> predictiveService : _analyze_mood_trends_with_ai(analysis_data)
+    predictiveService -> frontend : mood_prediction_results
+    frontend -> user : Display mood decline predictions
+end
+
+user -> frontend : View therapy outcome predictions
+frontend -> predictiveService : POST /api/ai/insights/analyze-user/
+
+alt Therapy Outcome Processing
+    predictiveService -> predictiveService : predict_therapy_outcomes(user, timeframe_days)
+    predictiveService -> predictiveService : _analyze_therapy_outcomes_with_ai(analysis_data)
+    predictiveService -> frontend : therapy_outcome_predictions
+    frontend -> user : Display therapy progress predictions
+end
+
+== Medication Effects Analysis ==
+
+user -> frontend : View medication effects
+frontend -> medicationService : POST /api/ai/insights/analyze-user/
+
+alt Medication Analysis Processing
+    medicationService -> medicationService : analyze_medication_effects(user, days)
+    medicationService -> medicationService : _analyze_with_ollama(medication_data)
+    medicationService -> frontend : medication_analysis_results
+    frontend -> user : Display medication insights and adherence patterns
+end
+
+== Communication Analysis ==
+
+user -> frontend : Request communication analysis
+frontend -> aiAnalysis : POST /api/ai/communication/analyze-user/
+
+alt Communication Analysis Processing
+    aiAnalysis -> aiAnalysis : analyze_communication_patterns(user, days)
+    aiAnalysis -> aiAnalysis : _analyze_with_ollama(communication_data)
+    aiAnalysis -> frontend : communication_pattern_analysis
+    frontend -> user : Display communication insights
+end
+
+user -> frontend : View therapeutic relationship
+frontend -> aiAnalysis : GET /api/ai/communication/therapeutic-relationship/
+
+alt Therapeutic Relationship Processing
+    aiAnalysis -> aiAnalysis : get_therapeutic_relationship_data(user)
+    aiAnalysis -> frontend : therapeutic_relationship_analysis
+    frontend -> user : Display relationship insights
+end
+
+== AI Tips & Recommendations ==
+
+user -> frontend : Request mood tips
+frontend -> aiAnalysis : GET /api/ai/tips/mood/?days=7&count=5
+
+alt Mood Tips Processing
+    aiAnalysis -> aiAnalysis : generate_mood_tips(user, days, tip_count)
+    aiAnalysis -> frontend : personalized_mood_tips
+    frontend -> user : Display mood improvement tips
+end
+
+user -> frontend : Request journaling tips
+frontend -> aiAnalysis : GET /api/ai/tips/journaling/?days=14&count=5
+
+alt Journaling Tips Processing
+    aiAnalysis -> aiAnalysis : generate_journaling_tips(user, days, tip_count)
+    aiAnalysis -> frontend : personalized_journaling_tips
+    frontend -> user : Display journaling guidance
+end
+
+user -> frontend : Request combined tips
+frontend -> aiAnalysis : GET /api/ai/tips/combined/?days=14&count=8
+
+alt Combined Tips Processing
+    aiAnalysis -> aiAnalysis : generate_combined_tips(user, days, tip_count)
+    aiAnalysis -> frontend : holistic_wellness_tips
+    frontend -> user : Display comprehensive wellness tips
+end
+
+== Conversation Summary ==
+
+user -> frontend : Request conversation summary
+frontend -> conversationService : generate_conversation_summary(conversation_id)
+
+alt Summary Generation
+    conversationService -> conversationService : generate_conversation_summary(conversation_id)
+    conversationService -> conversationService : _generate_summary_with_ollama(messages)
+    conversationService -> frontend : conversation_summary
+    frontend -> user : Display conversation insights
+end
+
+== AI Insights Management ==
+
+user -> frontend : View AI insights
+frontend -> aiAnalysis : GET /api/ai/insights/
+
+alt Insights Retrieval
+    aiAnalysis -> aiAnalysis : get_user_insights(user)
+    aiAnalysis -> frontend : recent_ai_insights_list
+    frontend -> user : Display insights and alerts
+end
+
+user -> frontend : Mark insight as addressed
+frontend -> aiAnalysis : POST /api/ai/insights/{id}/mark-addressed/
+
+alt Insight Status Update
+    aiAnalysis -> aiAnalysis : mark_insight_addressed(insight_id)
+    aiAnalysis -> frontend : success_confirmation
+    frontend -> user : Update insight status
+end
+
+user -> frontend : Rate recommendation effectiveness
+frontend -> aiAnalysis : POST /api/ai/recommendations/{id}/rate/
+
+alt Recommendation Rating
+    aiAnalysis -> aiAnalysis : rate_recommendation(recommendation_id, rating)
+    aiAnalysis -> frontend : rating_saved_confirmation
+    frontend -> user : Show rating feedback
+end
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+@enduml

@@ -1,0 +1,612 @@
+@startuml Sprint4_Class_Diagram
+
+title Sprint 4: AI Analytics & Advanced Features
+
+' Layout settings
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam packagePadding 10
+skinparam classAttributeIconSize 0
+skinparam nodesep 60
+skinparam ranksep 60
+left to right direction
+
+package "AI_engine" {
+    class AIAnalysisService {
+        -api_key: String
+        -api_endpoint: String
+        -cache_timeout: Integer
+        -base_url: String
+        -model: String
+        -batch_size: Integer
+        -max_period: Integer
+        -min_data_points: Integer
+        -risk_threshold: Float
+        +analyze_user_data(user, date_range): Dict
+        +generate_insights(user, analysis): void
+        +analyze_session(session_data): Dict
+        -_prepare_ai_ready_data_for_analysis(dataset): Dict
+        -_create_ai_ready_analysis_prompt(data): String
+        -_analyze_with_ollama(data): Dict
+        -_parse_analysis_response(response_text): Dict
+        -_create_default_analysis(): Dict
+    }
+
+    class PredictiveAnalysisService {
+        -base_url: String
+        -model: String
+        -cache_timeout: Integer
+        -max_prompt_length: Integer
+        +predict_therapy_outcomes(user, timeframe_days): Dict
+        +analyze_journal_patterns(user, time_field): Dict
+        -_calculate_enhanced_engagement_metrics(user, start_date, end_date): Dict
+        -_calculate_content_quality_score(user, start_date, end_date): Float
+        -_calculate_progress_indicators(user, timeframe_days): Dict
+        -_analyze_therapy_outcomes_with_ai(data): Dict
+    }
+
+    class SocialInteractionAnalysisService {
+        -base_url: String
+        -model: String
+        -analysis_period: Integer
+        -cache_timeout: Integer
+        -max_prompt_length: Integer
+        +analyze_social_interactions(user, days): Dict
+        -_calculate_advanced_engagement_metrics(interaction_data): Dict
+        -_analyze_content_sentiment(interaction_data): Dict
+        -_analyze_social_network(interaction_data): Dict
+        -_analyze_temporal_patterns(interaction_data): Dict
+        -_analyze_with_ollama(comprehensive_data): Dict
+    }
+
+    class UserResumeService {
+        -base_url: String
+        -ai_service: AIAnalysisService
+        -cache_timeout: Integer
+        +generate_user_resume(user_id, period_days): Dict
+        -_generate_mental_health_card(user, dataset, period_days): Dict
+        -_generate_behavioral_patterns_card(user, dataset, period_days): Dict
+        -_generate_social_engagement_card(user, dataset, period_days): Dict
+        -_generate_progress_tracking_card(user, dataset, period_days): Dict
+        -_generate_ai_therapist_summary(user, dataset, cards_data): Dict
+    }
+
+    class AIDataInterfaceService {
+        -unified_service: Object
+        -cache_timeout: Integer
+        +get_ai_ready_dataset(user_id, period_days, analysis_types, use_cache): Dict
+        +get_mood_analytics(user_id, period_days): Dict
+        +get_journal_analytics(user_id, period_days): Dict
+        +get_behavioral_patterns(user_id, period_days): Dict
+        +get_communication_metrics(user_id, period_days): Dict
+        +get_therapy_session_data(user_id, period_days): Dict
+        +get_social_analytics(user_id, period_days): Dict
+    }
+
+    class MedicationAnalysisService {
+        -api_key: String
+        -cache_timeout: Integer
+        -confidence_threshold: Float
+        +analyze_medication_adherence(user, period_days): Dict
+        +calculate_medication_effects(user, medication_id): Dict
+        +detect_medication_patterns(user): Dict
+        -_analyze_side_effects(medication_data): Dict
+        -_calculate_adherence_score(intake_data): Float
+        -_generate_adherence_recommendations(score, patterns): List
+    }
+
+    class ConversationSummaryService {
+        -model: String
+        -max_tokens: Integer
+        -summary_window_days: Integer
+        +generate_conversation_summary(conversation_id): Dict
+        +extract_therapeutic_insights(messages): Dict
+        +identify_key_topics(summary): List
+        -_prepare_conversation_chunks(messages): List
+        -_summarize_with_ollama(text): String
+        -_extract_action_items(summary): List
+    }
+
+    class TipsService {
+        -api_endpoint: String
+        -cache_timeout: Integer
+        -user_data_ttl: Integer
+        +get_personalized_tips(user, context): Dict
+        +schedule_tips_notification(user): void
+        -_generate_context_aware_tip(user_data, mood): Dict
+        -_filter_tips_by_relevance(tips, user_context): List
+    }
+
+    class CrisisMonitoringService {
+        -crisis_levels: Dict
+        -high_risk_threshold: Float
+        -immediate_response_threshold: Float
+        +log_crisis_event(user, message, detection_data): CrisisEvent
+        +get_user_crisis_history(user, days): List
+        -_determine_crisis_level(confidence): String
+        -_trigger_immediate_response(user, crisis_event): void
+    }
+    
+    class UserAnalysis {
+        +user: ForeignKey
+        +analysis_date: DateField
+        +mood_score: FloatField
+        +sentiment_score: FloatField
+        +dominant_emotions: JSONField
+        +topics_of_concern: JSONField
+        +suggested_activities: JSONField
+        +risk_factors: JSONField
+        +improvement_metrics: JSONField
+    }
+
+    class AIInsight {
+        +user: ForeignKey
+        +created_at: DateTimeField
+        +insight_type: CharField
+        +insight_data: JSONField
+        +priority: CharField
+        +is_addressed: BooleanField
+    }
+
+    class TherapyRecommendation {
+        +user: ForeignKey
+        +recommendation_type: CharField
+        +recommendation_data: JSONField
+        +context_data: JSONField
+        +is_active: BooleanField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+    }
+
+    class SocialInteractionAnalysis {
+        +user: ForeignKey
+        +analysis_date: DateField
+        +engagement_score: FloatField
+        +interaction_patterns: JSONField
+        +therapeutic_content: JSONField
+        +support_network: JSONField
+        +content_preferences: JSONField
+        +mood_correlation: JSONField
+        +growth_areas: JSONField
+        +suggested_interventions: JSONField
+    }
+
+    class CommunicationPatternAnalysis {
+        +user: ForeignKey
+        +analysis_date: DateField
+        +therapeutic_relationships: JSONField
+        +conversation_metrics: JSONField
+        +communication_style: JSONField
+        +response_patterns: JSONField
+        +emotional_triggers: JSONField
+        +improvement_areas: JSONField
+        +engagement_score: FloatField
+        +ai_insights: JSONField
+    }
+
+    class CrisisEvent {
+        +user: ForeignKey
+        +message_content: TextField
+        +confidence: FloatField
+        +crisis_level: CharField
+        +matched_terms: JSONField
+        +category: CharField
+        +timestamp: DateTimeField
+        +resolved: BooleanField
+        +resolution_notes: TextField
+        +staff_notified: BooleanField
+        +follow_up_required: BooleanField
+    }
+
+    class MedicationEffectAnalysis {
+        +user: ForeignKey
+        +medication: ForeignKey
+        +analysis_date: DateField
+        +adherence_score: FloatField
+        +effectiveness_score: FloatField
+        +side_effects: JSONField
+        +mood_correlation: JSONField
+        +recommendations: JSONField
+        +confidence_score: FloatField
+    }
+
+    class ConversationSummary {
+        +conversation: ForeignKey
+        +created_at: DateTimeField
+        +summary_text: TextField
+        +key_topics: JSONField
+        +therapeutic_insights: JSONField
+        +action_items: JSONField
+        +sentiment_analysis: JSONField
+        +word_count: IntegerField
+    }
+}
+
+package "datawarehouse" {
+    class AIAnalysisDataset {
+        +user: ForeignKey
+        +collection_date: DateTimeField
+        +period_days: IntegerField
+        +mood_summary: JSONField
+        +journal_insights: JSONField
+        +behavioral_patterns: JSONField
+        +communication_metrics: JSONField
+        +therapy_session_data: JSONField
+        +social_engagement_data: JSONField
+        +risk_indicators: JSONField
+        +progress_markers: JSONField
+        +pattern_analysis: JSONField
+        +correlation_data: JSONField
+        +data_completeness_score: FloatField
+        +data_quality_indicators: JSONField
+        +confidence_score: FloatField
+        +processing_version: CharField
+        +data_sources_used: ArrayField
+        +ready_for_mood_analysis: BooleanField
+        +ready_for_journal_analysis: BooleanField
+        +ready_for_behavior_analysis: BooleanField
+        +ready_for_communication_analysis: BooleanField
+        +ready_for_therapy_analysis: BooleanField
+        +expires_at: DateTimeField
+        +is_active: BooleanField
+        +is_expired(): Boolean
+        +get_analysis_readiness(): Dict
+    }
+
+
+
+    class AIDataQualityReport {
+        +dataset: OneToOneField
+        +generated_at: DateTimeField
+        +mood_data_quality: FloatField
+        +journal_data_quality: FloatField
+        +behavior_data_quality: FloatField
+        +communication_data_quality: FloatField
+        +therapy_data_quality: FloatField
+        +data_coverage_percentage: FloatField
+        +temporal_coverage_score: FloatField
+        +missing_data_indicators: JSONField
+        +data_inconsistencies: JSONField
+        +outliers_detected: JSONField
+        +quality_recommendations: JSONField
+        +minimum_additional_data_needed: JSONField
+    }
+
+    class PredictiveModel {
+        +name: CharField
+        +model_type: CharField
+        +version: CharField
+        +features_used: ArrayField
+        +hyperparameters: JSONField
+        +training_data_size: IntegerField
+        +training_date: DateTimeField
+        +accuracy: FloatField
+        +precision: FloatField
+        +recall: FloatField
+        +f1_score: FloatField
+        +auc_score: FloatField
+        +is_active: BooleanField
+        +is_production: BooleanField
+        +model_path: CharField
+        +feature_importance: JSONField
+    }
+
+    class UnifiedDataCollectionService {
+        +get_ai_ready_dataset(user_id, period_days): Dict
+        -_create_unified_snapshot(user, date_range): Dict
+        -_aggregate_mood_data(user, date_range, snapshot): Dict
+        -_aggregate_journal_data(user, date_range, snapshot): Dict
+        -_aggregate_behavioral_data(user, date_range, snapshot): Dict
+        -_aggregate_communication_data(user, date_range, snapshot): Dict
+        -_aggregate_therapy_data(user, date_range, snapshot): Dict
+        -_aggregate_social_data(user, date_range, snapshot): Dict
+        -_generate_cross_domain_insights(user, date_range, snapshot): Dict
+        -_calculate_data_quality(ai_ready_data, snapshot): Dict
+        -_cache_ai_dataset(user_id, period_days, comprehensive_data): Object
+    }
+
+    class MoodTrendAnalysis {
+        +user: ForeignKey
+        +analysis_type: CharField
+        +period_start: DateField
+        +period_end: DateField
+        +avg_mood: FloatField
+        +median_mood: FloatField
+        +min_mood: FloatField
+        +max_mood: FloatField
+        +mood_range: FloatField
+        +pattern_data: JSONField
+        +correlation_data: JSONField
+        +anomalies: JSONField
+        +next_period_prediction: FloatField
+        +prediction_confidence: FloatField
+    }
+
+
+
+    class CommunicationMetrics {
+        +user: ForeignKey
+        +period_start: DateField
+        +period_end: DateField
+        +total_messages: IntegerField
+        +avg_response_time: FloatField
+        +conversation_frequency: FloatField
+        +sentiment_score: FloatField
+        +message_length_avg: FloatField
+        +topic_diversity: FloatField
+        +crisis_language_detected: BooleanField
+        +therapeutic_communication_score: FloatField
+        +communication_pattern_changes: JSONField
+        +support_network_engagement: JSONField
+    }
+    
+    class ETLPipelineService {
+        -batch_size: Integer
+        -thread_count: Integer
+        -timeout: Integer
+        -retry_count: Integer
+        +process_batch_data(data_type, batch): Dict
+        +schedule_incremental_processing(frequency): void
+        +validate_data_integrity(dataset): Bool
+        +get_processing_metrics(): Dict
+        -_transform_data(raw_data, schema): Dict
+        -_load_data_to_warehouse(transformed_data): Bool
+        -_handle_data_errors(errors): void
+    }
+    
+    class RealtimeAnalyticsService {
+        -stream_connection: Object
+        -channels: List
+        -processing_window: Integer
+        +process_realtime_event(event_type, data): Dict
+        +subscribe_to_event_stream(channel): void
+        +get_realtime_metrics(metric_type): Dict
+        -_analyze_event_stream(events): Dict
+        -_publish_analytics_update(metrics): void
+    }
+    
+    class DataSecurityService {
+        -encryption_keys: Dict
+        -access_levels: Dict
+        -sha256_salt: String
+        -aes256_key: String
+        +encrypt_sensitive_data(data, level): String
+        +validate_access_permission(user, data_type): Bool
+        +generate_audit_log(action, user, data): void
+        -_apply_field_level_encryption(data): Dict
+        -_verify_encryption_integrity(encrypted_data): Bool
+        -_hash_sensitive_identifiers(data): String
+        -_apply_role_based_access_control(user, permission): Bool
+    }
+    
+    class DataAuditService {
+        -audit_retention_days: Integer
+        -log_level: String
+        +log_data_access(user, data_type, action): void
+        +log_data_modification(user, data, changes): void
+        +generate_audit_report(start_date, end_date): List
+        -_validate_audit_trail_integrity(): Bool
+        -_archive_old_audit_logs(days): void
+    }
+    
+
+}
+
+package "chatbot" {
+    class TherapyRAGService {
+        -base_url: String
+        -cbt_chunks: List
+        -dbt_chunks: List
+        -min_confidence: Float
+        -similarity_threshold: Float
+        -rule_confidence_boost: Float
+        +get_therapy_approach(query, user_data): Dict
+        +answer_question(query, user_data): Dict
+        -_check_direct_mappings(query): Dict
+        -_apply_expert_rules(query, therapy_type, confidence): Tuple
+        -_enhance_query_with_user_data(query, user_data): String
+        -_get_therapy_description(therapy_type): Dict
+    }
+    
+    class LocalVectorStore {
+        -embedding_model: Object
+        -cbt_embeddings: List
+        -dbt_embeddings: List
+        -index_path: String
+        +search_similar_chunks(query, limit): List
+        +determine_therapy_approach(query): Tuple
+        +generate_embedding(text): List
+        -_initialize_store(): void
+        -_load_embeddings(): void
+    }
+    
+    class ChatbotService {
+        -api_key: String
+        -model: String
+        -crisis_patterns: Dict
+        -min_crisis_confidence: Float
+        +get_response(user, message, conversation_id, conversation_history): Dict
+        +generate_initial_greeting(user): String
+        -_get_therapy_recommendation(message, user_data): Dict
+        -_check_content_safety(message): Dict
+        -_enhanced_crisis_detection(message): Dict
+        -_generate_crisis_response(user, message, crisis_detection): Dict
+        -_humanize_response(response_text): String
+        -_track_conversation_context(message, response): void
+    }
+    
+    class ChatbotConversation {
+        +user: ForeignKey
+        +title: CharField
+        +started_at: DateTimeField
+        +last_activity: DateTimeField
+        +is_archived: BooleanField
+        +session_data: JSONField
+        +context_summary: TextField
+    }
+    
+
+    
+    class MessageSafetyService {
+        -safety_patterns: Dict
+        -keyword_weights: Dict
+        +scan_message(message): Dict
+        +is_message_safe(scan_result): Boolean
+        -_calculate_severity(matches): Float
+        -_generate_safety_report(scan_result): Dict
+    }
+    
+
+}
+
+package "notifications" {
+    class EnhancedNotificationService {
+        -delivery_channels: List
+        -priority_levels: Dict
+        -cooldown_periods: Dict
+        +send_notification(recipient, notification_type, title, message, metadata): void
+        +schedule_notification(recipient, notification_type, title, message, timestamp): void
+        +broadcast_to_group(group, notification_type, title, message): void
+        -_determine_delivery_channel(recipient, notification_type, priority): String
+        -_format_notification(notification_type, title, message): Dict
+    }
+    
+    class NotificationPreference {
+        +user: ForeignKey
+        +notification_type: CharField
+        +channel: CharField
+        +enabled: BooleanField
+        +quiet_hours_start: TimeField
+        +quiet_hours_end: TimeField
+        +cooldown_minutes: IntegerField
+    }
+    
+    class CrisisAlertConfig {
+        +user: ForeignKey
+        +alert_level: CharField
+        +response_team: ManyToManyField
+        +escalation_minutes: IntegerField
+        +alert_channels: ArrayField
+    }
+}
+
+package "feeds" {
+    class ContentModerationService {
+        -perspective_api_key: String
+        -threshold_toxic: Float
+        -threshold_severe_toxic: Float
+        -threshold_identity_attack: Float
+        -threshold_insult: Float
+        +check_content_toxicity(content): Dict
+        +should_filter_content(toxicity_result): Boolean
+        +get_feedback_message(toxicity_result): String
+        -_check_with_perspective_api(content): Dict
+        -_apply_moderation_rules(scores): Dict
+    }
+    
+    class AIRecommendationService {
+        -user_pref_weight: Float
+        -content_weight: Float
+        -similarity_threshold: Float
+        -diversity_factor: Float
+        -therapeutic_alignment: Float
+        +get_recommended_content(user, count): List
+        +get_mood_based_recommendations(user, mood): List
+        +get_therapeutic_content(user, treatment_goals): List
+        +update_recommendation_model(user, interactions): void
+        -_calculate_content_similarity(content1, content2): Float
+        -_apply_diversity_filter(recommendations): List
+        -_get_user_preference_vector(user): List
+        -_adapt_to_engagement_metrics(user, content): Dict
+    }
+    
+    class FeedPersonalization {
+        +user: ForeignKey
+        +topic_preferences: JSONField
+        +content_type_weights: JSONField
+        +mood_correlation: JSONField
+        +interaction_history: JSONField
+        +diversity_preference: FloatField
+        +therapeutic_content_ratio: FloatField
+        +personalization_version: CharField
+        +last_refresh: DateTimeField
+        +engagement_metrics: JSONField
+        +content_feedback: JSONField
+    }
+    
+    class ToxicContentReport {
+        +content_type: CharField
+        +content_id: IntegerField
+        +reported_by: ForeignKey
+        +report_reason: CharField
+        +toxicity_scores: JSONField
+        +status: CharField
+        +reviewed_by: ForeignKey
+        +reviewed_at: DateTimeField
+        +action_taken: CharField
+        +automated_analysis: JSONField
+    }
+    
+    class TopicExtractionService {
+        -nlp_model: String
+        -min_topic_confidence: Float
+        -topic_cache_ttl: Integer
+        +extract_topics(text): List
+        +categorize_content(text): Dict
+        +match_topics_to_interests(topics, user_interests): Dict
+        -_initialize_nlp_pipeline(): void
+        -_preprocess_text(text): String
+        -_extract_entities(processed_text): List
+    }
+    
+    class ContentDiversityService {
+        -similarity_threshold: Float
+        -exploration_rate: Float
+        -diversity_window: Integer
+        +calculate_diversity_score(content_list): Float
+        +apply_diversity_algorithm(recommendations, history): List
+        +adjust_exploration_rate(user, feedback): Float
+        -_calculate_content_clusters(content_list): Dict
+        -_apply_thompson_sampling(candidates, history): List
+    }
+}
+
+
+
+AIAnalysisService --> UserAnalysis
+AIAnalysisService --> AIInsight
+AIAnalysisService --> AIDataInterfaceService
+MedicationAnalysisService --> MedicationEffectAnalysis
+ConversationSummaryService --> ConversationSummary
+CrisisMonitoringService --> CrisisEvent
+AIDataInterfaceService --> UnifiedDataCollectionService
+UnifiedDataCollectionService --> AIAnalysisDataset
+AIAnalysisDataset --> AIDataQualityReport
+PredictiveAnalysisService ..> PredictiveModel
+SocialInteractionAnalysisService --> SocialInteractionAnalysis
+UserResumeService --> AIAnalysisService
+UserResumeService --> PredictiveAnalysisService
+UserResumeService --> SocialInteractionAnalysisService
+
+ChatbotService --> TherapyRAGService
+ChatbotService --> MessageSafetyService
+ChatbotService --> CrisisMonitoringService
+TherapyRAGService --> LocalVectorStore
+ChatbotService --> ChatbotConversation
+
+
+EnhancedNotificationService --> NotificationPreference
+EnhancedNotificationService --> CrisisAlertConfig
+CrisisMonitoringService --> EnhancedNotificationService
+
+AIRecommendationService --> FeedPersonalization
+ContentModerationService --> ToxicContentReport
+AIRecommendationService --> ContentDiversityService
+AIRecommendationService --> TopicExtractionService
+AIRecommendationService --> MoodTrendAnalysis
+TipsService --> AIRecommendationService
+
+@enduml

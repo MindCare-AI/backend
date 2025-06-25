@@ -1,3 +1,4 @@
+#auth/adapters.py
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from users.models import PatientProfile, TherapistProfile

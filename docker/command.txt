@@ -1,0 +1,4 @@
+1)docker-compose up --build
+
+2)docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+3)docker stop $(docker ps -q)

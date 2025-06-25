@@ -1,0 +1,101 @@
+@startuml Analytics_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+
+actor "User" as user
+participant "Frontend" as frontend
+participant "UserResumeService" as userResumeService
+participant "AIDataInterfaceService" as aiDataInterface
+participant "UnifiedDataCollectionService" as unifiedCollection
+participant "DataSecurityService" as dataSecurity
+participant "ETLPipelineService" as etlService
+participant "RealtimeAnalyticsService" as realtimeAnalytics
+participant "MoodService" as moodService
+participant "TherapistService" as therapistService
+participant "SocialService" as socialService
+participant "MedicalService" as medicalService
+
+user -> frontend : Request personalized insights
+frontend -> userResumeService : GET /api/ai/resume/{user_id}/?period_days=30
+
+alt Insights Generation
+    userResumeService -> aiDataInterface : get_ai_ready_dataset(user_id, period_days)
+    aiDataInterface -> unifiedCollection : collect_comprehensive_user_data(user_id, date_range)
+    
+    alt Access Control
+        unifiedCollection -> dataSecurity : validate_access_permission(user, data_type)
+        dataSecurity -> unifiedCollection : access_granted
+    end
+    
+    alt Data Collection
+        unifiedCollection -> moodService : collect_mood_data(user, days)
+        moodService -> unifiedCollection : mood_data
+        
+        unifiedCollection -> therapistService : collect_therapy_data(user, days)
+        therapistService -> unifiedCollection : therapy_data
+        
+        unifiedCollection -> socialService : collect_social_data(user, days)
+        socialService -> unifiedCollection : social_data
+        
+        unifiedCollection -> medicalService : collect_medication_data(user, days)
+        medicalService -> unifiedCollection : medical_data
+    end
+    
+    alt ETL Processing
+        unifiedCollection -> etlService : process_batch_data(data_type, batch)
+        etlService -> dataSecurity : encrypt_sensitive_data(data, level)
+        dataSecurity -> etlService : encrypted_data
+        etlService -> unifiedCollection : transformed_data
+    end
+    
+    unifiedCollection -> unifiedCollection : _generate_cross_domain_insights(user, date_range, snapshot)
+    unifiedCollection -> aiDataInterface : comprehensive_data
+    aiDataInterface -> userResumeService : ai_ready_dataset
+    userResumeService -> frontend : personalized_user_insights
+end
+
+frontend -> user : Display AI-generated mental health profile
+
+user -> frontend : Request specific analytics card
+frontend -> userResumeService : GET /api/ai/resume/{user_id}/card/{card_type}/?period_days=30
+
+alt Card Generation
+    userResumeService -> userResumeService : extract_card_data(card_type)
+    userResumeService -> frontend : specific_card_data
+end
+
+frontend -> user : Display updated card
+
+user -> frontend : Trigger AI analysis
+frontend -> userResumeService : POST /api/ai/insights/analyze-user/
+
+alt AI Analysis
+    userResumeService -> aiDataInterface : get_ai_ready_dataset(user_id, days)
+    aiDataInterface -> userResumeService : analysis_dataset
+    userResumeService -> frontend : analysis_results
+end
+
+frontend -> user : Show analysis completion
+
+== Real-time Processing ==
+
+alt Real-time Stream Processing
+    realtimeAnalytics -> realtimeAnalytics : process_realtime_stream(event_type, data)
+    realtimeAnalytics -> realtimeAnalytics : apply_realtime_analytics(stream_data)
+    
+    realtimeAnalytics -> dataSecurity : validate_realtime_access(user, stream_type)
+    dataSecurity -> realtimeAnalytics : access_granted
+    
+    realtimeAnalytics -> etlService : process_stream_data(stream)
+    etlService -> realtimeAnalytics : processed_stream_data
+end
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+@enduml

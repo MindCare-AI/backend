@@ -1,0 +1,231 @@
+@startuml Datawarehouse_Sequence_Diagram
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 5
+skinparam maxmessagesize 160
+skinparam sequenceParticipant underline
+skinparam handwritten false
+skinparam monochrome true
+skinparam dpi 150
+scale 0.6
+
+actor "User" as user
+actor "Admin" as admin
+actor "DataAnalyst" as analyst
+participant "Frontend" as frontend
+participant "UnifiedDataCollectionService" as unifiedCollection
+participant "RealTimeAnalyticsService" as realtimeAnalytics
+participant "ETLService" as etlService
+participant "DataQualityService" as qualityService
+participant "SecurityService" as securityService
+participant "AuditTrailService" as auditService
+participant "BackupRecoveryService" as backupService
+participant "PredictiveModelService" as predictiveService
+
+== Real-time Data Collection & Processing ==
+
+user -> frontend : User activity (mood log, journal entry, etc.)
+frontend -> unifiedCollection : POST /api/datawarehouse/unified-data/collect/
+
+alt Data Collection Processing
+    unifiedCollection -> unifiedCollection : collect_comprehensive_user_data(user_id, data_type)
+    unifiedCollection -> securityService : POST /api/datawarehouse/security/encrypt-data/
+    
+    alt Security Processing
+        securityService -> securityService : encrypt_sensitive_data(data, encryption_level)
+        securityService -> unifiedCollection : encrypted_data
+    end
+    
+    unifiedCollection -> realtimeAnalytics : POST /api/datawarehouse/realtime-analytics/process-event/
+    
+    alt Real-time Analytics
+        realtimeAnalytics -> realtimeAnalytics : process_streaming_event(event_data)
+        realtimeAnalytics -> realtimeAnalytics : update_real_time_metrics(user_activity)
+        realtimeAnalytics -> realtimeAnalytics : detect_anomalies(data_pattern)
+        realtimeAnalytics -> frontend : real_time_insights
+    end
+    
+    frontend -> user : Display live analytics
+end
+
+== Data Quality Monitoring ==
+
+etlService -> qualityService : POST /api/datawarehouse/quality-reports/
+
+alt Quality Assessment
+    qualityService -> qualityService : validate_data_integrity(dataset)
+    qualityService -> qualityService : check_completeness_score(data)
+    qualityService -> qualityService : detect_outliers(metrics)
+    qualityService -> qualityService : generate_quality_report(validation_results)
+    
+    qualityService -> auditService : POST /api/datawarehouse/audit-trail/audit-logs/
+    auditService -> auditService : log_data_quality_event(report, severity)
+    
+    qualityService -> etlService : quality_assessment
+end
+
+== Analytics Dashboard ==
+
+analyst -> frontend : View analytics dashboard
+frontend -> realtimeAnalytics : GET /api/datawarehouse/realtime-analytics/mood-monitoring/
+
+alt Mood Analytics
+    realtimeAnalytics -> realtimeAnalytics : aggregate_mood_data(timeframe)
+    realtimeAnalytics -> realtimeAnalytics : calculate_trend_analysis(user_base)
+    realtimeAnalytics -> frontend : mood_monitoring_data
+end
+
+frontend -> realtimeAnalytics : GET /api/datawarehouse/realtime-analytics/crisis-detection/
+
+alt Crisis Analytics
+    realtimeAnalytics -> realtimeAnalytics : analyze_crisis_patterns(real_time_data)
+    realtimeAnalytics -> realtimeAnalytics : generate_risk_alerts(threshold_analysis)
+    realtimeAnalytics -> frontend : crisis_detection_analytics
+end
+
+frontend -> unifiedCollection : GET /api/datawarehouse/user-snapshots/user-trends/
+unifiedCollection -> unifiedCollection : generate_user_trend_analysis(date_range)
+unifiedCollection -> frontend : user_behavior_trends
+
+frontend -> unifiedCollection : GET /api/datawarehouse/user-snapshots/risk-dashboard/
+unifiedCollection -> unifiedCollection : calculate_risk_indicators(user_cohort)
+unifiedCollection -> frontend : risk_assessment_dashboard
+
+frontend -> analyst : Display comprehensive analytics
+
+== ETL Pipeline Management ==
+
+admin -> frontend : Monitor ETL processes
+frontend -> etlService : GET /api/datawarehouse/collection-runs/
+etlService -> frontend : collection_run_history
+
+admin -> frontend : Trigger data collection
+frontend -> etlService : POST /api/datawarehouse/collection-runs/
+
+alt ETL Processing
+    etlService -> etlService : initiate_data_collection_run(run_type)
+    etlService -> unifiedCollection : collect_data_from_all_sources()
+    
+    unifiedCollection -> unifiedCollection : extract_mood_data()
+    unifiedCollection -> unifiedCollection : extract_journal_data()
+    unifiedCollection -> unifiedCollection : extract_therapy_session_data()
+    unifiedCollection -> unifiedCollection : extract_messaging_data()
+    unifiedCollection -> unifiedCollection : extract_medical_data()
+    unifiedCollection -> etlService : raw_data_collection
+    
+    etlService -> etlService : transform_data_for_analytics(raw_data)
+    etlService -> etlService : validate_data_consistency(transformed_data)
+    etlService -> etlService : load_to_warehouse(validated_data)
+    etlService -> frontend : ETL_completion_status
+end
+
+frontend -> admin : Display ETL process results
+
+== Predictive Analytics ==
+
+analyst -> frontend : Request predictive insights
+frontend -> predictiveService : GET /api/datawarehouse/predictive-models/
+
+alt Predictive Processing
+    predictiveService -> predictiveService : load_trained_models(model_type)
+    predictiveService -> predictiveService : generate_mood_predictions(user_data, timeframe)
+    predictiveService -> predictiveService : predict_therapy_outcomes(session_history)
+    predictiveService -> predictiveService : calculate_risk_scores(behavioral_patterns)
+    predictiveService -> frontend : predictive_analytics_results
+end
+
+frontend -> analyst : Display predictive insights
+
+== Data Security & Compliance ==
+
+admin -> frontend : Review security logs
+frontend -> securityService : GET /api/datawarehouse/security/access-logs/
+
+alt Security Review
+    securityService -> securityService : generate_access_log_report(time_period)
+    securityService -> frontend : security_access_logs
+end
+
+frontend -> auditService : GET /api/datawarehouse/audit-trail/compliance-report/
+
+alt Compliance Check
+    auditService -> auditService : generate_compliance_report(regulatory_framework)
+    auditService -> auditService : validate_data_retention_policies()
+    auditService -> auditService : check_access_control_compliance()
+    auditService -> frontend : compliance_assessment
+end
+
+frontend -> admin : Display security and compliance status
+
+== Backup & Recovery ==
+
+admin -> frontend : Manage data backups
+frontend -> backupService : POST /api/datawarehouse/backup-recovery/create-backup/
+
+alt Backup Creation
+    backupService -> backupService : create_incremental_backup(data_partition)
+    backupService -> securityService : encrypt_backup_data(backup_file)
+    backupService -> backupService : store_backup_metadata(backup_info)
+    backupService -> frontend : backup_creation_status
+end
+
+frontend -> backupService : GET /api/datawarehouse/backup-recovery/backup-status/
+backupService -> backupService : check_backup_integrity(backup_id)
+backupService -> frontend : backup_health_status
+
+admin -> frontend : Restore from backup
+frontend -> backupService : POST /api/datawarehouse/backup-recovery/restore-backup/
+
+alt Backup Restoration
+    backupService -> backupService : validate_backup_integrity(restore_point)
+    backupService -> securityService : decrypt_backup_data(encrypted_backup)
+    backupService -> backupService : restore_data_to_warehouse(decrypted_data)
+    backupService -> auditService : log_restoration_event(restore_details)
+    backupService -> frontend : restoration_completion
+end
+
+frontend -> admin : Confirm data restoration
+
+== Data Export & Reporting ==
+
+analyst -> frontend : Export analytics data
+frontend -> etlService : GET /api/datawarehouse/export/user-data/?format=csv&date_range=30d
+
+alt Data Export
+    etlService -> securityService : mask_sensitive_data(export_data)
+    etlService -> etlService : format_export_data(data, export_format)
+    etlService -> frontend : downloadable_export_file
+end
+
+frontend -> analyst : Provide data export
+
+admin -> frontend : Generate system summary
+frontend -> etlService : GET /api/datawarehouse/export/system-summary/
+
+alt System Summary
+    etlService -> etlService : aggregate_system_metrics(comprehensive_report)
+    etlService -> qualityService : include_data_quality_metrics()
+    etlService -> realtimeAnalytics : include_performance_analytics()
+    etlService -> frontend : system_summary_report
+end
+
+frontend -> admin : Display comprehensive system overview
+
+== Health Monitoring ==
+
+user -> frontend : Check system health
+frontend -> realtimeAnalytics : GET /api/datawarehouse/health/
+
+alt Health Check
+    realtimeAnalytics -> realtimeAnalytics : check_system_performance()
+    realtimeAnalytics -> realtimeAnalytics : validate_service_availability()
+    realtimeAnalytics -> realtimeAnalytics : monitor_resource_usage()
+    realtimeAnalytics -> frontend : system_health_metrics
+end
+
+frontend -> user : Display system status
+
+alt Request Failed
+    frontend -> user : Display error "Request failed"
+end
+@enduml

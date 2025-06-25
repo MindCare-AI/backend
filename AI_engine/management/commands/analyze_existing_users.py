@@ -57,16 +57,16 @@ class Command(BaseCommand):
             # Find all users with sufficient data using AI data interface
             all_users = User.objects.all()
             users_with_data = []
-            
+
             self.stdout.write("Checking users for sufficient data...")
-            
+
             for user in all_users:
                 # Use AI data interface to check data availability
                 dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
-                quality_metrics = dataset.get('quality_metrics', {})
-                
+                quality_metrics = dataset.get("quality_metrics", {})
+
                 # Check if user has sufficient data for analysis
-                if quality_metrics.get('overall_quality', 0.0) > 0.1:
+                if quality_metrics.get("overall_quality", 0.0) > 0.1:
                     users_with_data.append(user)
 
             self.stdout.write(
@@ -113,12 +113,12 @@ class Command(BaseCommand):
         try:
             # Use AI data interface to get user data summary
             dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
-            quality_metrics = dataset.get('quality_metrics', {})
-            data_sources = dataset.get('data_sources', [])
-            
+            quality_metrics = dataset.get("quality_metrics", {})
+            data_sources = dataset.get("data_sources", [])
+
             # Extract data counts from dataset for logging
-            mood_data = dataset.get('mood_data', [])
-            journal_data = dataset.get('journal_data', [])
+            mood_data = dataset.get("mood_data", [])
+            journal_data = dataset.get("journal_data", [])
             mood_count = len(mood_data)
             journal_count = len(journal_data)
 
@@ -130,9 +130,11 @@ class Command(BaseCommand):
             )
 
             # Check if user has sufficient data
-            if quality_metrics.get('overall_quality', 0.0) < 0.1:
+            if quality_metrics.get("overall_quality", 0.0) < 0.1:
                 self.stdout.write(
-                    self.style.WARNING(f"⚠ Insufficient data quality for {user.username}")
+                    self.style.WARNING(
+                        f"⚠ Insufficient data quality for {user.username}"
+                    )
                 )
                 return
 
@@ -142,9 +144,7 @@ class Command(BaseCommand):
                     f"DRY RUN: Would analyze user {user.username} (ID: {user.id})"
                 )
                 # Preview analysis without saving
-                preview = ai_service.analyze_user_data(
-                    user, dry_run=True
-                )
+                preview = ai_service.analyze_user_data(user, dry_run=True)
                 self.stdout.write(
                     f"Would create {preview.get('potential_recommendations', 0)} recommendations"
                 )

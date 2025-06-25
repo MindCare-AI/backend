@@ -277,8 +277,15 @@ class ChatbotViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["POST"], url_path="send_message")
     def send_message(self, request, pk=None):
         """Send a message to the chatbot and get a response."""
+        from django.http import Http404
         try:
-            conversation = self.get_object()
+            try:
+                conversation = self.get_object()
+            except Http404:
+                return Response(
+                    {"error": "Conversation not found or you do not have access."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
             # Check if the conversation belongs to the current user
             if conversation.user != request.user:

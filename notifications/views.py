@@ -6,6 +6,7 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from django.core.cache import cache
+from rest_framework.pagination import LimitOffsetPagination
 from .models import Notification, NotificationType
 from .serializers import (
     NotificationSerializer,
@@ -18,9 +19,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class NotificationPagination(LimitOffsetPagination):
+    default_limit = 20
+    max_limit = 100
+
+
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = NotificationPagination
     http_method_names = [
         "get",
         "post",
@@ -46,9 +53,25 @@ class NotificationViewSet(viewsets.ModelViewSet):
         read_param = self.request.query_params.get("read", None)
         if read_param is not None:
             is_read = read_param.lower() == "true"
+            # We need to create a new queryset for filtering since we got it from cache
+            # This ensures we don't modify the cached queryset
             queryset = queryset.filter(read=is_read)
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Override list method to use pagination"""
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Check if pagination is needed
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # If no pagination requested, return all results
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @extend_schema(
         description="Update notification status",

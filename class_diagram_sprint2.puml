@@ -1,0 +1,225 @@
+@startuml MindCareAI Sprint 2 Class Diagram
+
+' Style settings
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam class {
+    BackgroundColor lightblue
+    ArrowColor #2C3E50
+    BorderColor #34495E
+}
+skinparam stereotypeCBackgroundColor #A9DCDF
+skinparam noteBackgroundColor #FEFECE
+
+title "MindCareAI Sprint 2 Class Diagram"
+
+' User management and profiles
+class CustomUser {
+    + username: CharField
+    + user_type: CharField
+    + email: EmailField
+    + phone_number: CharField
+    + date_of_birth: DateField
+    + crisis_alert_enabled: BooleanField
+    + is_online: BooleanField
+    + last_seen: DateTimeField
+    + get_profile_model()
+    + _create_profile()
+}
+
+class UserPreferences {
+    + user: ForeignKey
+    + dark_mode: BooleanField
+    + language: CharField
+    + email_notifications: BooleanField
+    + in_app_notifications: BooleanField
+    + disabled_notification_types: ManyToManyField
+    + get_notification_settings()
+    + is_notification_allowed()
+    + get_notification_preferences()
+}
+
+' Mood tracking
+class MoodLog {
+    + user: ForeignKey
+    + mood_rating: IntegerField(1-10)
+    + energy_level: IntegerField(1-5)
+    + activities: CharField
+    + notes: TextField
+    + logged_at: DateTimeField
+    + get_average_mood()
+    + get_mood_trend()
+}
+
+' Journal system
+class JournalCategory {
+    + name: CharField
+    + user: ForeignKey
+    + color: CharField
+    + icon: CharField
+}
+
+class JournalEntry {
+    + title: CharField
+    + content: TextField
+    + created_at: DateTimeField
+    + date: DateField
+    + mood: CharField
+    + user: ForeignKey
+    + category: ForeignKey
+    + is_private: BooleanField
+    + shared_with_therapist: BooleanField
+    + weather: CharField
+    + activities: CharField
+}
+
+' Group messaging
+class GroupConversation {
+    + name: CharField
+    + description: TextField
+    + participants: ManyToManyField
+    + moderators: ManyToManyField
+    + is_private: BooleanField
+    + is_active: BooleanField
+    + archive()
+    + unarchive()
+}
+
+class GroupMessage {
+    + conversation: ForeignKey
+    + sender: ForeignKey
+    + content: TextField
+    + timestamp: DateTimeField
+    + read_by: ManyToManyField
+    + reactions: JSONField
+    + message_type: CharField
+    + media: FileField
+}
+
+' Social feeds
+class Topic {
+    + name: CharField
+    + description: TextField
+    + created_by: ForeignKey
+    + icon: CharField
+    + color: CharField
+    + is_active: BooleanField
+}
+
+class Post {
+    + author: ForeignKey
+    + content: TextField
+    + post_type: CharField
+    + topics: CharField
+    + visibility: CharField
+    + media_files: ManyToManyField
+    + tags: CharField
+    + moderation_status: CharField
+    + comments_count()
+    + reactions_count()
+    + get_reactions_summary()
+}
+
+class Comment {
+    + post: ForeignKey
+    + author: ForeignKey
+    + content: TextField
+    + parent: ForeignKey
+    + is_edited: BooleanField
+    + moderation_status: CharField
+}
+
+class Reaction {
+    + user: ForeignKey
+    + reaction_type: CharField
+    + content_type: ForeignKey
+    + object_id: Integer
+    + content_object: GenericForeignKey
+}
+
+' Notification system
+class NotificationType {
+    + name: CharField
+    + description: TextField
+    + default_enabled: BooleanField
+    + is_global: BooleanField
+}
+
+class Notification {
+    + user: ForeignKey
+    + notification_type: ForeignKey
+    + title: CharField
+    + message: TextField
+    + read: BooleanField
+    + priority: CharField
+    + metadata: JSONField
+    + content_type: ForeignKey
+    + object_id: UUIDField
+    + content_object: GenericForeignKey
+    + mark_read()
+}
+
+' Basic AI Chatbot
+class ChatbotConversation {
+    + user: ForeignKey
+    + participants: ManyToManyField
+    + title: CharField
+    + is_active: BooleanField
+    + metadata: JSONField
+    + get_message_count()
+    + get_last_message()
+    + mark_as_inactive()
+    + mark_as_active()
+}
+
+class ChatMessage {
+    + conversation: ForeignKey
+    + content: TextField
+    + is_bot: BooleanField
+    + timestamp: DateTimeField
+    + message_type: CharField
+    + sender: ForeignKey
+    + parent_message: ForeignKey
+    + metadata: JSONField
+    + is_from_user()
+    + get_response_count()
+}
+
+' Relationships
+CustomUser "1" -- "1" UserPreferences
+CustomUser "1" -- "*" MoodLog
+CustomUser "1" -- "*" JournalCategory
+CustomUser "1" -- "*" JournalEntry
+CustomUser "1" -- "*" GroupMessage
+CustomUser "*" -- "*" GroupConversation
+MoodLog "0..1" -- "0..1" JournalEntry
+JournalEntry "*" -- "0..1" JournalCategory
+GroupConversation "1" -- "*" GroupMessage
+CustomUser "1" -- "*" Post
+Post "1" -- "*" Comment
+Comment "0..1" -- "*" Comment : parent
+CustomUser "1" -- "*" Notification
+NotificationType "1" -- "*" Notification
+UserPreferences "*" -- "*" NotificationType : disabled_notification_types
+CustomUser "1" -- "*" ChatbotConversation
+ChatbotConversation "1" -- "*" ChatMessage
+ChatMessage "0..1" -- "*" ChatMessage : parent
+Topic "0..1" -- "*" Post
+
+note bottom of MoodLog
+  Features mood rating (1-10),
+  energy levels (1-5), and
+  activity tracking
+end note
+
+note bottom of GroupConversation
+  Supports text and media messages,
+  real-time feedback, moderation
+end note
+
+note right of ChatMessage
+  Supports both user and AI bot messages
+  with metadata and hierarchical structure
+end note
+
+@enduml

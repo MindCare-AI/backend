@@ -28,10 +28,10 @@ class MedicationAnalysisService:
         """
         try:
             analysis_period = days or self.analysis_period
-            
+
             # Import AI data interface service
             from .data_interface import ai_data_interface
-            
+
             # Import patient profile directly (non-data collection)
             from patient.models.patient_profile import PatientProfile
 
@@ -53,11 +53,13 @@ class MedicationAnalysisService:
 
             # Get AI-ready dataset through data interface
             dataset = ai_data_interface.get_ai_ready_dataset(user.id, analysis_period)
-            
+
             # Check data quality and availability
-            quality_metrics = dataset.get('quality_metrics', {})
-            if quality_metrics.get('overall_quality', 0.0) < 0.1:
-                logger.warning(f"Insufficient data quality for user {user.id} medication analysis: {quality_metrics}")
+            quality_metrics = dataset.get("quality_metrics", {})
+            if quality_metrics.get("overall_quality", 0.0) < 0.1:
+                logger.warning(
+                    f"Insufficient data quality for user {user.id} medication analysis: {quality_metrics}"
+                )
                 return {
                     "success": True,
                     "message": "Insufficient data for meaningful medication analysis",
@@ -66,8 +68,10 @@ class MedicationAnalysisService:
                 }
 
             # Extract relevant data from AI-ready dataset for medication analysis
-            analysis_data = self._prepare_medication_analysis_data(dataset, current_medications)
-            
+            analysis_data = self._prepare_medication_analysis_data(
+                dataset, current_medications
+            )
+
             # Use Ollama to analyze medication effects
             analysis = self._analyze_with_ollama(analysis_data)
 
@@ -98,7 +102,7 @@ class MedicationAnalysisService:
                 )
 
             # Enhanced result with datawarehouse integration metrics
-            processing_metadata = dataset.get('processing_metadata', {})
+            processing_metadata = dataset.get("processing_metadata", {})
             return {
                 "success": True,
                 "analysis_id": med_analysis.id,
@@ -112,22 +116,30 @@ class MedicationAnalysisService:
                     "data_sources_used": dataset.get("data_sources", []),
                     "data_quality_score": quality_metrics.get("overall_quality", 0.0),
                     "completeness_score": quality_metrics.get("completeness", 0.0),
-                    "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
-                    "datawarehouse_version": processing_metadata.get("processing_version", "unknown"),
-                    "collection_time": processing_metadata.get("collection_time_seconds", 0),
-                }
+                    "analysis_recommendation": quality_metrics.get(
+                        "analysis_recommendation", "unknown"
+                    ),
+                    "datawarehouse_version": processing_metadata.get(
+                        "processing_version", "unknown"
+                    ),
+                    "collection_time": processing_metadata.get(
+                        "collection_time_seconds", 0
+                    ),
+                },
             }
 
         except Exception as e:
             logger.error(f"Error analyzing medication effects: {str(e)}", exc_info=True)
             return {"error": str(e), "success": False}
 
-    def _prepare_medication_analysis_data(self, dataset: Dict, current_medications: list) -> Dict[str, Any]:
+    def _prepare_medication_analysis_data(
+        self, dataset: Dict, current_medications: list
+    ) -> Dict[str, Any]:
         """Prepare medication analysis data from AI-ready dataset"""
         try:
             mood_analytics = dataset.get("mood_analytics", {})
             journal_analytics = dataset.get("journal_analytics", {})
-            
+
             # Extract mood data
             mood_data = []
             if mood_analytics.get("mood_entries"):
@@ -140,33 +152,53 @@ class MedicationAnalysisService:
                         "date": entry.get("date", ""),
                         "time_of_day": entry.get("time_of_day", "unknown"),
                     }
-                    for entry in mood_analytics["mood_entries"][:20]  # Limit for analysis
+                    for entry in mood_analytics["mood_entries"][
+                        :20
+                    ]  # Limit for analysis
                 ]
-            
+
             # Extract journal data, focusing on medication-related content
             journal_data = []
             if journal_analytics.get("journal_entries"):
-                for entry in journal_analytics["journal_entries"][:10]:  # Limit for analysis
+                for entry in journal_analytics["journal_entries"][
+                    :10
+                ]:  # Limit for analysis
                     content = entry.get("content", "")
                     # Check if entry mentions medications
-                    if any(med.lower() in content.lower() for med in current_medications) or \
-                       any(term in content.lower() for term in ["medication", "medicine", "pill", "dose", "side effect"]):
-                        journal_data.append({
-                            "content": content,
-                            "mood": entry.get("mood", "neutral"),
-                            "created_at": entry.get("created_at", entry.get("timestamp", "")),
-                            "sentiment_score": entry.get("sentiment_score", 0.0),
-                            "emotions": entry.get("emotions", {}),
-                        })
+                    if any(
+                        med.lower() in content.lower() for med in current_medications
+                    ) or any(
+                        term in content.lower()
+                        for term in [
+                            "medication",
+                            "medicine",
+                            "pill",
+                            "dose",
+                            "side effect",
+                        ]
+                    ):
+                        journal_data.append(
+                            {
+                                "content": content,
+                                "mood": entry.get("mood", "neutral"),
+                                "created_at": entry.get(
+                                    "created_at", entry.get("timestamp", "")
+                                ),
+                                "sentiment_score": entry.get("sentiment_score", 0.0),
+                                "emotions": entry.get("emotions", {}),
+                            }
+                        )
 
             return {
                 "medications": current_medications,
                 "mood_data": mood_data,
                 "journal_data": journal_data,
                 "dataset_quality": dataset.get("quality_metrics", {}),
-                "analysis_period": dataset.get("processing_metadata", {}).get("date_range", {}),
+                "analysis_period": dataset.get("processing_metadata", {}).get(
+                    "date_range", {}
+                ),
             }
-            
+
         except Exception as e:
             logger.error(f"Error preparing medication analysis data: {str(e)}")
             return {
@@ -301,14 +333,16 @@ Provide analysis in JSON format with these fields:
         try:
             # Import AI data interface service
             from .data_interface import ai_data_interface
-            
+
             # Get AI-ready dataset through data interface
             dataset = ai_data_interface.get_ai_ready_dataset(user.id, days)
-            
+
             # Check data quality and availability
-            quality_metrics = dataset.get('quality_metrics', {})
-            if quality_metrics.get('overall_quality', 0.0) < 0.1:
-                logger.warning(f"Insufficient data quality for user {user.id} medication tracking: {quality_metrics}")
+            quality_metrics = dataset.get("quality_metrics", {})
+            if quality_metrics.get("overall_quality", 0.0) < 0.1:
+                logger.warning(
+                    f"Insufficient data quality for user {user.id} medication tracking: {quality_metrics}"
+                )
                 return {
                     "success": True,
                     "message": "Insufficient data for meaningful medication tracking",
@@ -317,15 +351,14 @@ Provide analysis in JSON format with these fields:
 
             # Extract medication changes and mood tracking from AI-ready dataset
             tracking_data = self._extract_medication_tracking_data(dataset)
-            
+
             # Analyze mood trends around medication changes
             trend_analysis = self._analyze_mood_trends(
-                tracking_data["mood_tracking"], 
-                tracking_data["medication_changes"]
+                tracking_data["mood_tracking"], tracking_data["medication_changes"]
             )
 
             # Enhanced result with datawarehouse integration metrics
-            processing_metadata = dataset.get('processing_metadata', {})
+            processing_metadata = dataset.get("processing_metadata", {})
             analysis_result = {
                 "success": True,
                 "medication_changes": tracking_data["medication_changes"],
@@ -337,10 +370,16 @@ Provide analysis in JSON format with these fields:
                     "data_sources_used": dataset.get("data_sources", []),
                     "data_quality_score": quality_metrics.get("overall_quality", 0.0),
                     "completeness_score": quality_metrics.get("completeness", 0.0),
-                    "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
-                    "datawarehouse_version": processing_metadata.get("processing_version", "unknown"),
-                    "collection_time": processing_metadata.get("collection_time_seconds", 0),
-                }
+                    "analysis_recommendation": quality_metrics.get(
+                        "analysis_recommendation", "unknown"
+                    ),
+                    "datawarehouse_version": processing_metadata.get(
+                        "processing_version", "unknown"
+                    ),
+                    "collection_time": processing_metadata.get(
+                        "collection_time_seconds", 0
+                    ),
+                },
             }
 
             return analysis_result
@@ -354,12 +393,19 @@ Provide analysis in JSON format with these fields:
         try:
             journal_analytics = dataset.get("journal_analytics", {})
             mood_analytics = dataset.get("mood_analytics", {})
-            
+
             # Extract medication change mentions from journal entries
             medication_changes = []
             common_med_terms = [
-                "medication", "medicine", "prescribed", "started", 
-                "stopped", "dose", "dosage", "pill", "tablet"
+                "medication",
+                "medicine",
+                "prescribed",
+                "started",
+                "stopped",
+                "dose",
+                "dosage",
+                "pill",
+                "tablet",
             ]
 
             if journal_analytics.get("journal_entries"):
@@ -367,12 +413,16 @@ Provide analysis in JSON format with these fields:
                     content = entry.get("content", "").lower()
                     if any(term in content for term in common_med_terms):
                         # Simple heuristic to detect medication changes
-                        medication_changes.append({
-                            "date": entry.get("date", entry.get("created_at", "")),
-                            "content": entry.get("content", "")[:200],  # Limit content
-                            "mood": entry.get("mood", "neutral"),
-                            "sentiment_score": entry.get("sentiment_score", 0.0),
-                        })
+                        medication_changes.append(
+                            {
+                                "date": entry.get("date", entry.get("created_at", "")),
+                                "content": entry.get("content", "")[
+                                    :200
+                                ],  # Limit content
+                                "mood": entry.get("mood", "neutral"),
+                                "sentiment_score": entry.get("sentiment_score", 0.0),
+                            }
+                        )
 
             # Track mood changes from mood analytics
             mood_tracking = {}
@@ -388,20 +438,25 @@ Provide analysis in JSON format with these fields:
 
             # Associate medication changes with mood tracking dates
             for change in medication_changes:
-                date = change["date"][:10] if change["date"] else ""  # Extract date part
+                date = (
+                    change["date"][:10] if change["date"] else ""
+                )  # Extract date part
                 if date in mood_tracking:
                     # Extract potential medication names from content
                     content_words = [
-                        word.strip() for word in change.get("content", "").split(",")
+                        word.strip()
+                        for word in change.get("content", "").split(",")
                         if word.strip()
                     ]
-                    mood_tracking[date]["medications"].update(content_words[:5])  # Limit additions
+                    mood_tracking[date]["medications"].update(
+                        content_words[:5]
+                    )  # Limit additions
 
             return {
                 "medication_changes": medication_changes,
                 "mood_tracking": mood_tracking,
             }
-            
+
         except Exception as e:
             logger.error(f"Error extracting medication tracking data: {str(e)}")
             return {

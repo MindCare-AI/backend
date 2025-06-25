@@ -37,17 +37,19 @@ class PredictiveAnalysisService:
         try:
             # Import AI data interface service
             from .data_interface import ai_data_interface
-            
+
             # Get extended historical data for better pattern analysis
             extended_period = max(timeframe_days * 4, 28)  # At least 4 weeks of data
-            
+
             # Get AI-ready dataset through data interface
             dataset = ai_data_interface.get_ai_ready_dataset(user.id, extended_period)
-            
+
             # Check data quality and availability
-            quality_metrics = dataset.get('quality_metrics', {})
-            if quality_metrics.get('overall_quality', 0.0) < 0.1:
-                logger.warning(f"Insufficient data quality for user {user.id} mood prediction: {quality_metrics}")
+            quality_metrics = dataset.get("quality_metrics", {})
+            if quality_metrics.get("overall_quality", 0.0) < 0.1:
+                logger.warning(
+                    f"Insufficient data quality for user {user.id} mood prediction: {quality_metrics}"
+                )
                 result = {
                     "risk_level": "unknown",
                     "confidence": 0,
@@ -59,8 +61,10 @@ class PredictiveAnalysisService:
                 return result
 
             # Extract mood data from AI-ready dataset
-            mood_data_info = self._extract_mood_data_for_prediction(dataset, timeframe_days)
-            
+            mood_data_info = self._extract_mood_data_for_prediction(
+                dataset, timeframe_days
+            )
+
             if not mood_data_info["mood_values"]:
                 result = {
                     "risk_level": "unknown",
@@ -72,10 +76,14 @@ class PredictiveAnalysisService:
                 return result
 
             # Enhanced data preparation with trend analysis
-            mood_data = self._prepare_mood_data_with_trends_from_dataset(mood_data_info, timeframe_days)
+            mood_data = self._prepare_mood_data_with_trends_from_dataset(
+                mood_data_info, timeframe_days
+            )
 
             # Get contextual data from AI-ready dataset
-            contextual_data = self._get_contextual_data_from_dataset(dataset, timeframe_days)
+            contextual_data = self._get_contextual_data_from_dataset(
+                dataset, timeframe_days
+            )
 
             # Combine all data for analysis
             analysis_data = {
@@ -96,14 +104,20 @@ class PredictiveAnalysisService:
             prediction.update(statistical_risk)
 
             # Enhanced result with datawarehouse integration metrics
-            processing_metadata = dataset.get('processing_metadata', {})
+            processing_metadata = dataset.get("processing_metadata", {})
             prediction["data_integration"] = {
                 "data_sources_used": dataset.get("data_sources", []),
                 "data_quality_score": quality_metrics.get("overall_quality", 0.0),
                 "completeness_score": quality_metrics.get("completeness", 0.0),
-                "analysis_recommendation": quality_metrics.get("analysis_recommendation", "unknown"),
-                "datawarehouse_version": processing_metadata.get("processing_version", "unknown"),
-                "collection_time": processing_metadata.get("collection_time_seconds", 0),
+                "analysis_recommendation": quality_metrics.get(
+                    "analysis_recommendation", "unknown"
+                ),
+                "datawarehouse_version": processing_metadata.get(
+                    "processing_version", "unknown"
+                ),
+                "collection_time": processing_metadata.get(
+                    "collection_time_seconds", 0
+                ),
             }
 
             # Cache result
@@ -114,36 +128,40 @@ class PredictiveAnalysisService:
             logger.error(f"Error in mood decline prediction: {str(e)}", exc_info=True)
             return self._create_default_prediction("mood_decline_error")
 
-    def _extract_mood_data_for_prediction(self, dataset: Dict, timeframe_days: int) -> Dict:
+    def _extract_mood_data_for_prediction(
+        self, dataset: Dict, timeframe_days: int
+    ) -> Dict:
         """Extract mood data from AI-ready dataset for prediction analysis"""
         try:
             mood_analytics = dataset.get("mood_analytics", {})
             mood_entries = mood_analytics.get("mood_entries", [])
-            
+
             # Extract mood values and related information
             mood_logs_data = []
             mood_values = []
-            
+
             for entry in mood_entries:
                 mood_rating = entry.get("rating", entry.get("mood_rating", 5))
                 mood_values.append(mood_rating)
-                
-                mood_logs_data.append({
-                    "mood_rating": mood_rating,
-                    "activities": entry.get("activities", []),
-                    "logged_at": entry.get("logged_at", entry.get("timestamp", "")),
-                    "notes": entry.get("notes", ""),
-                    "day_of_week": entry.get("day_of_week", 0),
-                    "hour_of_day": entry.get("hour_of_day", 12),
-                    "date": entry.get("date", ""),
-                })
-            
+
+                mood_logs_data.append(
+                    {
+                        "mood_rating": mood_rating,
+                        "activities": entry.get("activities", []),
+                        "logged_at": entry.get("logged_at", entry.get("timestamp", "")),
+                        "notes": entry.get("notes", ""),
+                        "day_of_week": entry.get("day_of_week", 0),
+                        "hour_of_day": entry.get("hour_of_day", 12),
+                        "date": entry.get("date", ""),
+                    }
+                )
+
             return {
                 "mood_logs_data": mood_logs_data,
                 "mood_values": mood_values,
                 "total_entries": len(mood_entries),
             }
-            
+
         except Exception as e:
             logger.error(f"Error extracting mood data for prediction: {str(e)}")
             return {
@@ -152,12 +170,14 @@ class PredictiveAnalysisService:
                 "total_entries": 0,
             }
 
-    def _prepare_mood_data_with_trends_from_dataset(self, mood_data_info: Dict, timeframe_days: int) -> Dict:
+    def _prepare_mood_data_with_trends_from_dataset(
+        self, mood_data_info: Dict, timeframe_days: int
+    ) -> Dict:
         """Prepare mood data with trend analysis from dataset information"""
         try:
             mood_logs_data = mood_data_info.get("mood_logs_data", [])
             mood_values = mood_data_info.get("mood_values", [])
-            
+
             recent_moods = (
                 mood_values[-timeframe_days:]
                 if len(mood_values) >= timeframe_days
@@ -177,13 +197,18 @@ class PredictiveAnalysisService:
                 "recent_average": np.mean(recent_moods) if recent_moods else 5,
                 "overall_average": np.mean(mood_values) if mood_values else 5,
             }
-            
+
         except Exception as e:
             logger.error(f"Error preparing mood data with trends: {str(e)}")
             return {
                 "mood_data": [],
                 "trends": {"trend": "insufficient_data", "slope": 0, "acceleration": 0},
-                "patterns": {"weekly_pattern": {}, "daily_pattern": {}, "activity_correlation": {}, "concerning_patterns": []},
+                "patterns": {
+                    "weekly_pattern": {},
+                    "daily_pattern": {},
+                    "activity_correlation": {},
+                    "concerning_patterns": [],
+                },
                 "volatility": {"volatility": 0, "stability": "unknown"},
                 "recent_average": 5,
                 "overall_average": 5,
@@ -206,7 +231,15 @@ class PredictiveAnalysisService:
 
             for log_data in mood_logs_data:
                 # Convert day_of_week number to name
-                days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                days = [
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                    "Sunday",
+                ]
                 day_of_week = days[log_data.get("day_of_week", 0) % 7]
                 hour_of_day = log_data.get("hour_of_day", 12)
                 activities = log_data.get("activities", [])
@@ -249,12 +282,14 @@ class PredictiveAnalysisService:
 
         return patterns
 
-    def _get_contextual_data_from_dataset(self, dataset: Dict, timeframe_days: int) -> Dict:
+    def _get_contextual_data_from_dataset(
+        self, dataset: Dict, timeframe_days: int
+    ) -> Dict:
         """Get contextual data from AI-ready dataset that might influence mood prediction"""
         try:
             journal_analytics = dataset.get("journal_analytics", {})
             journal_entries = journal_analytics.get("journal_entries", [])
-            
+
             contextual_data = {
                 "journal_entries_count": len(journal_entries),
                 "journal_sentiment": "neutral",
@@ -268,11 +303,15 @@ class PredictiveAnalysisService:
 
             if journal_entries:
                 # Analyze journal content for contextual clues
-                content_analysis = self._analyze_journal_content_from_entries(journal_entries)
+                content_analysis = self._analyze_journal_content_from_entries(
+                    journal_entries
+                )
                 contextual_data.update(content_analysis)
-                
+
                 # Calculate overall sentiment
-                sentiments = [entry.get("sentiment_score", 0.0) for entry in journal_entries]
+                sentiments = [
+                    entry.get("sentiment_score", 0.0) for entry in journal_entries
+                ]
                 avg_sentiment = np.mean(sentiments) if sentiments else 0.0
                 if avg_sentiment > 0.1:
                     contextual_data["journal_sentiment"] = "positive"
@@ -282,7 +321,7 @@ class PredictiveAnalysisService:
                     contextual_data["journal_sentiment"] = "neutral"
 
             return contextual_data
-            
+
         except Exception as e:
             logger.error(f"Error getting contextual data from dataset: {str(e)}")
             return {
@@ -296,38 +335,59 @@ class PredictiveAnalysisService:
                 "relationship_mentions": 0,
             }
 
-    def _analyze_journal_content_from_entries(self, journal_entries: List[Dict]) -> Dict:
+    def _analyze_journal_content_from_entries(
+        self, journal_entries: List[Dict]
+    ) -> Dict:
         """Analyze journal content from entry data for mood-relevant context"""
         try:
-            content = " ".join([entry.get("content", "").lower() for entry in journal_entries])
+            content = " ".join(
+                [entry.get("content", "").lower() for entry in journal_entries]
+            )
 
             # Define keyword patterns
             patterns = {
                 "sleep_mentions": [
-                    r"\bsleep\b", r"\btired\b", r"\bexhausted\b", r"\binsomnia\b",
+                    r"\bsleep\b",
+                    r"\btired\b",
+                    r"\bexhausted\b",
+                    r"\binsomnia\b",
                 ],
                 "stress_mentions": [
-                    r"\bstress\b", r"\banxious\b", r"\bworried\b", r"\boverwhelmed\b",
+                    r"\bstress\b",
+                    r"\banxious\b",
+                    r"\bworried\b",
+                    r"\boverwhelmed\b",
                 ],
                 "medication_mentions": [
-                    r"\bmedication\b", r"\bpill\b", r"\bdose\b", r"\bside effect\b",
+                    r"\bmedication\b",
+                    r"\bpill\b",
+                    r"\bdose\b",
+                    r"\bside effect\b",
                 ],
                 "social_mentions": [
-                    r"\bfriend\b", r"\bfamily\b", r"\balone\b", r"\bisolated\b",
+                    r"\bfriend\b",
+                    r"\bfamily\b",
+                    r"\balone\b",
+                    r"\bisolated\b",
                 ],
                 "work_mentions": [r"\bwork\b", r"\bjob\b", r"\bcareer\b", r"\bboss\b"],
                 "relationship_mentions": [
-                    r"\brelationship\b", r"\bpartner\b", r"\bdating\b", r"\bmarriage\b",
+                    r"\brelationship\b",
+                    r"\bpartner\b",
+                    r"\bdating\b",
+                    r"\bmarriage\b",
                 ],
             }
 
             analysis = {}
             for category, pattern_list in patterns.items():
-                count = sum(len(re.findall(pattern, content)) for pattern in pattern_list)
+                count = sum(
+                    len(re.findall(pattern, content)) for pattern in pattern_list
+                )
                 analysis[category] = count
 
             return analysis
-            
+
         except Exception as e:
             logger.error(f"Error analyzing journal content: {str(e)}")
             return {
@@ -339,7 +399,9 @@ class PredictiveAnalysisService:
                 "relationship_mentions": 0,
             }
 
-    def _calculate_statistical_risk_from_values(self, mood_values: List[float], timeframe_days: int) -> Dict:
+    def _calculate_statistical_risk_from_values(
+        self, mood_values: List[float], timeframe_days: int
+    ) -> Dict:
         """Calculate statistical risk indicators from mood values"""
         if len(mood_values) < 3:
             return {"statistical_risk": "insufficient_data"}
@@ -831,7 +893,10 @@ Analyze this data and provide a comprehensive prediction in JSON format:
         try:
             # Check if appointments app exists
             import importlib.util
-            appointments_available = importlib.util.find_spec('appointments.models') is not None
+
+            appointments_available = (
+                importlib.util.find_spec("appointments.models") is not None
+            )
 
             end_date = timezone.now()
             start_date = end_date - timedelta(days=timeframe_days)
@@ -902,6 +967,7 @@ Analyze this data and provide a comprehensive prediction in JSON format:
             if appointments_available:
                 try:
                     from appointments.models import Appointment
+
                     appointments = Appointment.objects.filter(
                         patient=user, scheduled_time__range=(start_date, end_date)
                     )

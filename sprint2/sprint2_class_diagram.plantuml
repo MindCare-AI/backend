@@ -1,0 +1,513 @@
+@startuml
+
+title Sprint 2: Patient-Focused Features
+
+' Layout settings - Wide format
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam packagePadding 20
+skinparam classAttributeIconSize 0
+skinparam nodesep 100
+skinparam ranksep 80
+skinparam minClassWidth 200
+skinparam maxMessageSize 200
+skinparam wrapWidth 250
+skinparam classBackgroundColor white
+skinparam classBorderColor black
+skinparam packageBorderColor black
+!define DIRECTION top to bottom direction
+top to bottom direction
+
+' Core User Management
+package "users" {
+    class CustomUser {
+        +id: BigAutoField
+        +username: CharField
+        +email: EmailField
+        +password: CharField
+        +user_type: CharField
+        +phone_number: CharField
+        +date_of_birth: DateField
+        +created_at: DateTimeField
+        +is_online: BooleanField
+        +last_seen: DateTimeField
+        +first_name: CharField
+        +last_name: CharField
+        +date_joined: DateTimeField
+        +is_active: BooleanField
+        +is_staff: BooleanField
+        +is_superuser: BooleanField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_full_name(): String
+        +get_short_name(): String
+        +email_user(subject, message, from_email): void
+        +set_password(raw_password): void
+        +check_password(raw_password): Boolean
+        +update_last_seen(): void
+        +get_user_type_display(): String
+        +is_patient(): Boolean
+        +is_therapist(): Boolean
+        +is_admin(): Boolean
+    }
+}
+
+package "users.preferences" {
+    class UserPreferences {
+        +id: BigAutoField
+        +user: OneToOneField(CustomUser)
+        +theme: CharField
+        +language: CharField
+        +notification_settings: JSONField
+        +privacy_settings: JSONField
+        +display_settings: JSONField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_theme_display(): String
+        +get_language_display(): String
+        +update_notification_setting(setting_key, value): Boolean
+        +update_privacy_setting(setting_key, value): Boolean
+        +update_display_setting(setting_key, value): Boolean
+        +get_notification_setting(setting_key): Object
+        +reset_to_defaults(): void
+        +export_preferences(): Dict
+        +__str__(): String
+        --Class Methods--
+        +create_default_preferences(user): UserPreferences
+        +get_or_create_for_user(user): UserPreferences
+    }
+}
+
+' Patient Management
+package "patient" {
+    class PatientProfile {
+        +id: BigAutoField
+        +user: OneToOneField(CustomUser)
+        +emergency_contact: JSONField
+        +blood_type: CharField
+        +gender: CharField
+        +profile_pic: ImageField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_age(): Integer
+        +get_blood_type_display(): String
+        +get_gender_display(): String
+        +update_profile_picture(image_file): Boolean
+        +get_emergency_contact_info(): Dict
+        +validate_emergency_contact(): Boolean
+        +get_profile_completion_percentage(): Float
+        +__str__(): String
+    }
+}
+
+' Mental Health Tracking
+package "mood" {
+    class MoodLog {
+        +id: BigAutoField
+        +user: ForeignKey(CustomUser)
+        +mood_rating: IntegerField
+        +energy_level: IntegerField
+        +activities: CharField
+        +notes: TextField
+        +logged_at: DateTimeField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +journal_entry: OneToOneField(JournalEntry)
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_mood_description(): String
+        +get_energy_description(): String
+        +get_average_mood(user, days): Float
+        +get_mood_trend(user, days): List
+        +create_journal_from_mood(): JournalEntry
+        +validate_mood_rating(): Boolean
+        +validate_energy_level(): Boolean
+        +get_activities_list(): List
+        +calculate_mood_score(): Float
+        +__str__(): String
+        --Class Methods--
+        +get_user_mood_analytics(user, period_days): Dict
+        +get_mood_statistics(user, start_date, end_date): Dict
+        +export_user_mood_data(user, format): String
+    }
+}
+
+package "journal" {
+    class JournalEntry {
+        +id: BigAutoField
+        +user: ForeignKey(CustomUser)
+        +title: CharField
+        +content: TextField
+        +mood_rating: IntegerField
+        +weather: CharField
+        +energy_level: IntegerField
+        +activities: JSONField
+        +category: ForeignKey(JournalCategory)
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_word_count(): Integer
+        +get_reading_time(): Integer
+        +extract_keywords(): List
+        +get_sentiment_score(): Float
+        +link_to_mood_log(mood_log): Boolean
+        +update_metadata(mood, weather, energy, activities): Boolean
+        +get_category_name(): String
+        +validate_content(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_user_entries_by_date(user, date): QuerySet
+        +get_entries_by_category(user, category): QuerySet
+        +search_entries(user, query): QuerySet
+    }
+
+    class JournalCategory {
+        +id: BigAutoField
+        +name: CharField
+        +user: ForeignKey(CustomUser)
+        +color: CharField
+        +icon: CharField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_entry_count(): Integer
+        +validate_color_format(): Boolean
+        +validate_icon(): Boolean
+        +get_recent_entries(limit): QuerySet
+        +__str__(): String
+        --Class Methods--
+        +get_user_categories(user): QuerySet
+        +create_default_categories(user): List
+    }
+}
+
+' Communication & Social Features
+package "messaging" {
+    class GroupConversation {
+        +id: BigAutoField
+        +name: CharField
+        +description: TextField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +last_activity: DateTimeField
+        +is_active: BooleanField
+        +participants: ManyToManyField(CustomUser)
+        +max_participants: IntegerField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +add_participant(user): Boolean
+        +remove_participant(user): Boolean
+        +get_participant_count(): Integer
+        +update_last_activity(): void
+        +get_recent_messages(limit): QuerySet
+        +is_participant(user): Boolean
+        +get_unread_count(user): Integer
+        +__str__(): String
+        --Class Methods--
+        +get_user_conversations(user): QuerySet
+        +create_group(name, description, creator): GroupConversation
+    }
+
+    class GroupMessage {
+        +id: BigAutoField
+        +conversation: ForeignKey(GroupConversation)
+        +sender: ForeignKey(CustomUser)
+        +content: TextField
+        +is_system_message: BooleanField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +read_by: ManyToManyField(CustomUser)
+        +message_type: CharField
+        +media_files: ManyToManyField(MediaFile)
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +mark_as_read(user): void
+        +is_read_by(user): Boolean
+        +get_read_count(): Integer
+        +add_reaction(user, reaction_type): Reaction
+        +get_reactions(): QuerySet
+        +validate_content(): Boolean
+        +__str__(): String
+    }
+
+    class Reaction {
+        +id: BigAutoField
+        +message: ForeignKey(GroupMessage)
+        +user: ForeignKey(CustomUser)
+        +reaction_type: CharField
+        +created_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_reaction_display(): String
+        +__str__(): String
+        --Class Methods--
+        +get_message_reactions(message): QuerySet
+        +get_reaction_counts(message): Dict
+    }
+}
+
+package "feeds" {
+    class Post {
+        +id: BigAutoField
+        +user: ForeignKey(CustomUser)
+        +content: TextField
+        +topic: CharField
+        +tags: JSONField
+        +visibility: CharField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +likes_count: IntegerField
+        +comments_count: IntegerField
+        +media_files: ManyToManyField(MediaFile)
+        +is_pinned: BooleanField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +add_like(user): Boolean
+        +remove_like(user): Boolean
+        +is_liked_by(user): Boolean
+        +get_like_count(): Integer
+        +get_comment_count(): Integer
+        +add_media(media_file): void
+        +get_tags_list(): List
+        +validate_content(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_feed_posts(user, limit): QuerySet
+        +search_posts(query, user): QuerySet
+        +get_trending_posts(limit): QuerySet
+    }
+
+    class Comment {
+        +id: BigAutoField
+        +post: ForeignKey(Post)
+        +parent_comment: ForeignKey(Comment)
+        +user: ForeignKey(CustomUser)
+        +content: TextField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +likes_count: IntegerField
+        +is_edited: BooleanField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +add_like(user): Boolean
+        +remove_like(user): Boolean
+        +is_liked_by(user): Boolean
+        +get_replies(): QuerySet
+        +get_reply_count(): Integer
+        +is_reply(): Boolean
+        +validate_content(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_post_comments(post): QuerySet
+        +get_threaded_comments(post): Dict
+    }
+}
+
+' System Features
+package "notifications" {
+    class NotificationType {
+        +id: BigAutoField
+        +name: CharField
+        +description: TextField
+        +default_enabled: BooleanField
+        +is_global: BooleanField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +icon: CharField
+        +color: CharField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_user_preference(user): Boolean
+        +validate_name(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_available_types(): QuerySet
+        +create_default_types(): List
+    }
+
+    class Notification {
+        +id: BigAutoField
+        +user: ForeignKey(CustomUser)
+        +notification_type: ForeignKey(NotificationType)
+        +title: CharField
+        +message: TextField
+        +read: BooleanField
+        +priority: CharField
+        +related_object_type: ForeignKey(ContentType)
+        +related_object_id: PositiveIntegerField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        +action_url: URLField
+        +data: JSONField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +mark_as_read(): void
+        +mark_as_unread(): void
+        +get_related_object(): Object
+        +get_priority_display(): String
+        +is_high_priority(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_user_notifications(user, read_status): QuerySet
+        +mark_all_read(user): Integer
+        +get_unread_count(user): Integer
+    }
+}
+
+package "users.preferences" {
+    class UserPreferences {
+        +id: BigAutoField
+        +user: OneToOneField(CustomUser)
+        +theme: CharField
+        +language: CharField
+        +notification_settings: JSONField
+        +privacy_settings: JSONField
+        +display_settings: JSONField
+        +created_at: DateTimeField
+        +updated_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_theme_display(): String
+        +get_language_display(): String
+        +update_notification_setting(setting_key, value): Boolean
+        +update_privacy_setting(setting_key, value): Boolean
+        +update_display_setting(setting_key, value): Boolean
+        +get_notification_setting(setting_key): Object
+        +reset_to_defaults(): void
+        +export_preferences(): Dict
+        +__str__(): String
+        --Class Methods--
+        +create_default_preferences(user): UserPreferences
+        +get_or_create_for_user(user): UserPreferences
+    }
+}
+
+package "chatbot" {
+    class ChatbotConversation {
+        +id: BigAutoField
+        +user: ForeignKey(CustomUser)
+        +title: CharField
+        +is_active: BooleanField
+        +session_data: JSONField
+        +context_window: IntegerField
+        +created_at: DateTimeField
+        +last_activity: DateTimeField
+        +updated_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +add_message(content, is_from_user): ChatMessage
+        +get_recent_messages(limit): QuerySet
+        +get_message_count(): Integer
+        +update_activity(): void
+        +end_conversation(): void
+        +get_context_messages(): List
+        +clear_context(): void
+        +__str__(): String
+        --Class Methods--
+        +get_user_conversations(user): QuerySet
+        +create_new_conversation(user, title): ChatbotConversation
+        +get_active_conversation(user): ChatbotConversation
+    }
+
+    class ChatMessage {
+        +id: BigAutoField
+        +conversation: ForeignKey(ChatbotConversation)
+        +is_from_user: BooleanField
+        +content: TextField
+        +message_type: CharField
+        +metadata: JSONField
+        +tokens_used: IntegerField
+        +response_time: FloatField
+        +created_at: DateTimeField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_message_type_display(): String
+        +get_word_count(): Integer
+        +get_character_count(): Integer
+        +is_ai_response(): Boolean
+        +is_user_message(): Boolean
+        +validate_content(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_conversation_messages(conversation): QuerySet
+        +get_user_message_history(user, limit): QuerySet
+    }
+}
+
+package "media_handler" {
+    class MediaFile {
+        +id: BigAutoField
+        +file: FileField
+        +media_type: CharField
+        +title: CharField
+        +description: TextField
+        +uploaded_by: ForeignKey(CustomUser)
+        +uploaded_at: DateTimeField
+        +file_size: BigIntegerField
+        +mime_type: CharField
+        +is_public: BooleanField
+        +download_count: IntegerField
+        +file_hash: CharField
+        +thumbnail: ImageField
+        --Methods--
+        +save(force_insert, force_update, using, update_fields): void
+        +get_file_size_display(): String
+        +get_media_type_display(): String
+        +generate_thumbnail(): Boolean
+        +validate_file_type(): Boolean
+        +validate_file_size(): Boolean
+        +increment_download_count(): void
+        +get_file_url(): String
+        +get_thumbnail_url(): String
+        +delete_file(): Boolean
+        +__str__(): String
+        --Class Methods--
+        +get_user_media(user): QuerySet
+        +get_by_type(media_type): QuerySet
+        +cleanup_orphaned_files(): Integer
+        +get_storage_usage(user): Dict
+    }
+}
+
+' Relationships
+' Core User and Profile Relationships
+CustomUser ||--o| PatientProfile
+CustomUser ||--o| UserPreferences
+
+' Mental Health Tracking Relationships  
+CustomUser ||--o{ MoodLog
+CustomUser ||--o{ JournalEntry
+CustomUser ||--o{ JournalCategory
+JournalEntry }o--|| JournalCategory
+MoodLog ||--o| JournalEntry
+
+' Communication and Social Relationships
+CustomUser }o--o{ GroupConversation
+GroupConversation ||--o{ GroupMessage
+GroupMessage ||--o{ Reaction
+GroupMessage }o--o{ MediaFile
+
+CustomUser ||--o{ Post
+Post ||--o{ Comment
+Comment ||--o{ Comment
+Post }o--o{ MediaFile
+
+' System Features Relationships
+CustomUser ||--o{ Notification
+Notification }o--|| NotificationType
+
+CustomUser ||--o{ ChatbotConversation
+ChatbotConversation ||--o{ ChatMessage
+
+CustomUser ||--o{ MediaFile
+
+@enduml

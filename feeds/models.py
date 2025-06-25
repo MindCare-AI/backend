@@ -1,3 +1,4 @@
+#feeds/models.py
 from django.db import models
 from django.contrib.contenttypes.fields import GenericRelation, GenericForeignKey
 from django.conf import settings

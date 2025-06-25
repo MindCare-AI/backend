@@ -1,0 +1,331 @@
+# MindCare RAG Pipeline - Complete Flow Diagram
+
+## RAG Pipeline Overview
+
+The MindCare RAG (Retrieval-Augmented Generation) system follows a sophisticated multi-stage pipeline that integrates document processing, vector storage, similarity search, and therapy approach classification.
+
+## Complete RAG Pipeline Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           MINDCARE RAG PIPELINE                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        PHASE 1: DOCUMENT INGESTION                             │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+PDF Documents
+    │
+    ├── CBT Therapy Documents
+    │   ├── "Cognitive Therapy: Basics and Beyond" by Judith S. Beck
+    │   ├── "CBT Made Simple" - Clinician's Guide
+    │   └── "Doing CBT" - Comprehensive Behavioral Guide
+    │
+    └── DBT Therapy Documents
+        ├── "The Dialectical Behavior Therapy Skills Workbook"
+        └── "DBT Skills in Schools" - Educational Implementation
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 2: TEXT EXTRACTION & PROCESSING                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+PDFExtractor Service (pdf_extractor.py)
+    │
+    ├── PDF Text Extraction
+    │   ├── Raw text extraction from PDF files
+    │   ├── OCR support for image-based PDFs
+    │   └── Metadata extraction (title, author, structure)
+    │
+    ├── Text Chunking
+    │   ├── Semantic chunk creation (500-2000 characters)
+    │   ├── Preserve context boundaries
+    │   └── Maintain document structure
+    │
+    └── Batch Processing
+        ├── Process multiple documents efficiently
+        ├── Progress tracking with real-time bars
+        └── Error handling and recovery
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                       PHASE 3: EMBEDDING GENERATION                            │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Embedding Model: nomic-embed-text:latest (via Ollama)
+    │
+    ├── Text Chunk Embedding
+    │   ├── 768-dimensional vectors
+    │   ├── GPU acceleration (CUDA support)
+    │   └── Batch processing for efficiency
+    │
+    ├── Query Embedding
+    │   ├── Real-time user query embedding
+    │   ├── Same model for consistency
+    │   └── Context-aware embedding
+    │
+    └── Caching Strategy
+        ├── Embedding cache for performance
+        ├── Memory optimization
+        └── GPU memory management
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        PHASE 4: VECTOR STORAGE                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+LocalVectorStore (local_vector_store.py)
+    │
+    ├── Storage Structure
+    │   ├── File-based vector storage
+    │   ├── Indexed chunk storage
+    │   └── Metadata preservation
+    │
+    ├── Organization
+    │   ├── CBT document vectors
+    │   ├── DBT document vectors
+    │   └── Cross-reference indexing
+    │
+    └── Optimization
+        ├── Fast similarity search
+        ├── Cosine similarity computation
+        └── Efficient retrieval algorithms
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 5: QUERY PROCESSING PIPELINE                          │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+User Query Input
+    │
+    ├── Query Analysis
+    │   ├── Text preprocessing
+    │   ├── Intent detection
+    │   └── Context extraction
+    │
+    ├── Embedding Generation
+    │   ├── Query → Vector conversion
+    │   ├── Real-time processing
+    │   └── GPU acceleration
+    │
+    └── Query Enhancement
+        ├── User context integration
+        ├── Conversation history
+        └── Mood/journal context
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 6: SIMILARITY SEARCH                                │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Vector Similarity Computation
+    │
+    ├── Cosine Similarity Calculation
+    │   ├── Query vector vs. all stored vectors
+    │   ├── Parallel processing
+    │   └── GPU acceleration
+    │
+    ├── Threshold Filtering
+    │   ├── Minimum similarity: 0.65
+    │   ├── Quality assurance
+    │   └── Relevance filtering
+    │
+    └── Top-K Retrieval
+        ├── Return top 10 most similar chunks
+        ├── Ranked by similarity score
+        └── Preserve chunk metadata
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                   PHASE 7: THERAPY APPROACH CLASSIFICATION                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Therapy Approach Determination
+    │
+    ├── CBT vs DBT Analysis
+    │   ├── Analyze retrieved chunk distribution
+    │   ├── CBT chunk count vs DBT chunk count
+    │   └── Weighted similarity scores
+    │
+    ├── Confidence Scoring
+    │   ├── Range: 0.5 - 0.95 confidence
+    │   ├── Based on chunk balance
+    │   └── Similarity score weighting
+    │
+    └── Approach Selection
+        ├── Primary approach identification
+        ├── Secondary approach consideration
+        └── Balanced approach for unclear cases
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                      PHASE 8: CONTEXT BUILDING                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+RAG Adapter (therapy_rag_adapter.py)
+    │
+    ├── Context Assembly
+    │   ├── Retrieved therapy chunks
+    │   ├── Therapy approach recommendation
+    │   ├── Technique extraction
+    │   └── Relevance scoring
+    │
+    ├── User Context Integration
+    │   ├── Mood analytics from datawarehouse
+    │   ├── Journal insights
+    │   ├── AI analysis results
+    │   └── Crisis indicators
+    │
+    └── Therapeutic Framework
+        ├── Evidence-based techniques
+        ├── Personalized recommendations
+        └── Safety considerations
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     PHASE 9: RESPONSE GENERATION                               │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+ChatbotService Integration
+    │
+    ├── Comprehensive Prompt Building
+    │   ├── System instructions for therapeutic response
+    │   ├── User context and background
+    │   ├── RAG therapy approach and techniques
+    │   ├── Conversation history
+    │   ├── Current message and crisis check
+    │   └── Response guidelines
+    │
+    ├── AI Response Generation
+    │   ├── Gemini API integration
+    │   ├── Context-aware generation
+    │   └── Therapeutic focus
+    │
+    └── Response Enhancement
+        ├── Humanization process
+        ├── Remove AI language
+        ├── Natural conversation tone
+        └── Therapeutic framing
+
+                              ↓
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                       PHASE 10: FINAL OUTPUT                                   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+Enhanced Therapeutic Response
+    │
+    ├── Content Quality
+    │   ├── Evidence-based therapeutic content
+    │   ├── Personalized recommendations
+    │   ├── Crisis-aware responses
+    │   └── Professional boundaries
+    │
+    ├── User Experience
+    │   ├── Natural conversational tone
+    │   ├── Empathetic communication
+    │   ├── Actionable guidance
+    │   └── Hope and support
+    │
+    └── Integration Benefits
+        ├── Datawarehouse insights
+        ├── AI engine analysis
+        ├── RAG knowledge base
+        └── Real-time adaptation
+```
+
+## Detailed Component Breakdown
+
+### 1. Document Processing Flow
+```
+PDF Input → Text Extraction → OCR (if needed) → Chunking → Metadata Tagging → Storage
+    ↓            ↓              ↓               ↓           ↓              ↓
+PDFs        Raw Text      Image Text     Semantic    Document Info   Indexed
+in Data/    Strings       Recognition    Chunks      Preservation    Chunks
+```
+
+### 2. Embedding Pipeline
+```
+Text Chunks → Preprocessing → Ollama Model → Vector Generation → Normalization → Storage
+     ↓            ↓             ↓              ↓                ↓            ↓
+  Semantic    Clean Text    nomic-embed    768-dim Vectors   Unit Vectors  Vector DB
+  Segments                   -text:latest                                      
+```
+
+### 3. Query Processing Flow
+```
+User Query → Context Building → Embedding → Similarity Search → Ranking → Selection
+     ↓           ↓                ↓            ↓                ↓         ↓
+  Raw Text   Enhanced Query   Query Vector   Score Matrix    Top Results  Best Chunks
+```
+
+### 4. Therapy Classification Logic
+```
+Retrieved Chunks → CBT/DBT Counting → Similarity Weighting → Confidence Calc → Approach
+       ↓               ↓                    ↓                    ↓            ↓
+   Mixed Results   Chunk Distribution   Weighted Scores      0.5-0.95      CBT/DBT/Mixed
+```
+
+### 5. Integration Flow
+```
+RAG Results → User Context → AI Analysis → Crisis Check → Prompt Build → Response
+     ↓           ↓            ↓             ↓             ↓             ↓
+Therapy      Mood/Journal   Risk Assess   Safety Check   Full Context   AI Response
+Approach       Data          Insights      Protocol      Assembly      Generation
+```
+
+## Key Technical Specifications
+
+### Embedding Model
+- **Model**: `nomic-embed-text:latest`
+- **Dimensions**: 768
+- **GPU**: CUDA acceleration
+- **Batch Size**: Optimized for memory
+
+### Search Parameters
+- **Similarity Metric**: Cosine similarity
+- **Threshold**: 0.65 minimum
+- **Top-K**: 10 results
+- **Approach Confidence**: 0.5-0.95 range
+
+### Document Processing
+- **Chunk Size**: 500-2000 characters
+- **Overlap**: Semantic boundary preservation
+- **Format Support**: PDF with OCR fallback
+- **Metadata**: Title, source, therapy type
+
+### Performance Optimization
+- **Caching**: Multi-level embedding cache
+- **GPU Memory**: Optimized batch processing
+- **Async**: Background document indexing
+- **Error Handling**: Graceful degradation
+
+## RAG Service Selection
+
+### Service Switcher Logic
+```python
+def select_rag_service():
+    if local_vector_store_available:
+        return LocalVectorStore
+    elif therapy_rag_service_available:
+        return TherapyRAGService
+    else:
+        return FallbackClassifier
+```
+
+### Fallback Mechanisms
+1. **Primary**: Local Vector Store (File-based)
+2. **Secondary**: Therapy RAG Service (Advanced)
+3. **Fallback**: Classification-based approach
+4. **Emergency**: Rule-based responses
+
+This RAG pipeline ensures that every user interaction is enhanced with evidence-based therapeutic knowledge while maintaining personalization through comprehensive user context integration from the datawarehouse and AI engine systems.

@@ -1,0 +1,595 @@
+# MoodTrendAnalysis Model - Comprehensive Documentation
+
+## Overview
+The `MoodTrendAnalysis` model is a sophisticated analytical component of the MindCare datawarehouse that provides aggregated mood trend analysis over different time periods. It processes raw mood logs to generate meaningful insights about user mood patterns, trends, and predictive analytics for mental health monitoring and therapeutic intervention.
+
+## Purpose and Function
+The MoodTrendAnalysis serves several critical purposes:
+
+1. **Temporal Mood Analysis**: Analyzes mood patterns across daily, weekly, monthly, and quarterly periods
+2. **Trend Detection**: Identifies mood trajectory (improving, declining, stable) using statistical analysis
+3. **Pattern Recognition**: Detects cyclical patterns, activity correlations, and behavioral insights
+4. **Predictive Analytics**: Forecasts future mood trends based on historical data
+5. **Clinical Decision Support**: Provides therapists with quantified mood assessments
+6. **Risk Assessment**: Identifies concerning patterns for early intervention
+
+## Model Structure
+
+### Core Identification
+```python
+user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+analysis_type = models.CharField(max_length=20, choices=[...])
+period_start = models.DateField()
+period_end = models.DateField()
+```
+
+**Fields Explained:**
+- `user`: Links to the CustomUser model
+- `analysis_type`: Time period type (daily/weekly/monthly/quarterly)
+- `period_start/end`: Date range for the analysis period
+- **Unique Constraint**: One analysis per user per type per period
+
+### Trend Metrics Section
+```python
+trend_direction = models.CharField(max_length=20, choices=[...])
+trend_strength = models.FloatField()  # 0-1 scale
+volatility_score = models.FloatField()  # Mood volatility
+consistency_score = models.FloatField()  # Pattern consistency
+```
+
+**Trend Direction Choices:**
+- `strongly_improving`: Significant upward mood trend (slope > 0.5)
+- `improving`: Moderate upward trend (slope > 0.1)
+- `stable`: No significant trend (slope -0.1 to 0.1)
+- `declining`: Moderate downward trend (slope < -0.1)
+- `strongly_declining`: Significant downward trend (slope < -0.5)
+
+**Metrics Explained:**
+- `trend_strength`: Statistical correlation coefficient (0-1) indicating trend reliability
+- `volatility_score`: Standard deviation of mood scores (higher = more volatile)
+- `consistency_score`: Inverse of volatility, normalized (1 = very consistent, 0 = highly volatile)
+
+### Statistical Data Section
+```python
+avg_mood = models.FloatField()
+median_mood = models.FloatField()
+min_mood = models.FloatField()
+max_mood = models.FloatField()
+mood_range = models.FloatField()
+```
+
+**Statistical Measures:**
+- `avg_mood`: Mean mood rating for the period
+- `median_mood`: Median mood rating (less affected by outliers)
+- `min_mood/max_mood`: Mood extremes in the period
+- `mood_range`: Difference between max and min moods
+
+### Pattern Data Section
+```python
+pattern_data = models.JSONField(default=dict)  # Time-based patterns
+correlation_data = models.JSONField(default=dict)  # Activity correlations
+anomalies = models.JSONField(default=list)  # Detected anomalies
+```
+
+**Pattern Data Structure:**
+```json
+{
+    "daily_averages": {
+        "2024-06-01": 7.5,
+        "2024-06-02": 6.8,
+        "..."
+    },
+    "weekly_pattern": {
+        "Monday": 6.5,
+        "Tuesday": 7.2,
+        "..."
+    },
+    "hourly_pattern": {
+        "09": 6.8,
+        "14": 7.5,
+        "..."
+    },
+    "trend_slope": 0.15,
+    "data_points": 25
+}
+```
+
+**Correlation Data Structure:**
+```json
+{
+    "Exercise": {
+        "average_mood": 8.2,
+        "sessions": 12,
+        "compared_to_overall": 1.5
+    },
+    "Meditation": {
+        "average_mood": 7.8,
+        "sessions": 8,
+        "compared_to_overall": 1.1
+    }
+}
+```
+
+### Predictive Analytics Section
+```python
+next_period_prediction = models.FloatField(null=True)
+prediction_confidence = models.FloatField(null=True)
+```
+
+**Prediction Fields:**
+- `next_period_prediction`: Forecasted mood for next period (1-10 scale)
+- `prediction_confidence`: Confidence level of prediction (0-1)
+
+## Analysis Workflow
+
+### 1. Data Collection and Processing
+The MoodTrendAnalysis is generated through several processes:
+
+#### ETL Pipeline Generation
+```python
+# From populate_datawarehouse.py
+def populate_mood_analysis(self, user, days_back, force):
+    analysis_periods = [
+        ("weekly", 14),   # 2 weeks of data
+        ("monthly", 30),  # 30 days of data
+    ]
+    
+    for analysis_type, period_days in analysis_periods:
+        period_logs = mood_logs.filter(logged_at__date__gte=period_start)
+        analysis_data = self.calculate_mood_trends(period_logs)
+        
+        analysis, created = MoodTrendAnalysis.objects.update_or_create(
+            user=user,
+            analysis_type=analysis_type,
+            period_start=period_start,
+            period_end=end_date,
+            defaults=analysis_data,
+        )
+```
+
+### 2. Trend Calculation Algorithm
+The system uses linear regression for trend analysis:
+
+```python
+def calculate_mood_trends(self, mood_logs):
+    # Extract mood values and dates
+    dates = [log.logged_at.date() for log in mood_logs]
+    moods = [float(log.mood_rating) for log in mood_logs]
+    
+    # Convert to numeric values for regression
+    base_date = min(dates)
+    x_values = [(d - base_date).days for d in dates]
+    y_values = moods
+    
+    # Linear regression analysis
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x_values, y_values)
+    trend_strength = abs(r_value)
+    
+    # Classify trend direction
+    if slope > 0.5:
+        trend_direction = "strongly_improving"
+    elif slope > 0.1:
+        trend_direction = "improving"
+    elif slope < -0.5:
+        trend_direction = "strongly_declining"
+    elif slope < -0.1:
+        trend_direction = "declining"
+    else:
+        trend_direction = "stable"
+```
+
+### 3. Pattern Detection
+The system analyzes multiple pattern types:
+
+#### Weekly Patterns
+```python
+# Group by day of week
+weekly_moods = defaultdict(list)
+for log in mood_logs:
+    day_of_week = log.logged_at.strftime("%A")
+    weekly_moods[day_of_week].append(log.mood_rating)
+
+weekly_pattern = {
+    day: statistics.mean(scores) 
+    for day, scores in weekly_moods.items()
+}
+```
+
+#### Activity Correlations
+```python
+# Analyze mood by activity
+activity_mood_map = {}
+for log in mood_logs:
+    if log.activities:
+        if log.activities not in activity_mood_map:
+            activity_mood_map[log.activities] = []
+        activity_mood_map[log.activities].append(log.mood_rating)
+
+correlation_data = {}
+for activity, moods in activity_mood_map.items():
+    if len(moods) > 1:
+        activity_avg = np.mean(moods)
+        correlation_data[activity] = {
+            "average_mood": float(activity_avg),
+            "sessions": len(moods),
+            "compared_to_overall": float(activity_avg - overall_avg)
+        }
+```
+
+### 4. Predictive Modeling
+Simple linear extrapolation for mood forecasting:
+
+```python
+# Project trend forward
+next_period_prediction = avg_mood + (slope * 7)  # 7 days ahead
+next_period_prediction = max(1, min(10, next_period_prediction))  # Clamp to scale
+prediction_confidence = min(0.9, trend_strength)  # Cap at 90%
+```
+
+## Integration Points
+
+### 1. AI Engine Integration
+The AI engine uses MoodTrendAnalysis for:
+
+```python
+# From predictive_service.py
+def predict_mood_trends(self, user_id: int, timeframe_days: int = 7) -> Dict:
+    recent_analysis = MoodTrendAnalysis.objects.filter(
+        user_id=user_id,
+        analysis_type="weekly"
+    ).order_by("-period_start").first()
+    
+    if recent_analysis:
+        return {
+            "current_trend": recent_analysis.trend_direction,
+            "trend_strength": recent_analysis.trend_strength,
+            "predicted_mood": recent_analysis.next_period_prediction,
+            "confidence": recent_analysis.prediction_confidence
+        }
+```
+
+### 2. Crisis Monitoring System
+Risk assessment using trend analysis:
+
+```python
+# Crisis detection based on trends
+def assess_mood_risk(user):
+    recent_analysis = MoodTrendAnalysis.objects.filter(
+        user=user,
+        analysis_type="weekly"
+    ).first()
+    
+    if recent_analysis:
+        if (recent_analysis.trend_direction in ["declining", "strongly_declining"] 
+            and recent_analysis.avg_mood < 4.0):
+            return "high_risk"
+        elif recent_analysis.volatility_score > 2.5:
+            return "moderate_risk"
+    
+    return "low_risk"
+```
+
+### 3. Therapist Dashboard
+Visualization and clinical insights:
+
+```python
+# From views.py
+class MoodTrendAnalysisViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # Filter by user and analysis type
+        user_id = self.request.query_params.get("user_id")
+        analysis_type = self.request.query_params.get("analysis_type")
+        
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        if analysis_type:
+            queryset = queryset.filter(analysis_type=analysis_type)
+        
+        return queryset
+```
+
+## Data Quality and Validation
+
+### 1. Minimum Data Requirements
+```python
+# Require minimum mood logs for analysis
+if period_logs.count() < 2:
+    print(f"Not enough data for {analysis_type} analysis")
+    continue
+```
+
+### 2. Statistical Validation
+```python
+# Validate trend strength and significance
+correlation_coefficient = r_value
+p_value_threshold = 0.05
+trend_significance = float(1 - p_value) if p_value < 1 else 0.0
+
+if p_value > p_value_threshold:
+    # Trend not statistically significant
+    trend_direction = "stable"
+    trend_strength = 0.0
+```
+
+### 3. Outlier Detection
+```python
+# Detect mood anomalies
+def detect_anomalies(mood_values):
+    q1, q3 = np.percentile(mood_values, [25, 75])
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+    
+    anomalies = []
+    for i, mood in enumerate(mood_values):
+        if mood < lower_bound or mood > upper_bound:
+            anomalies.append({
+                "index": i,
+                "value": mood,
+                "type": "outlier"
+            })
+    
+    return anomalies
+```
+
+## Usage Examples
+
+### 1. Generate Trend Analysis
+```python
+# Management command usage
+python manage.py populate_datawarehouse --mood-analysis --days=30 --force
+
+# Programmatic generation
+from datawarehouse.models import MoodTrendAnalysis
+from mood.models import MoodLog
+
+user = CustomUser.objects.get(id=1)
+mood_logs = MoodLog.objects.filter(user=user, logged_at__gte=start_date)
+analysis_data = calculate_mood_trends(mood_logs)
+
+analysis = MoodTrendAnalysis.objects.create(
+    user=user,
+    analysis_type="weekly",
+    period_start=start_date,
+    period_end=end_date,
+    **analysis_data
+)
+```
+
+### 2. Query Analysis Results
+```python
+# Get recent trend for user
+recent_trend = MoodTrendAnalysis.objects.filter(
+    user=user,
+    analysis_type="weekly"
+).order_by("-period_start").first()
+
+if recent_trend:
+    print(f"Trend: {recent_trend.trend_direction}")
+    print(f"Average mood: {recent_trend.avg_mood:.2f}")
+    print(f"Volatility: {recent_trend.volatility_score:.2f}")
+
+# Get all analyses for comparison
+all_analyses = MoodTrendAnalysis.objects.filter(
+    user=user
+).order_by("analysis_type", "-period_start")
+
+for analysis in all_analyses:
+    print(f"{analysis.analysis_type}: {analysis.trend_direction}")
+```
+
+### 3. Activity Correlation Analysis
+```python
+# Analyze activity impact on mood
+analysis = MoodTrendAnalysis.objects.get(id=analysis_id)
+correlations = analysis.correlation_data
+
+best_activities = sorted(
+    correlations.items(),
+    key=lambda x: x[1]["average_mood"],
+    reverse=True
+)
+
+print("Best activities for mood:")
+for activity, data in best_activities[:3]:
+    print(f"- {activity}: {data['average_mood']:.1f} avg mood")
+```
+
+## Database Optimization
+
+### Indexes and Constraints
+```python
+class Meta:
+    unique_together = ["user", "analysis_type", "period_start"]
+    ordering = ["-period_start"]
+    indexes = [
+        models.Index(fields=["user", "analysis_type", "-period_start"]),
+        models.Index(fields=["trend_direction"]),
+    ]
+```
+
+**Optimization Features:**
+- **Unique Constraint**: Prevents duplicate analyses
+- **Composite Index**: Fast lookups by user and type
+- **Trend Index**: Quick filtering by trend direction
+- **Ordering**: Newest analyses first
+
+## API Integration
+
+### REST Endpoints
+```python
+# Available endpoints
+GET /api/datawarehouse/mood-trend-analysis/
+GET /api/datawarehouse/mood-trend-analysis/{id}/
+POST /api/datawarehouse/mood-trend-analysis/
+PUT /api/datawarehouse/mood-trend-analysis/{id}/
+DELETE /api/datawarehouse/mood-trend-analysis/{id}/
+
+# Query parameters
+?user_id=123
+?analysis_type=weekly
+?trend_direction=improving
+?period_start=2024-06-01
+```
+
+### Serialization
+```python
+# From serializers.py
+class MoodTrendAnalysisSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    period_duration_days = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MoodTrendAnalysis
+        fields = [
+            "id", "user", "user_email", "analysis_type",
+            "period_start", "period_end", "period_duration_days",
+            "trend_direction", "trend_strength", "volatility_score",
+            "consistency_score", "avg_mood", "median_mood",
+            "min_mood", "max_mood", "mood_range",
+            "pattern_data", "correlation_data", "anomalies",
+            "next_period_prediction", "prediction_confidence",
+            "created_at"
+        ]
+```
+
+## Clinical Applications
+
+### 1. Therapeutic Assessment
+- **Progress Monitoring**: Track therapy effectiveness over time
+- **Treatment Planning**: Identify optimal intervention timing
+- **Risk Stratification**: Categorize patients by mood stability
+
+### 2. Early Warning System
+```python
+def check_concerning_patterns(user):
+    analyses = MoodTrendAnalysis.objects.filter(
+        user=user,
+        analysis_type="weekly"
+    ).order_by("-period_start")[:4]  # Last 4 weeks
+    
+    concerning_patterns = []
+    
+    for analysis in analyses:
+        if analysis.trend_direction in ["declining", "strongly_declining"]:
+            concerning_patterns.append("declining_trend")
+        
+        if analysis.volatility_score > 3.0:
+            concerning_patterns.append("high_volatility")
+        
+        if analysis.avg_mood < 3.5:
+            concerning_patterns.append("persistently_low_mood")
+    
+    return concerning_patterns
+```
+
+### 3. Personalized Interventions
+```python
+def generate_mood_recommendations(analysis):
+    recommendations = []
+    
+    if analysis.trend_direction == "declining":
+        recommendations.append({
+            "type": "activity_suggestion",
+            "message": "Consider increasing mood-boosting activities"
+        })
+    
+    if analysis.volatility_score > 2.5:
+        recommendations.append({
+            "type": "stability_technique",
+            "message": "Practice mood regulation techniques"
+        })
+    
+    # Analyze activity correlations for personalized suggestions
+    correlations = analysis.correlation_data
+    if correlations:
+        best_activity = max(correlations.items(), key=lambda x: x[1]["average_mood"])
+        recommendations.append({
+            "type": "personalized_activity",
+            "message": f"Your mood is typically highest during {best_activity[0]}"
+        })
+    
+    return recommendations
+```
+
+## Security and Privacy
+
+### 1. Data Protection
+- **User Access Control**: Users can only access their own analyses
+- **Therapist Permissions**: Therapists can view assigned patients' analyses
+- **Audit Logging**: All access and modifications tracked
+
+### 2. Data Retention
+```python
+# Automatic cleanup of old analyses
+from django.core.management.base import BaseCommand
+
+class Command(BaseCommand):
+    def handle(self, *args, **options):
+        # Keep analyses for 2 years
+        cutoff_date = timezone.now().date() - timedelta(days=730)
+        
+        old_analyses = MoodTrendAnalysis.objects.filter(
+            period_end__lt=cutoff_date
+        )
+        
+        count = old_analyses.count()
+        old_analyses.delete()
+        
+        self.stdout.write(f"Deleted {count} old mood trend analyses")
+```
+
+## Performance Considerations
+
+### 1. Batch Processing
+```python
+# Process multiple users efficiently
+from django.db import transaction
+
+@transaction.atomic
+def batch_generate_analyses():
+    users_with_recent_moods = User.objects.filter(
+        mood_logs__logged_at__gte=timezone.now() - timedelta(days=7)
+    ).distinct()
+    
+    for user in users_with_recent_moods:
+        try:
+            generate_user_mood_analysis(user)
+        except Exception as e:
+            logger.error(f"Error processing user {user.id}: {e}")
+```
+
+### 2. Caching Strategy
+```python
+from django.core.cache import cache
+
+def get_cached_mood_analysis(user_id, analysis_type):
+    cache_key = f"mood_analysis_{user_id}_{analysis_type}"
+    analysis = cache.get(cache_key)
+    
+    if not analysis:
+        analysis = MoodTrendAnalysis.objects.filter(
+            user_id=user_id,
+            analysis_type=analysis_type
+        ).order_by("-period_start").first()
+        
+        if analysis:
+            cache.set(cache_key, analysis, timeout=3600)  # 1 hour
+    
+    return analysis
+```
+
+## Summary
+
+MoodTrendAnalysis is a sophisticated analytical model that transforms raw mood data into actionable clinical insights:
+
+1. **Statistical Rigor**: Uses linear regression and correlation analysis for trend detection
+2. **Multi-temporal Analysis**: Supports daily, weekly, monthly, and quarterly perspectives
+3. **Pattern Recognition**: Identifies cyclical patterns and activity correlations
+4. **Predictive Capability**: Forecasts future mood trends with confidence metrics
+5. **Clinical Integration**: Supports therapeutic decision-making and risk assessment
+6. **Performance Optimized**: Efficient querying and caching for real-time applications
+
+This model enables the MindCare platform to provide evidence-based mood analysis while maintaining statistical accuracy and clinical utility for mental health professionals.
